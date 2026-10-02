@@ -16,12 +16,14 @@ deleting files.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator, Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pytest
+import structlog
 
 from tradefix_radio.config.loader import load_settings
 from tradefix_radio.config.schema import AppSettings
@@ -134,6 +136,24 @@ async def database(settings: AppSettings) -> AsyncIterator[Database]:
 @pytest.fixture(autouse=True)
 def _reset_logging_between_tests() -> Iterator[None]:
     """Prevent handler accumulation and context leakage across tests."""
+    yield
+    reset_logging()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _quiet_debug_logging() -> Iterator[None]:
+    """Drop DEBUG records for the whole session unless a test configures logging itself.
+
+    The director emits a debug line per blueprint. A 300-decision bulk test therefore
+    printed 300 lines through structlog's unconfigured default logger, which pytest
+    captures and replays in full on any failure in the same module — burying the actual
+    assertion. Tests that care about log output build their own logger via
+    ``configure_logging`` and are unaffected, because that call replaces this
+    configuration.
+    """
+    structlog.configure(
+        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO)
+    )
     yield
     reset_logging()
 

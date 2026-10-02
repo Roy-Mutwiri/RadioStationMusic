@@ -1,0 +1,322 @@
+# ============================================================================
+#  STATION PERSONAS, LYRIC FORMATS AND NARRATOR PERSPECTIVES
+#  (§100, §15)
+#
+#  §100: "Support fictional station artist/persona definitions... Do not copy or
+#  impersonate named real musicians. Give each fictional artist a distinctive
+#  internal creative profile."
+#
+#  Every persona here is a STATION CALL SIGN — TF-01 through TF-08 — with an
+#  invented handle. None is modelled on, named after, or described in terms of a
+#  real artist, and none has a "sounds like X" field, deliberately: §86 forbids
+#  intentionally imitating a living artist's style, so there is nowhere in the
+#  schema to express it. A persona is defined by what it is *about* (genres,
+#  themes, vocal character, energy range), never by whom it resembles.
+#
+#  Personas exist for §11's anti-repetition: a listener notices the same voice
+#  returning far faster than they notice a repeated BPM, so persona rotation is
+#  tracked on its own horizon.
+#
+#  PERSONA FIELDS
+#  --------------
+#  call_sign         the station identifier an announcer would read
+#  handle            invented artist name
+#  genres            genres this persona records in
+#  energy            energy band the persona belongs to
+#  vocal_character   descriptive qualities for the generation prompt
+#  vocal_styles      which §8 vocal styles the persona uses
+#  themes            topic categories and specific topics they return to
+#  formats           §15 lyric formats the persona works in
+#  perspective       default narrator viewpoint
+#  signature         distinguishing habits, fed to the prompt
+#  instrumental_affinity
+#                    0-1 likelihood this persona appears on instrumental tracks
+#                    (a producer-persona rather than a vocalist)
+# ============================================================================
+
+version: 1
+
+personas:
+
+  tf01:
+    call_sign: TF-01
+    handle: Night Desk
+    genres: [uk_trap, trap, drill, hiphop]
+    energy: {min: 50, max: 95}
+    vocal_character: [deep, measured, unhurried, close-miked]
+    vocal_styles: [rap, ad_lib]
+    themes:
+      categories: [psychology, risk_management]
+      topics: [discipline, position_sizing, stop_losses, revenge_trading]
+    formats: [full rap, educational bars, storytelling]
+    perspective: first_person
+    signature:
+      - "states the rule before the story"
+      - "ends verses on the decision, not the outcome"
+    instrumental_affinity: 0.1
+
+  tf02:
+    call_sign: TF-02
+    handle: Low Tape
+    genres: [lofi, chillhop, jazzhop, downtempo]
+    energy: {min: 0, max: 45}
+    vocal_character: [soft, close, half-spoken, warm]
+    vocal_styles: [spoken, chopped_hook]
+    themes:
+      categories: [psychology]
+      topics: [patience, overtrading, journaling, consolidation]
+    formats: [spoken word, minimal vocal, mostly instrumental with vocal hook]
+    perspective: observer
+    signature:
+      - "speaks in short observations rather than claims"
+      - "leaves space between lines"
+    instrumental_affinity: 0.6
+
+  tf03:
+    call_sign: TF-03
+    handle: Overlap
+    genres: [uk_garage, garage, dnb, liquid_dnb]
+    energy: {min: 45, max: 90}
+    vocal_character: [bright, clipped, rhythmic, agile]
+    vocal_styles: [chopped_hook, melodic_rap, sung]
+    themes:
+      categories: [technical, gold]
+      topics: [liquidity, session_overlap, london_session, breakout]
+    formats: [hook-heavy, call-and-response, melodic rap]
+    perspective: first_person_plural
+    signature:
+      - "builds the hook from a single repeated phrase"
+      - "names the session"
+    instrumental_affinity: 0.3
+
+  tf04:
+    call_sign: TF-04
+    handle: Compression
+    genres: [ambient, cinematic, melodic_techno, experimental]
+    energy: {min: 10, max: 70}
+    vocal_character: [distant, processed, sparse]
+    vocal_styles: [spoken]
+    themes:
+      categories: [technical]
+      topics: [consolidation, volatility, range, patience]
+    formats: [minimal vocal, spoken word, mostly instrumental with vocal hook]
+    perspective: narrator
+    signature:
+      - "describes the market as weather"
+      - "often says nothing at all"
+    instrumental_affinity: 0.85
+
+  tf05:
+    call_sign: TF-05
+    handle: Session Bell
+    genres: [afrohouse, amapiano, afrobeat, deep_house]
+    energy: {min: 30, max: 78}
+    vocal_character: [open, melodic, communal, sustained]
+    vocal_styles: [sung, chopped_hook]
+    themes:
+      categories: [psychology, gold]
+      topics: [patience, asian_session, london_session, discipline]
+    formats: [hook-heavy, call-and-response, motivational]
+    perspective: first_person_plural
+    signature:
+      - "writes hooks that repeat with one word changed"
+      - "addresses the listener directly"
+    instrumental_affinity: 0.35
+
+  tf06:
+    call_sign: TF-06
+    handle: Hard Deck
+    genres: [techno, tech_house, phonk, uk_drill, drill]
+    energy: {min: 58, max: 98}
+    vocal_character: [flat, cold, distorted, minimal]
+    vocal_styles: [ad_lib, chopped_hook, rap]
+    themes:
+      categories: [risk_management]
+      topics: [leverage, capital_preservation, drawdown, exposure]
+    formats: [educational bars, minimal vocal, full rap]
+    perspective: second_person
+    signature:
+      - "delivers warnings as statements of fact"
+      - "repeats the number rather than the feeling"
+    instrumental_affinity: 0.5
+
+  tf07:
+    call_sign: TF-07
+    handle: Ledger
+    genres: [boom_bap, hiphop, jazzhop, rnb]
+    energy: {min: 25, max: 68}
+    vocal_character: [conversational, wry, unhurried, articulate]
+    vocal_styles: [rap, melodic_rap]
+    themes:
+      categories: [psychology, risk_management]
+      topics: [journaling, risk_reward, confidence, losing_streak_psychology]
+    formats: [storytelling, educational bars, full rap]
+    perspective: mentor
+    signature:
+      - "teaches by recounting a mistake"
+      - "names the arithmetic out loud"
+    instrumental_affinity: 0.15
+
+  tf08:
+    call_sign: TF-08
+    handle: Spot Price
+    genres: [rnb, deep_house, synthwave, progressive_house]
+    energy: {min: 30, max: 76}
+    vocal_character: [smooth, layered, restrained, sustained]
+    vocal_styles: [sung, melodic_rap]
+    themes:
+      categories: [gold, psychology]
+      topics: [gold_volatility, fear, greed, economic_events]
+    formats: [melodic rap, hook-heavy, station anthem]
+    perspective: first_person
+    signature:
+      - "sings the risk line and raps the reason"
+      - "holds the last note of the hook"
+    instrumental_affinity: 0.25
+
+# ============================================================================
+#  LYRIC FORMATS  (§15)
+#
+#  density           target vocal density 0-1, feeds §8 vocal.density
+#  educational       how much teaching payload the format carries, 0-1
+#  sections          the structure the composer builds
+#  min_words/max_words
+#                    bounds for this format specifically; intersected with the
+#                    global lyrics.min/max_lyric_words
+#  energy            energy band where the format fits
+#  allows_instrumental
+#                    true if the format can appear on an otherwise instrumental track
+# ============================================================================
+
+formats:
+
+  "full rap":
+    density: 0.8
+    educational: 0.45
+    sections: [intro, verse, hook, verse, hook, outro]
+    min_words: 140
+    max_words: 400
+    energy: {min: 35, max: 100}
+
+  "melodic rap":
+    density: 0.65
+    educational: 0.35
+    sections: [intro, verse, hook, verse, hook, bridge, outro]
+    min_words: 110
+    max_words: 320
+    energy: {min: 25, max: 90}
+
+  "hook-heavy":
+    density: 0.55
+    educational: 0.25
+    sections: [hook, verse, hook, verse, hook, hook]
+    min_words: 70
+    max_words: 220
+    energy: {min: 30, max: 95}
+
+  storytelling:
+    density: 0.75
+    educational: 0.55
+    sections: [intro, verse, verse, hook, verse, outro]
+    min_words: 150
+    max_words: 400
+    energy: {min: 20, max: 80}
+
+  "spoken word":
+    density: 0.35
+    educational: 0.7
+    sections: [statement, passage, passage, close]
+    min_words: 60
+    max_words: 200
+    energy: {min: 0, max: 55}
+
+  "educational bars":
+    density: 0.7
+    educational: 0.9
+    sections: [intro, lesson, hook, lesson, outro]
+    min_words: 120
+    max_words: 320
+    energy: {min: 25, max: 85}
+
+  motivational:
+    density: 0.6
+    educational: 0.4
+    sections: [intro, hook, verse, hook, verse, hook]
+    min_words: 90
+    max_words: 260
+    energy: {min: 35, max: 95}
+
+  "minimal vocal":
+    density: 0.18
+    educational: 0.3
+    sections: [phrase, phrase, phrase]
+    min_words: 24
+    max_words: 90
+    energy: {min: 0, max: 70}
+
+  "station anthem":
+    density: 0.5
+    educational: 0.2
+    sections: [hook, verse, hook, outro]
+    min_words: 60
+    max_words: 180
+    energy: {min: 40, max: 95}
+    # The one format where a prominent brand mention is the point rather than a risk.
+    brand_forward: true
+
+  "call-and-response":
+    density: 0.5
+    educational: 0.3
+    sections: [call, response, call, response, hook]
+    min_words: 60
+    max_words: 200
+    energy: {min: 35, max: 90}
+
+  "mostly instrumental with vocal hook":
+    density: 0.12
+    educational: 0.15
+    sections: [hook]
+    min_words: 16
+    max_words: 60
+    energy: {min: 0, max: 85}
+    allows_instrumental: true
+
+# ============================================================================
+#  NARRATOR PERSPECTIVES
+#
+#  §13 lists "narrator perspective" as something the LyricsDirector owns. Keeping
+#  them as data means the composer can phrase the same teaching point from
+#  different viewpoints, which is a cheap and effective source of variety.
+# ============================================================================
+
+perspectives:
+  first_person:
+    label: First person
+    pronoun: I
+    possessive: my
+    description: the trader speaking about their own process
+  first_person_plural:
+    label: First person plural
+    pronoun: we
+    possessive: our
+    description: addressed to the room, inclusive
+  second_person:
+    label: Second person
+    pronoun: you
+    possessive: your
+    description: instructive, addressed to the listener
+  observer:
+    label: Observer
+    pronoun: it
+    possessive: its
+    description: describing the market without a protagonist
+  narrator:
+    label: Narrator
+    pronoun: it
+    possessive: its
+    description: detached, almost documentary
+  mentor:
+    label: Mentor
+    pronoun: you
+    possessive: your
+    description: experienced voice explaining to someone newer

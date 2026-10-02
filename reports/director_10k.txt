@@ -1,0 +1,75 @@
+
+  DIRECTOR STATISTICAL REPORT — 9996 decisions
+
+  genre entropy        0.997 (floor 0.75)
+  top genre share      5.2% (ceiling 35%)
+  topic entropy        0.987
+  distinct genres      28 / 28
+  distinct keys        84
+  distinct topics      49
+  distinct personas    8
+  instrumental ratio   50.9%
+  BPM range            55–178 (mean 119)
+  signature collisions 0
+  title collisions     0
+  forced selections    0
+
+  Trade Fix mentions (§16)
+    0 mention(s)   76.9%  ##############################
+    1 mention(s)   17.9%  #######
+    2 mention(s)    5.2%  ##
+
+  §11 constraint relaxations (how often a rule had to give way)
+    bpm_recency             2384   23.8%
+    duration_recency           2    0.0%
+
+  Per regime
+    regime                          n  genres  entropy    top         bpm  energy  instr
+    ------------------------------------------------------------------------------------
+    quiet                         706      12    0.904    21%      72-118     7.0    69%
+    low_volatility_range          706      21    0.943     8%      72-144    22.0    69%
+    normal_range                  706      28    0.986     6%      58-177    46.0    51%
+    compression                   706      19    0.949    11%      72-145    20.0    67%
+    breakout_buildup              706      28    0.981     6%      55-175    42.0    61%
+    bullish_breakout              706      22    0.976     8%      91-178    82.5    34%
+    bearish_breakout              706      25    0.947     9%      73-178    83.3    35%
+    bullish_trend                 706      27    0.974     6%      76-176    64.0    48%
+    bearish_trend                 706      27    0.975     6%      77-178    63.0    48%
+    high_volatility_range         706      24    0.985     6%      82-178    74.0    37%
+    extreme_volatility            706      24    0.914    11%      86-178    90.0    34%
+    reversal                      706      27    0.986     6%      78-176    58.0    50%
+    post_event_normalization      706      28    0.966     6%      58-176    38.0    61%
+    unknown                       706      28    0.990     5%      65-177    50.0    47%
+
+  Top genres per regime
+    quiet                       ambient 145, rnb 88, jazzhop 87, chillhop 86
+    low_volatility_range        rnb 58, jazzhop 56, amapiano 53, chillhop 51
+    normal_range                amapiano 44, afrobeat 39, garage 35, hiphop 34
+    compression                 ambient 78, downtempo 64, rnb 53, jazzhop 53
+    breakout_buildup            progressive_house 40, chillhop 39, afrobeat 36, cinematic 36
+    bullish_breakout            uk_trap 58, trap 52, liquid_dnb 46, dnb 44
+    bearish_breakout            uk_drill 62, phonk 48, drill 46, uk_trap 46
+    bullish_trend               liquid_dnb 43, uk_drill 37, melodic_techno 36, uk_trap 36
+    bearish_trend               uk_drill 41, drill 37, afrohouse 36, boom_bap 36
+    high_volatility_range       uk_garage 44, uk_drill 38, garage 38, cinematic 38
+    extreme_volatility          cinematic 76, uk_drill 67, techno 64, uk_trap 60
+    reversal                    uk_drill 39, cinematic 39, hiphop 35, uk_garage 35
+    post_event_normalization    hiphop 41, chillhop 37, amapiano 36, rnb 36
+    unknown                     liquid_dnb 33, garage 32, progressive_house 32, boom_bap 32
+
+  Diversity score over time
+    after    25 tracks   68.5  ######################
+    after   850 tracks   78.3  ##########################
+    after  1675 tracks   83.3  ###########################
+    after  2500 tracks   77.7  #########################
+    after  3325 tracks   82.5  ###########################
+    after  4150 tracks   84.7  ############################
+    after  4975 tracks   83.8  ###########################
+    after  5800 tracks   86.8  ############################
+    after  6625 tracks   86.4  ############################
+    after  7450 tracks   80.2  ##########################
+    after  8275 tracks   82.7  ###########################
+    after  9100 tracks   82.8  ###########################
+    after  9925 tracks   81.1  ###########################
+
+  PASSED: no programming collapse detected (§81-18)

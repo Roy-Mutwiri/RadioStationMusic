@@ -386,6 +386,18 @@ async def _cmd_market_sim(args: argparse.Namespace) -> int:
     return await market_sim.command(args, _load(args))
 
 
+async def _cmd_report_director(args: argparse.Namespace) -> int:
+    from tradefix_radio.cli import report_director
+
+    return await report_director.command(args, _load(args))
+
+
+async def _cmd_soak(args: argparse.Namespace) -> int:
+    from tradefix_radio.cli import soak
+
+    return await soak.command(args, _load(args))
+
+
 async def _cmd_version(_args: argparse.Namespace) -> int:
     print(f"tradefix-radio {__version__}")
     print(f"python {sys.version.split()[0]} ({sys.executable})")
@@ -449,10 +461,16 @@ def build_parser() -> argparse.ArgumentParser:
     config_cmd.add_argument("--section", default=None, help="limit output to one section")
     config_cmd.set_defaults(handler=_cmd_config)
 
-    from tradefix_radio.cli import market_sim
+    from tradefix_radio.cli import market_sim, report_director, soak
 
     market_sim.register(sub)
     sub.choices["market-sim"].set_defaults(handler=_cmd_market_sim)
+
+    report_director.register(sub)
+
+    soak.register(sub)
+    sub.choices["soak"].set_defaults(handler=_cmd_soak)
+    sub.choices["report-director"].set_defaults(handler=_cmd_report_director)
 
     version = sub.add_parser("version", help="print version information")
     version.set_defaults(handler=_cmd_version)

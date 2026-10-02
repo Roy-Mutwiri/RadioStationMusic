@@ -17,7 +17,7 @@ from tradefix_radio.contracts.enums import MarketDirection, MarketRegime, Playou
 from tradefix_radio.contracts.events import (
     MarketEnergyChanged,
     MarketStateChanged,
-    RadioFallbackStarted,
+    PlayoutFallbackEntered,
     TrackReady,
 )
 from tradefix_radio.contracts.market import MarketStateV1
@@ -405,11 +405,14 @@ def test_every_event_declares_a_namespaced_topic() -> None:
 
 
 def test_event_topic_property_reflects_the_class_constant() -> None:
-    event = RadioFallbackStarted(
-        at=FIXED_NOW, tier=PlayoutTier.PROCEDURAL, reason="queue empty"
+    event = PlayoutFallbackEntered(
+        at=FIXED_NOW,
+        tier=PlayoutTier.PROCEDURAL,
+        previous_tier=PlayoutTier.SCHEDULED,
+        reason="queue empty",
     )
-    assert event.topic == "radio.fallback_started"
-    assert event.topic == RadioFallbackStarted.TOPIC
+    assert event.topic == "playout.fallback_entered"
+    assert event.topic == PlayoutFallbackEntered.TOPIC
 
 
 async def _collect(sink: list[Any], event: Any) -> None:

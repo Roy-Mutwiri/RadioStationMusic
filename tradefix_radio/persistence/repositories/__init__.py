@@ -13,10 +13,15 @@ from tradefix_radio.persistence.repositories.events import (
     SystemEventRepository,
 )
 from tradefix_radio.persistence.repositories.files import TrackFileRepository
+from tradefix_radio.persistence.repositories.jobs import (
+    GenerationJobRepository,
+    JobRecord,
+)
 from tradefix_radio.persistence.repositories.memory import (
     MemoryKeys,
     RadioMemoryRepository,
 )
+from tradefix_radio.persistence.repositories.queue import QueueRepository
 from tradefix_radio.persistence.repositories.tracks import (
     TrackHistoryEntry,
     TrackRepository,
@@ -24,10 +29,13 @@ from tradefix_radio.persistence.repositories.tracks import (
 )
 
 __all__ = [
+    "GenerationJobRepository",
     "HealthEventRepository",
+    "JobRecord",
     "MemoryKeys",
     "MetricPoint",
     "MetricRepository",
+    "QueueRepository",
     "RadioMemoryRepository",
     "Repository",
     "SystemEventRepository",

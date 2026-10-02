@@ -1,0 +1,525 @@
+# ============================================================================
+#  GENRE LIBRARY  (§10)
+#
+#  §10: "Do not hard-code the application around this exact list. Genres are
+#  config-driven." Nothing in the code names a genre. Adding one is an edit here.
+#
+#  HOW §1's ENERGY MAPPING EMERGES
+#  --------------------------------
+#  §1 gives example mappings (quiet Asian session -> 75-95 BPM lo-fi; strong
+#  breakout -> 125-160 BPM aggressive trap) and then says: "Do NOT hard-code these
+#  exact mappings as simplistic if/else rules. Build a weighted, configurable
+#  music-director system."
+#
+#  So there is no if/else chain anywhere. Each genre declares the ENERGY BAND it
+#  belongs in, and the director scores every genre by how well its band fits the
+#  current market energy. Lo-fi tops the list in a dead market because its band is
+#  0-38, not because a rule says "if quiet then lofi". Change a band here and the
+#  programming changes, with no code edit.
+#
+#  FIELDS
+#  ------
+#  label             display name
+#  bpm               the genre's own tempo range; intersected with the energy
+#                    band's range at selection time
+#  energy            market-energy band where this genre belongs (0-100). The
+#                    PRIMARY selection driver.
+#  vocal_affinity    0-1, how naturally the genre carries vocals. Feeds the §8
+#                    vocal decision together with the §1 energy probability.
+#  vocal_styles      which §8 vocal styles suit it
+#  instrumentation   prompt hints fed to the generator
+#  mood              emotional tone words (§1 "emotional tone")
+#  rhythm/bass/drum/melodic
+#                    0-1 intensity defaults; the director modulates them by energy
+#  regime_affinity   SECONDARY nudge, per §5 regime. 1.0 is neutral and is the
+#                    default for anything unlisted. Used only where a genre is
+#                    genuinely regime-specific — drill in a bearish break, cinematic
+#                    in extreme volatility. Deliberately sparse: a hand-tuned 14x28
+#                    matrix would be unmaintainable and would duplicate what the
+#                    energy band already expresses.
+#  session_affinity  §97 session personality. Weighted below regime/energy by
+#                    music.session_bias_strength, because §97 says market energy has
+#                    higher priority.
+#  experimental      true = only admitted when the queue buffer is healthy (§94/§95)
+#  pairs_with        plausible secondary genres (§8 secondary_genre)
+#  structures        candidate section sequences
+# ============================================================================
+
+version: 1
+
+defaults:
+  vocal_affinity: 0.5
+  vocal_styles: [rap, melodic_rap, sung]
+  rhythm_density: 0.55
+  bass_intensity: 0.55
+  drum_intensity: 0.55
+  melodic_complexity: 0.5
+  experimental: false
+  regime_affinity: {}
+  session_affinity: {}
+  structures:
+    - [intro, verse, hook, verse, hook, outro]
+
+genres:
+
+  # ------------------------------------------------------ low energy (0-40)
+
+  lofi:
+    label: Lo-Fi
+    bpm: {min: 70, max: 92}
+    energy: {min: 0, max: 38}
+    vocal_affinity: 0.2
+    vocal_styles: [spoken, chopped_hook]
+    instrumentation: [dusty piano, tape hiss, soft kick, upright bass, vinyl crackle]
+    mood: [calm, nostalgic, patient]
+    rhythm_density: 0.3
+    bass_intensity: 0.4
+    drum_intensity: 0.3
+    melodic_complexity: 0.45
+    session_affinity: {asian: 1.6, sydney: 1.5, closed: 1.8, new_york_late: 1.3}
+    pairs_with: [chillhop, jazzhop, ambient, downtempo]
+    structures:
+      - [intro, theme, break, theme, outro]
+      - [intro, theme, variation, theme, outro]
+
+  chillhop:
+    label: Chillhop
+    bpm: {min: 78, max: 96}
+    energy: {min: 0, max: 44}
+    vocal_affinity: 0.3
+    vocal_styles: [spoken, chopped_hook, melodic_rap]
+    instrumentation: [warm rhodes, swung drums, muted guitar, soft 808]
+    mood: [relaxed, reflective, steady]
+    rhythm_density: 0.4
+    bass_intensity: 0.45
+    drum_intensity: 0.4
+    melodic_complexity: 0.5
+    session_affinity: {asian: 1.5, sydney: 1.3, closed: 1.4}
+    pairs_with: [lofi, jazzhop, boom_bap, rnb]
+
+  jazzhop:
+    label: Jazzhop
+    bpm: {min: 76, max: 98}
+    energy: {min: 0, max: 46}
+    vocal_affinity: 0.35
+    vocal_styles: [spoken, sung, melodic_rap]
+    instrumentation: [brushed drums, double bass, muted trumpet, electric piano]
+    mood: [thoughtful, warm, unhurried]
+    rhythm_density: 0.45
+    bass_intensity: 0.5
+    drum_intensity: 0.4
+    melodic_complexity: 0.7
+    session_affinity: {asian: 1.4, closed: 1.3, new_york_late: 1.2}
+    pairs_with: [lofi, chillhop, boom_bap]
+
+  ambient:
+    label: Ambient
+    bpm: {min: 55, max: 80}
+    energy: {min: 0, max: 30}
+    vocal_affinity: 0.05
+    vocal_styles: [spoken]
+    instrumentation: [granular pads, long reverb, bowed strings, field recording]
+    mood: [spacious, still, suspended]
+    rhythm_density: 0.12
+    bass_intensity: 0.3
+    drum_intensity: 0.1
+    melodic_complexity: 0.35
+    regime_affinity: {quiet: 1.8, compression: 1.5, post_event_normalization: 1.4}
+    session_affinity: {closed: 2.0, asian: 1.4, sydney: 1.3}
+    pairs_with: [downtempo, cinematic, lofi]
+    structures:
+      - [emerge, swell, sustain, recede]
+      - [drone, bloom, dissolve]
+
+  downtempo:
+    label: Downtempo
+    bpm: {min: 82, max: 104}
+    energy: {min: 8, max: 48}
+    vocal_affinity: 0.3
+    vocal_styles: [sung, spoken, chopped_hook]
+    instrumentation: [analogue pad, dub bass, shaker, tape delay]
+    mood: [hazy, deliberate, cool]
+    rhythm_density: 0.4
+    bass_intensity: 0.55
+    drum_intensity: 0.4
+    melodic_complexity: 0.5
+    session_affinity: {asian: 1.3, closed: 1.3}
+    pairs_with: [ambient, lofi, deep_house]
+
+  rnb:
+    label: R&B
+    bpm: {min: 72, max: 100}
+    energy: {min: 10, max: 55}
+    vocal_affinity: 0.9
+    vocal_styles: [sung, melodic_rap]
+    instrumentation: [electric piano, finger bass, tight snare, layered harmony]
+    mood: [smooth, intimate, confident]
+    rhythm_density: 0.45
+    bass_intensity: 0.6
+    drum_intensity: 0.45
+    melodic_complexity: 0.65
+    session_affinity: {asian: 1.4, new_york_late: 1.3, closed: 1.2}
+    pairs_with: [chillhop, hiphop, deep_house, trap]
+
+  # ------------------------------------------------------ mid energy (35-70)
+
+  hiphop:
+    label: Hip-Hop
+    bpm: {min: 85, max: 104}
+    energy: {min: 28, max: 68}
+    vocal_affinity: 0.95
+    vocal_styles: [rap, melodic_rap]
+    instrumentation: [sampled break, sub bass, rim shot, horn stab]
+    mood: [grounded, assured, direct]
+    rhythm_density: 0.6
+    bass_intensity: 0.7
+    drum_intensity: 0.6
+    melodic_complexity: 0.5
+    session_affinity: {new_york: 1.5, london_new_york_overlap: 1.3}
+    pairs_with: [boom_bap, trap, rnb, phonk]
+
+  boom_bap:
+    label: Boom Bap
+    bpm: {min: 86, max: 100}
+    energy: {min: 26, max: 62}
+    vocal_affinity: 0.9
+    vocal_styles: [rap]
+    instrumentation: [dusty break, filtered loop, upright bass, scratch]
+    mood: [classic, stubborn, head-nodding]
+    rhythm_density: 0.6
+    bass_intensity: 0.65
+    drum_intensity: 0.65
+    melodic_complexity: 0.5
+    session_affinity: {new_york: 1.4, new_york_late: 1.2}
+    pairs_with: [hiphop, jazzhop, chillhop]
+
+  afrobeat:
+    label: Afrobeat
+    bpm: {min: 98, max: 116}
+    energy: {min: 32, max: 72}
+    vocal_affinity: 0.8
+    vocal_styles: [sung, melodic_rap]
+    instrumentation: [log drum, bright guitar, shaker, call-response vocal]
+    mood: [buoyant, warm, rolling]
+    rhythm_density: 0.7
+    bass_intensity: 0.65
+    drum_intensity: 0.65
+    melodic_complexity: 0.55
+    session_affinity: {london: 1.4, london_new_york_overlap: 1.2}
+    pairs_with: [amapiano, afrohouse, rnb]
+
+  amapiano:
+    label: Amapiano
+    bpm: {min: 108, max: 118}
+    energy: {min: 30, max: 66}
+    vocal_affinity: 0.6
+    vocal_styles: [sung, chopped_hook, ad_lib]
+    instrumentation: [log drum, airy pad, shaker, pitched percussion]
+    mood: [patient, hypnotic, spacious]
+    rhythm_density: 0.6
+    bass_intensity: 0.75
+    drum_intensity: 0.5
+    melodic_complexity: 0.5
+    regime_affinity: {normal_range: 1.3, low_volatility_range: 1.2}
+    session_affinity: {asian: 1.2, london: 1.2}
+    pairs_with: [afrohouse, afrobeat, deep_house]
+
+  afrohouse:
+    label: Afro House
+    bpm: {min: 118, max: 128}
+    energy: {min: 42, max: 78}
+    vocal_affinity: 0.55
+    vocal_styles: [sung, chopped_hook]
+    instrumentation: [tribal percussion, resonant bass, chant, filtered pad]
+    mood: [driving, ritual, hypnotic]
+    rhythm_density: 0.75
+    bass_intensity: 0.7
+    drum_intensity: 0.7
+    melodic_complexity: 0.5
+    session_affinity: {london: 1.4, london_new_york_overlap: 1.3}
+    pairs_with: [amapiano, deep_house, tech_house, afrobeat]
+
+  deep_house:
+    label: Deep House
+    bpm: {min: 118, max: 126}
+    energy: {min: 34, max: 70}
+    vocal_affinity: 0.45
+    vocal_styles: [sung, chopped_hook]
+    instrumentation: [warm sub, filtered chord, soft hat, dub stab]
+    mood: [steady, nocturnal, smooth]
+    rhythm_density: 0.65
+    bass_intensity: 0.7
+    drum_intensity: 0.6
+    melodic_complexity: 0.5
+    session_affinity: {asian: 1.2, london: 1.3, new_york_late: 1.3}
+    pairs_with: [downtempo, afrohouse, progressive_house, garage]
+
+  garage:
+    label: Garage
+    bpm: {min: 128, max: 136}
+    energy: {min: 44, max: 78}
+    vocal_affinity: 0.7
+    vocal_styles: [chopped_hook, sung, melodic_rap]
+    instrumentation: [shuffled hat, sub wobble, clipped vocal, organ bass]
+    mood: [bouncing, bright, restless]
+    rhythm_density: 0.8
+    bass_intensity: 0.7
+    drum_intensity: 0.7
+    melodic_complexity: 0.55
+    session_affinity: {london: 1.6, london_new_york_overlap: 1.3}
+    pairs_with: [uk_garage, deep_house, dnb, uk_trap]
+
+  uk_garage:
+    label: UK Garage
+    bpm: {min: 130, max: 138}
+    energy: {min: 46, max: 80}
+    vocal_affinity: 0.75
+    vocal_styles: [chopped_hook, melodic_rap, sung]
+    instrumentation: [swung 2-step, sine sub, pitched vocal chop, rim]
+    mood: [swung, urgent, slick]
+    rhythm_density: 0.82
+    bass_intensity: 0.72
+    drum_intensity: 0.72
+    melodic_complexity: 0.55
+    session_affinity: {london: 1.8, london_new_york_overlap: 1.4}
+    pairs_with: [garage, dnb, uk_trap, deep_house]
+
+  trap:
+    label: Trap
+    bpm: {min: 128, max: 152}
+    energy: {min: 48, max: 86}
+    vocal_affinity: 0.9
+    vocal_styles: [rap, melodic_rap, ad_lib]
+    instrumentation: [808 slide, triplet hat, dark pad, clap]
+    mood: [tense, assertive, nocturnal]
+    rhythm_density: 0.78
+    bass_intensity: 0.85
+    drum_intensity: 0.8
+    melodic_complexity: 0.45
+    regime_affinity: {bullish_breakout: 1.3, bearish_breakout: 1.3, breakout_buildup: 1.2}
+    session_affinity: {new_york: 1.3, london_new_york_overlap: 1.2}
+    pairs_with: [uk_trap, hiphop, drill, phonk]
+
+  phonk:
+    label: Phonk
+    bpm: {min: 124, max: 150}
+    energy: {min: 46, max: 84}
+    vocal_affinity: 0.4
+    vocal_styles: [chopped_hook, ad_lib]
+    instrumentation: [cowbell, distorted 808, memphis vocal chop, tape saturation]
+    mood: [menacing, grimy, relentless]
+    rhythm_density: 0.75
+    bass_intensity: 0.85
+    drum_intensity: 0.8
+    melodic_complexity: 0.35
+    regime_affinity: {bearish_breakout: 1.4, bearish_trend: 1.2, high_volatility_range: 1.2}
+    pairs_with: [trap, drill, techno]
+
+  progressive_house:
+    label: Progressive House
+    bpm: {min: 122, max: 130}
+    energy: {min: 40, max: 76}
+    vocal_affinity: 0.35
+    vocal_styles: [sung, chopped_hook]
+    instrumentation: [evolving pad, sidechained bass, long riser, arp]
+    mood: [building, widescreen, patient]
+    rhythm_density: 0.68
+    bass_intensity: 0.65
+    drum_intensity: 0.62
+    melodic_complexity: 0.65
+    regime_affinity: {breakout_buildup: 1.6, compression: 1.3, bullish_trend: 1.2}
+    pairs_with: [deep_house, melodic_techno, tech_house]
+    structures:
+      - [intro, build, drop, break, build, drop, outro]
+
+  # ------------------------------------------------------ high energy (65-100)
+
+  uk_trap:
+    label: UK Trap
+    bpm: {min: 136, max: 156}
+    # Top of the band reaches the ceiling so that extreme-volatility programming has
+    # real choice. With only dnb and cinematic at the top the station would alternate
+    # between two genres through a long violent session, which §11 exists to prevent.
+    # Stopping at 98 left exactly that problem in the last two points of the range.
+    energy: {min: 58, max: 100}
+    vocal_affinity: 0.9
+    vocal_styles: [rap, ad_lib]
+    instrumentation: [sliding 808, sharp hat, detuned bell, reversed pad]
+    mood: [driving, cold, confrontational]
+    rhythm_density: 0.85
+    bass_intensity: 0.9
+    drum_intensity: 0.88
+    melodic_complexity: 0.45
+    regime_affinity: {bullish_breakout: 1.5, bearish_breakout: 1.4, extreme_volatility: 1.2}
+    session_affinity: {london: 1.4, london_new_york_overlap: 1.3}
+    pairs_with: [trap, drill, dnb, uk_garage]
+
+  drill:
+    label: Drill
+    bpm: {min: 136, max: 150}
+    energy: {min: 58, max: 95}
+    vocal_affinity: 0.85
+    vocal_styles: [rap, ad_lib]
+    instrumentation: [sliding 808, dark glide bass, sparse pad, hard clap]
+    mood: [grim, taut, unflinching]
+    rhythm_density: 0.8
+    bass_intensity: 0.92
+    drum_intensity: 0.85
+    melodic_complexity: 0.35
+    regime_affinity: {bearish_breakout: 1.7, bearish_trend: 1.4}
+    pairs_with: [uk_drill, trap, phonk]
+
+  uk_drill:
+    label: UK Drill
+    bpm: {min: 138, max: 150}
+    energy: {min: 60, max: 96}
+    vocal_affinity: 0.85
+    vocal_styles: [rap, ad_lib]
+    instrumentation: [slide bass, skeletal hat, minor piano, hard snare]
+    mood: [stark, cold, direct]
+    rhythm_density: 0.82
+    bass_intensity: 0.92
+    drum_intensity: 0.86
+    melodic_complexity: 0.35
+    regime_affinity: {bearish_breakout: 1.7, bearish_trend: 1.4, extreme_volatility: 1.2}
+    session_affinity: {london: 1.7}
+    pairs_with: [drill, uk_trap, phonk]
+
+  tech_house:
+    label: Tech House
+    bpm: {min: 124, max: 132}
+    energy: {min: 50, max: 82}
+    vocal_affinity: 0.3
+    vocal_styles: [chopped_hook]
+    instrumentation: [tight sub, percussive loop, filtered stab, shaker]
+    mood: [relentless, minimal, locked-in]
+    rhythm_density: 0.8
+    bass_intensity: 0.72
+    drum_intensity: 0.75
+    melodic_complexity: 0.4
+    session_affinity: {london: 1.3, london_new_york_overlap: 1.2}
+    pairs_with: [techno, afrohouse, deep_house, melodic_techno]
+
+  techno:
+    label: Techno
+    bpm: {min: 130, max: 145}
+    # Reaches the ceiling for the same reason as uk_trap: three genres minimum at
+    # every energy level, so §11's variety rules always have room to work.
+    energy: {min: 58, max: 100}
+    vocal_affinity: 0.15
+    vocal_styles: [chopped_hook]
+    instrumentation: [hard kick, metallic hat, acid line, industrial noise]
+    mood: [mechanical, unrelenting, severe]
+    rhythm_density: 0.88
+    bass_intensity: 0.8
+    drum_intensity: 0.9
+    melodic_complexity: 0.3
+    regime_affinity: {extreme_volatility: 1.5, high_volatility_range: 1.3, bearish_breakout: 1.2}
+    pairs_with: [melodic_techno, tech_house, dnb, phonk]
+    structures:
+      - [intro, build, peak, break, peak, outro]
+
+  melodic_techno:
+    label: Melodic Techno
+    bpm: {min: 122, max: 134}
+    energy: {min: 48, max: 84}
+    vocal_affinity: 0.25
+    vocal_styles: [sung, chopped_hook]
+    instrumentation: [detuned arp, deep kick, wide pad, plucked lead]
+    mood: [brooding, cinematic, propulsive]
+    rhythm_density: 0.75
+    bass_intensity: 0.72
+    drum_intensity: 0.75
+    melodic_complexity: 0.7
+    regime_affinity: {breakout_buildup: 1.4, bullish_trend: 1.2, compression: 1.2}
+    pairs_with: [techno, progressive_house, cinematic, tech_house]
+
+  dnb:
+    label: Drum & Bass
+    bpm: {min: 168, max: 178}
+    # Reaches 100: at maximum market energy something has to be playable, and
+    # full-tilt drum & bass is the right answer. The library validator enforces that
+    # every point on the 0-100 scale is covered by a non-experimental genre.
+    energy: {min: 62, max: 100}
+    vocal_affinity: 0.5
+    vocal_styles: [chopped_hook, rap, sung]
+    instrumentation: [amen break, reese bass, sharp snare, sub drop]
+    mood: [frantic, airborne, urgent]
+    rhythm_density: 0.95
+    bass_intensity: 0.88
+    drum_intensity: 0.95
+    melodic_complexity: 0.5
+    regime_affinity: {bullish_breakout: 1.5, extreme_volatility: 1.4, high_volatility_range: 1.2}
+    session_affinity: {london: 1.4, london_new_york_overlap: 1.3}
+    pairs_with: [liquid_dnb, uk_garage, techno, uk_trap]
+
+  liquid_dnb:
+    label: Liquid DnB
+    bpm: {min: 170, max: 176}
+    energy: {min: 52, max: 84}
+    vocal_affinity: 0.6
+    vocal_styles: [sung, chopped_hook]
+    instrumentation: [rolling break, warm sub, lush pad, rhodes]
+    mood: [flowing, bright, lifting]
+    rhythm_density: 0.9
+    bass_intensity: 0.75
+    drum_intensity: 0.88
+    melodic_complexity: 0.68
+    regime_affinity: {bullish_trend: 1.4, bullish_breakout: 1.2}
+    pairs_with: [dnb, deep_house, uk_garage]
+
+  cinematic:
+    label: Cinematic
+    bpm: {min: 70, max: 140}
+    energy: {min: 30, max: 100}
+    vocal_affinity: 0.1
+    vocal_styles: [spoken]
+    instrumentation: [string ostinato, timpani, brass swell, sub boom]
+    mood: [momentous, grave, sweeping]
+    rhythm_density: 0.5
+    bass_intensity: 0.7
+    drum_intensity: 0.6
+    melodic_complexity: 0.8
+    # §1 lists cinematic elements specifically for extreme volatility.
+    regime_affinity:
+      extreme_volatility: 2.0
+      reversal: 1.6
+      post_event_normalization: 1.4
+      breakout_buildup: 1.3
+    pairs_with: [ambient, melodic_techno, techno]
+    structures:
+      - [prelude, build, climax, aftermath]
+      - [statement, development, climax, resolution]
+
+  synthwave:
+    label: Synthwave
+    bpm: {min: 100, max: 120}
+    energy: {min: 34, max: 72}
+    vocal_affinity: 0.3
+    vocal_styles: [sung, chopped_hook]
+    instrumentation: [analogue lead, gated reverb drums, arpeggiated bass, chorus pad]
+    mood: [neon, retro, determined]
+    rhythm_density: 0.6
+    bass_intensity: 0.68
+    drum_intensity: 0.6
+    melodic_complexity: 0.65
+    experimental: true
+    pairs_with: [cinematic, melodic_techno, phonk]
+
+  experimental:
+    label: Experimental Electronic
+    bpm: {min: 90, max: 160}
+    energy: {min: 25, max: 95}
+    vocal_affinity: 0.2
+    vocal_styles: [spoken, chopped_hook]
+    instrumentation: [granular texture, irregular percussion, resonant drone, glitch]
+    mood: [unsettled, curious, angular]
+    rhythm_density: 0.6
+    bass_intensity: 0.6
+    drum_intensity: 0.6
+    melodic_complexity: 0.75
+    experimental: true
+    regime_affinity: {compression: 1.3, reversal: 1.3, unknown: 1.2}
+    pairs_with: [ambient, techno, cinematic]
+    structures:
+      - [emerge, disrupt, settle, disrupt, fade]

@@ -166,7 +166,16 @@ class ProtectedItemError(QueueError):
     """Refused to mutate a locked or currently-playing queue item (§44)."""
 
 
-class AudioSinkError(RadioError):
+class AudioError(RadioError):
+    """Audio could not be read, written or decoded.
+
+    Raised instead of letting libsndfile's ``RuntimeError`` escape, because that exception
+    carries the library's message and **not the path** — and on track 4 000 at 3 a.m. the
+    path is the only part that matters.
+    """
+
+
+class AudioSinkError(AudioError):
     """The audio output device or sink failed."""
 
 
@@ -175,6 +184,7 @@ class PersistenceError(RadioError):
 
 
 __all__ = [
+    "AudioError",
     "AudioSinkError",
     "ConfigurationError",
     "DependencyMissingError",

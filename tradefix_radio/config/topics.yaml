@@ -1,0 +1,807 @@
+# ============================================================================
+#  TRADING TOPIC GRAPH  (§14)
+#
+#  The station's educational content. Config-driven: no topic is named in code.
+#
+#  THE `certainty` FIELD IS LOAD-BEARING
+#  -------------------------------------
+#  §14: "Lyrics must NEVER pretend a simplified relationship guarantees price
+#  direction. Trading educational content must avoid presenting uncertain market
+#  relationships as guaranteed facts."
+#
+#  That is unenforceable as a style note, so it is data. Every topic declares how
+#  confidently it may be stated, and the §17 validators check the generated lyric
+#  against it:
+#
+#    established   Definitionally or mechanically true. "Position size determines
+#                  how much a given move costs you." May be stated plainly.
+#    contextual    Commonly observed, not guaranteed. "The London open often brings
+#                  higher volume." MUST be hedged — often, tends to, frequently.
+#    speculative   A relationship that is unreliable or regime-dependent. "Gold and
+#                  the dollar move inversely." MUST be hedged AND may never be used
+#                  to imply a direction.
+#
+#  `forbidden` lists phrasings the validator rejects outright for that topic —
+#  the specific ways this particular idea gets overclaimed.
+#
+#  FIELDS
+#  ------
+#  category          §14's four groups
+#  label             human name, used in the UI and in lyric framing
+#  certainty         see above
+#  weight            relative selection weight before diversity adjustment
+#  regime_affinity   which §5 regimes make this topic apt (1.0 default, unlisted)
+#  session_affinity  §97 session relevance
+#  educational       whether this topic can carry a teaching payload at all
+#  teaching_points   accurate, hedged statements the composer may draw on
+#  phrases           short lyric-ready fragments
+#  forbidden         phrasings the §17 validator rejects for this topic
+#  pairs_with        topics that work as a §8 secondary_topic
+# ============================================================================
+
+version: 1
+
+defaults:
+  weight: 1.0
+  certainty: contextual
+  educational: true
+  regime_affinity: {}
+  session_affinity: {}
+  forbidden: []
+  pairs_with: []
+
+topics:
+
+  # ====================================================== PSYCHOLOGY
+
+  discipline:
+    category: psychology
+    label: Discipline
+    certainty: established
+    weight: 1.4
+    teaching_points:
+      - "A plan you abandon under pressure was never a plan."
+      - "Discipline is doing the same thing when it is boring as when it is loud."
+      - "The rule you break once becomes the rule you do not have."
+    phrases:
+      - "same plan when it's quiet, same plan when it's loud"
+      - "I wrote the rule down so the moment can't argue"
+      - "discipline is a decision I already made"
+    # "guaranteed" alone is redundant here: GUARANTEED_OUTCOME_PATTERNS catches every
+    # form of it station-wide. Per-topic entries are for the specific overclaims this
+    # particular idea attracts.
+    forbidden: ["guaranteed discipline", "can't lose", "always wins"]
+    pairs_with: [patience, journaling, risk_per_trade, emotional_discipline]
+
+  patience:
+    category: psychology
+    label: Patience
+    certainty: established
+    weight: 1.3
+    regime_affinity: {quiet: 1.8, low_volatility_range: 1.6, compression: 1.7}
+    session_affinity: {asian: 1.4, closed: 1.3}
+    teaching_points:
+      - "Waiting is a position. It costs nothing and keeps everything."
+      - "No setup is a complete answer, not an absence of one."
+      - "The market does not owe you a trade today."
+    phrases:
+      - "flat is a position too"
+      - "no setup is still an answer"
+      - "I'm not paid by the hour here"
+    pairs_with: [discipline, overtrading, consolidation, fomo]
+
+  fomo:
+    category: psychology
+    label: FOMO
+    certainty: established
+    weight: 1.2
+    regime_affinity: {bullish_breakout: 1.6, extreme_volatility: 1.5, bearish_breakout: 1.4}
+    teaching_points:
+      - "Chasing a move you did not plan is paying retail for someone else's entry."
+      - "The fear of missing out is a feeling, not a signal."
+      - "There is always another candle. There is not always another account."
+    phrases:
+      - "the candle left without me and that's allowed"
+      - "fear of missing out is a feeling, not a setup"
+      - "I don't pay retail for somebody else's entry"
+    forbidden: ["always reverses", "never chase and you'll always win"]
+    pairs_with: [patience, discipline, revenge_trading, breakout]
+
+  revenge_trading:
+    category: psychology
+    label: Revenge Trading
+    certainty: established
+    weight: 1.1
+    teaching_points:
+      - "The market does not know you lost, so it cannot pay you back."
+      - "Trying to win it back is a different strategy than the one you tested."
+      - "Size up after a loss and you have changed the game without changing the plan."
+    phrases:
+      - "the market don't know my name, it can't owe me"
+      - "getting even is not a strategy"
+      - "I don't size up to settle a score"
+    pairs_with: [emotional_discipline, losing_streak_psychology, position_sizing]
+
+  overtrading:
+    category: psychology
+    label: Overtrading
+    certainty: established
+    weight: 1.0
+    regime_affinity: {normal_range: 1.3, low_volatility_range: 1.4, quiet: 1.3}
+    teaching_points:
+      - "More trades is not more edge; it is more exposure to your own mistakes."
+      - "Activity feels like progress. The account knows the difference."
+      - "Every extra trade is another chance to be undisciplined."
+    phrases:
+      - "activity ain't progress"
+      - "more clicks, same edge, worse odds"
+      - "I don't trade to feel busy"
+    pairs_with: [patience, discipline, risk_per_trade]
+
+  confidence:
+    category: psychology
+    label: Confidence
+    certainty: contextual
+    weight: 0.9
+    teaching_points:
+      - "Confidence from a process survives a loss; confidence from a win does not."
+      - "Being right once is luck until the process repeats it."
+    phrases:
+      - "confidence in the process, not the last print"
+      - "one green day proves nothing yet"
+    forbidden: ["unbeatable system", "unbeatable edge", "always right", "guaranteed edge"]
+    pairs_with: [winning_streak_psychology, journaling, discipline]
+
+  fear:
+    category: psychology
+    label: Fear
+    certainty: established
+    weight: 1.0
+    regime_affinity: {bearish_breakout: 1.5, extreme_volatility: 1.4, reversal: 1.3}
+    teaching_points:
+      - "Fear sized correctly is caution. Fear sized wrongly is a closed position."
+      - "If a normal drawdown frightens you, the position is too large."
+    phrases:
+      - "if this shakes me the size was wrong"
+      - "scared money and scared sizing are the same mistake"
+    pairs_with: [position_sizing, drawdown_psychology, capital_preservation]
+
+  greed:
+    category: psychology
+    label: Greed
+    certainty: established
+    weight: 1.0
+    regime_affinity: {bullish_breakout: 1.4, bullish_trend: 1.3}
+    teaching_points:
+      - "A target you move upward during the trade is not a target."
+      - "Greed turns a plan into a hope somewhere between entry and exit."
+    phrases:
+      - "I don't move the target while it's running"
+      - "taking profit is allowed to feel early"
+    forbidden: ["unlimited profit", "to the moon guaranteed"]
+    pairs_with: [risk_reward, discipline, winning_streak_psychology]
+
+  drawdown_psychology:
+    category: psychology
+    label: Drawdown Psychology
+    certainty: established
+    weight: 1.0
+    teaching_points:
+      - "Drawdown is the cost of being in the market, not evidence of being wrong."
+      - "Every strategy's worst stretch is still ahead of it."
+      - "Plan the drawdown before it happens, because you will not plan it during."
+    phrases:
+      - "drawdown is rent, not a verdict"
+      - "I planned this red before it got here"
+    forbidden: ["no drawdown", "never lose", "risk free"]
+    pairs_with: [capital_preservation, fear, risk_per_trade, journaling]
+
+  winning_streak_psychology:
+    category: psychology
+    label: Winning Streak Psychology
+    certainty: established
+    weight: 0.9
+    regime_affinity: {bullish_trend: 1.3}
+    teaching_points:
+      - "A streak changes your confidence faster than it changes your edge."
+      - "The trade after three wins is the one that gets oversized."
+    phrases:
+      - "three green and the size starts whispering"
+      - "the streak didn't change the maths"
+    forbidden: ["can't lose now", "guaranteed run"]
+    pairs_with: [confidence, greed, position_sizing]
+
+  losing_streak_psychology:
+    category: psychology
+    label: Losing Streak Psychology
+    certainty: established
+    weight: 0.9
+    teaching_points:
+      - "A losing run inside your tested range is data, not a signal to change."
+      - "Shrinking size during a bad stretch is a decision; abandoning the plan is not."
+    phrases:
+      - "inside the range I tested, so I keep going"
+      - "smaller size, same rules"
+    pairs_with: [revenge_trading, drawdown_psychology, discipline]
+
+  journaling:
+    category: psychology
+    label: Journaling
+    certainty: established
+    weight: 1.0
+    teaching_points:
+      - "What you do not write down, you will remember in your own favour."
+      - "A journal turns a feeling into a number you can argue with."
+      - "Review the process, not only the result."
+    phrases:
+      - "memory edits, the journal doesn't"
+      - "wrote it down so I can't rewrite it"
+    pairs_with: [discipline, confidence, market_structure]
+
+  emotional_discipline:
+    category: psychology
+    label: Emotional Discipline
+    certainty: established
+    weight: 1.1
+    teaching_points:
+      - "The decision made before the candle is worth more than the one made during it."
+      - "You cannot think clearly and feel urgently at the same time."
+    phrases:
+      - "decided before the candle, not during"
+      - "urgency is not information"
+    pairs_with: [discipline, fomo, revenge_trading]
+
+  # ====================================================== RISK MANAGEMENT
+
+  position_sizing:
+    category: risk_management
+    label: Position Sizing
+    certainty: established
+    weight: 1.5
+    teaching_points:
+      - "Position size decides what a given move costs you. Nothing else does."
+      - "Size from the stop distance, not from how certain you feel."
+      - "The same idea at twice the size is a different trade."
+    phrases:
+      - "size comes from the stop, not the feeling"
+      - "same idea, double size, different trade"
+      - "the lot size is the risk decision"
+    forbidden: ["all in", "max leverage", "size up to recover"]
+    pairs_with: [risk_per_trade, stop_losses, leverage, capital_preservation]
+
+  risk_reward:
+    category: risk_management
+    label: Risk and Reward
+    certainty: established
+    weight: 1.3
+    teaching_points:
+      - "Risk-reward and win rate are one equation; neither is a result on its own."
+      - "A three-to-one that only wins a quarter of the time is break-even."
+      - "Know what has to be true for the trade to pay before you take it."
+    phrases:
+      - "reward over risk, and the hit rate has a vote"
+      - "three to one means nothing without the strike rate"
+    forbidden: ["guaranteed profit", "free money", "can't lose setup"]
+    pairs_with: [position_sizing, stop_losses, greed]
+
+  stop_losses:
+    category: risk_management
+    label: Stop Losses
+    certainty: established
+    weight: 1.4
+    teaching_points:
+      - "A stop is where the idea is wrong, not where the loss becomes uncomfortable."
+      - "Move a stop further away and you have replaced your plan with a wish."
+      - "A stop is not a prediction. It is an exit."
+    phrases:
+      - "the stop is where I'm wrong, not where it hurts"
+      - "I don't widen it to be right"
+      - "the exit was written before the entry"
+    forbidden: ["no stop needed", "stops are for amateurs", "guaranteed fill"]
+    pairs_with: [position_sizing, liquidity_sweep, risk_per_trade]
+
+  capital_preservation:
+    category: risk_management
+    label: Capital Preservation
+    certainty: established
+    weight: 1.2
+    teaching_points:
+      - "Staying in the game is the prerequisite for every other skill."
+      - "A fifty-percent loss needs a hundred-percent gain to undo. The maths is not symmetrical."
+      - "Protecting capital is not timidity; it is the only way to still be here."
+    phrases:
+      - "down fifty needs up a hundred, the maths ain't fair"
+      - "first job is still being here tomorrow"
+    forbidden: ["risk it all", "double or nothing"]
+    pairs_with: [drawdown, risk_per_trade, leverage, fear]
+
+  drawdown:
+    category: risk_management
+    label: Drawdown
+    certainty: established
+    weight: 1.0
+    teaching_points:
+      - "Measure drawdown before you need to, because you will not measure it calmly."
+      - "The depth you can tolerate is a design choice, not a surprise."
+    phrases:
+      - "I knew the depth before I got here"
+      - "the dip was in the plan"
+    forbidden: ["no drawdown", "risk free"]
+    pairs_with: [capital_preservation, drawdown_psychology, risk_per_trade]
+
+  risk_per_trade:
+    category: risk_management
+    label: Risk Per Trade
+    certainty: established
+    weight: 1.3
+    teaching_points:
+      - "A fixed fraction per trade makes a losing run survivable by arithmetic."
+      - "If one trade can end the account, the strategy is the account's biggest risk."
+    phrases:
+      - "one trade can't end the story"
+      - "fixed fraction, every single time"
+    forbidden: ["bet the account", "one shot"]
+    pairs_with: [position_sizing, capital_preservation, overtrading]
+
+  leverage:
+    category: risk_management
+    label: Leverage
+    certainty: established
+    weight: 1.1
+    teaching_points:
+      - "Leverage changes the speed of the outcome, not its direction."
+      - "High leverage does not create edge; it shortens the time you have to be right."
+      - "Available leverage is a limit, not a target."
+    phrases:
+      - "leverage moves the clock, not the odds"
+      - "available ain't the same as advisable"
+    forbidden: ["max leverage", "leverage is free money", "guaranteed multiplier"]
+    pairs_with: [position_sizing, capital_preservation, exposure]
+
+  exposure:
+    category: risk_management
+    label: Exposure
+    certainty: established
+    weight: 1.0
+    teaching_points:
+      - "Total exposure matters more than any single position's size."
+      - "Three correlated trades can be one trade wearing three names."
+    phrases:
+      - "three positions, one actual bet"
+      - "I count the whole book, not the ticket"
+    pairs_with: [correlation, leverage, risk_per_trade]
+
+  correlation:
+    category: risk_management
+    label: Correlation
+    certainty: contextual
+    weight: 0.9
+    teaching_points:
+      - "Correlations drift, and they tend to tighten when markets are stressed."
+      - "Diversification that depends on a stable correlation is not diversification."
+    phrases:
+      - "correlation shows up uninvited when it's loud"
+      - "two names, one risk, some days"
+    forbidden: ["always correlated", "perfectly hedged", "guaranteed offset"]
+    pairs_with: [exposure, risk_sentiment, dxy_relationship]
+
+  # ====================================================== TECHNICAL ANALYSIS
+
+  support:
+    category: technical
+    label: Support
+    certainty: contextual
+    weight: 1.1
+    regime_affinity: {normal_range: 1.3, low_volatility_range: 1.2, reversal: 1.2}
+    teaching_points:
+      - "Support is a level where buying has previously appeared, not a floor that holds."
+      - "A level is an area of interest until price proves otherwise."
+    phrases:
+      - "buyers showed up here before, no promises"
+      - "a level is an area, not a wall"
+    forbidden: ["will always hold", "guaranteed bounce", "cannot break"]
+    pairs_with: [resistance, demand, market_structure, range]
+
+  resistance:
+    category: technical
+    label: Resistance
+    certainty: contextual
+    weight: 1.1
+    regime_affinity: {normal_range: 1.3, high_volatility_range: 1.2}
+    teaching_points:
+      - "Resistance marks where selling has previously appeared, not a ceiling."
+      - "Levels that break often become the levels that get retested."
+    phrases:
+      - "sellers lived here last time"
+      - "the ceiling is only a ceiling until it isn't"
+    forbidden: ["will always reject", "guaranteed top", "cannot break"]
+    pairs_with: [support, supply, breakout, session_highs]
+
+  trend:
+    category: technical
+    label: Trend
+    certainty: contextual
+    weight: 1.2
+    regime_affinity: {bullish_trend: 1.8, bearish_trend: 1.8}
+    teaching_points:
+      - "A trend is a description of what has happened, not a forecast."
+      - "Trends persist more often than they reverse, until the one time they do not."
+    phrases:
+      - "higher highs, for now"
+      - "the trend is a description, not a promise"
+    forbidden: ["trend never breaks", "guaranteed continuation", "always continues"]
+    pairs_with: [momentum, market_structure, trend_strength_concept]
+
+  market_structure:
+    category: technical
+    label: Market Structure
+    certainty: contextual
+    weight: 1.2
+    regime_affinity: {bullish_trend: 1.3, bearish_trend: 1.3, reversal: 1.4}
+    teaching_points:
+      - "Structure is the sequence of highs and lows, read after the fact."
+      - "A break of structure is information, not an instruction."
+    phrases:
+      - "read the sequence, don't predict it"
+      - "structure broke, that's information"
+    forbidden: ["guaranteed reversal", "always means"]
+    pairs_with: [trend, support, resistance, breakout]
+
+  breakout:
+    category: technical
+    label: Breakout
+    certainty: contextual
+    weight: 1.3
+    regime_affinity: {bullish_breakout: 2.0, bearish_breakout: 2.0, breakout_buildup: 1.6}
+    teaching_points:
+      - "A breakout is price leaving a range. Whether it holds is a separate question."
+      - "Breakouts frequently fail; that is why the stop exists."
+      - "Expansion out of compression happens often enough to plan for and not often enough to assume."
+    phrases:
+      - "range gave way, hold is a different question"
+      - "it broke; holding is the next test"
+      - "expansion out of the coil"
+    forbidden: ["guaranteed continuation", "always runs", "never fails", "free money"]
+    pairs_with: [fakeout, liquidity, consolidation, volatility]
+
+  fakeout:
+    category: technical
+    label: Fakeout
+    certainty: contextual
+    weight: 1.1
+    regime_affinity: {reversal: 1.8, high_volatility_range: 1.3}
+    teaching_points:
+      - "A failed breakout traps the traders who assumed it would not fail."
+      - "The move that reverses through its own origin invalidated the idea, not just paused it."
+    phrases:
+      - "broke out, came back, took the tourists"
+      - "straight back through the origin"
+    forbidden: ["always a trap", "every breakout is fake"]
+    pairs_with: [breakout, liquidity_sweep, fomo, stop_losses]
+
+  liquidity:
+    category: technical
+    label: Liquidity
+    certainty: contextual
+    weight: 1.2
+    regime_affinity: {breakout_buildup: 1.4, bullish_breakout: 1.3, bearish_breakout: 1.3}
+    session_affinity: {london_new_york_overlap: 1.5, london: 1.3, asian: 0.8}
+    teaching_points:
+      - "Thin liquidity moves further on the same order."
+      - "Liquidity tends to pool where many stops sit, which is often just beyond an obvious level."
+    phrases:
+      - "thin book, same order, bigger move"
+      - "the stops are pooled above the obvious"
+    forbidden: ["always sweeps", "guaranteed hunt"]
+    pairs_with: [liquidity_sweep, session_overlap, volatility, breakout]
+
+  liquidity_sweep:
+    category: technical
+    label: Liquidity Sweep
+    certainty: speculative
+    weight: 0.9
+    regime_affinity: {reversal: 1.5, high_volatility_range: 1.3}
+    teaching_points:
+      - "Price sometimes trades through an obvious level and returns; sometimes it simply keeps going."
+      - "Describing a move as a sweep after the fact is easier than predicting one."
+    phrases:
+      - "through the level and back, some days"
+      - "easy to name afterwards"
+    forbidden:
+      ["always sweeps first", "guaranteed reversal after", "they always hunt stops"]
+    pairs_with: [liquidity, fakeout, stop_losses]
+
+  supply:
+    category: technical
+    label: Supply
+    certainty: contextual
+    weight: 0.9
+    teaching_points:
+      - "A supply area is where sellers previously overwhelmed buyers."
+      - "Areas lose relevance as the market that formed them moves on."
+    phrases:
+      - "sellers won this block last time"
+      - "old zones get stale"
+    forbidden: ["guaranteed rejection", "always holds"]
+    pairs_with: [demand, resistance, market_structure]
+
+  demand:
+    category: technical
+    label: Demand
+    certainty: contextual
+    weight: 0.9
+    teaching_points:
+      - "A demand area is where buyers previously absorbed selling."
+      - "The second visit to an area is rarely the same as the first."
+    phrases:
+      - "buyers absorbed it here once"
+      - "second visit hits different"
+    forbidden: ["guaranteed bounce", "always holds"]
+    pairs_with: [supply, support, market_structure]
+
+  momentum:
+    category: technical
+    label: Momentum
+    certainty: contextual
+    weight: 1.1
+    regime_affinity: {bullish_breakout: 1.4, bearish_breakout: 1.4, bullish_trend: 1.3, bearish_trend: 1.3}
+    teaching_points:
+      - "Momentum measures how fast price is moving, not how far it will go."
+      - "Strong momentum and a good entry are different things."
+    phrases:
+      - "speed tells me how, not how far"
+      - "fast ain't the same as far"
+    forbidden: ["guaranteed to continue", "momentum never stops"]
+    pairs_with: [trend, breakout, volatility]
+
+  consolidation:
+    category: technical
+    label: Consolidation
+    certainty: contextual
+    weight: 1.1
+    regime_affinity: {compression: 1.9, low_volatility_range: 1.5, quiet: 1.3, breakout_buildup: 1.4}
+    teaching_points:
+      - "Narrowing range means disagreement is shrinking, not that a direction is chosen."
+      - "Compression resolves eventually. Which way is not encoded in the compression."
+    phrases:
+      - "the range is tightening, nobody's decided"
+      - "it coils; the direction isn't in the coil"
+    forbidden: ["always breaks up", "guaranteed expansion direction"]
+    pairs_with: [volatility, breakout, patience, range]
+
+  volatility:
+    category: technical
+    label: Volatility
+    certainty: established
+    weight: 1.2
+    regime_affinity: {extreme_volatility: 1.8, high_volatility_range: 1.5, post_event_normalization: 1.4}
+    teaching_points:
+      - "Volatility measures the size of moves, with no direction attached."
+      - "The same stop distance is a different risk in a different volatility regime."
+      - "Volatility clusters: quiet follows quiet and loud follows loud, more often than not."
+    phrases:
+      - "size of the move, not the side"
+      - "same stop, different risk today"
+      - "loud tends to follow loud"
+    forbidden: ["volatility means up", "guaranteed direction"]
+    pairs_with: [position_sizing, gold_volatility, consolidation, momentum]
+
+  range:
+    category: technical
+    label: Range
+    certainty: contextual
+    weight: 1.0
+    regime_affinity: {normal_range: 1.7, low_volatility_range: 1.6, high_volatility_range: 1.4}
+    teaching_points:
+      - "A range is two levels and the indecision between them."
+      - "Ranges are obvious in hindsight and ambiguous while you are inside one."
+    phrases:
+      - "two levels and the argument between them"
+      - "obvious later, ambiguous now"
+    pairs_with: [support, resistance, consolidation, patience]
+
+  session_highs:
+    category: technical
+    label: Session Highs
+    certainty: contextual
+    weight: 0.9
+    session_affinity: {london: 1.3, london_new_york_overlap: 1.4, new_york: 1.3}
+    teaching_points:
+      - "The session high is a reference point other traders are also watching."
+      - "Reference levels matter because of attention, not because of magic."
+    phrases:
+      - "everybody's watching the same high"
+      - "it matters because we're all looking"
+    forbidden: ["always tested", "guaranteed retest"]
+    pairs_with: [session_lows, session_overlap, liquidity]
+
+  session_lows:
+    category: technical
+    label: Session Lows
+    certainty: contextual
+    weight: 0.9
+    session_affinity: {london: 1.3, new_york: 1.3}
+    teaching_points:
+      - "The session low is a shared reference, nothing more and nothing less."
+    phrases:
+      - "the low of the session is a shared landmark"
+    forbidden: ["always holds", "guaranteed bounce"]
+    pairs_with: [session_highs, liquidity, support]
+
+  trend_strength_concept:
+    category: technical
+    label: Trend Strength
+    certainty: contextual
+    weight: 0.8
+    regime_affinity: {bullish_trend: 1.4, bearish_trend: 1.4}
+    teaching_points:
+      - "Strength measures how orderly a move is, not how long it will last."
+      - "An orderly trend and a violent one need different position sizes."
+    phrases:
+      - "orderly, not eternal"
+      - "clean move, different sizing"
+    forbidden: ["strong means guaranteed"]
+    pairs_with: [trend, momentum, volatility]
+
+  # ====================================================== GOLD / XAUUSD
+
+  gold_volatility:
+    category: gold
+    label: Gold Volatility
+    certainty: contextual
+    weight: 1.2
+    regime_affinity: {extreme_volatility: 1.6, high_volatility_range: 1.4}
+    teaching_points:
+      - "Gold's typical daily range is wide enough that position size matters more than entry precision."
+      - "Gold can move quickly around scheduled news; the direction is not predictable from the schedule."
+    phrases:
+      - "wide range means size decides"
+      - "it moves fast; the way isn't on the calendar"
+    forbidden: ["gold always rises", "guaranteed safe haven", "gold never falls"]
+    pairs_with: [volatility, position_sizing, economic_events]
+
+  london_session:
+    category: gold
+    label: London Session
+    certainty: contextual
+    weight: 1.0
+    session_affinity: {london: 2.0, asian_london_overlap: 1.6}
+    teaching_points:
+      - "The London open often brings a step up in volume and range."
+      - "Higher participation tends to mean cleaner moves, not predictable ones."
+    phrases:
+      - "London walks in and the book gets deeper"
+      - "volume arrives, direction doesn't"
+    forbidden: ["London always trends", "guaranteed London move"]
+    pairs_with: [liquidity, session_overlap, session_highs]
+
+  new_york_session:
+    category: gold
+    label: New York Session
+    certainty: contextual
+    weight: 1.0
+    session_affinity: {new_york: 2.0, london_new_york_overlap: 1.6, new_york_late: 1.3}
+    teaching_points:
+      - "US data releases cluster in the New York morning, and gold frequently reacts to them."
+      - "Late New York typically thins out, which can exaggerate moves on smaller orders."
+    phrases:
+      - "New York morning, data on the clock"
+      - "late session thins and the moves stretch"
+    forbidden: ["New York always reverses", "guaranteed afternoon move"]
+    pairs_with: [economic_events, liquidity, session_overlap]
+
+  asian_session:
+    category: gold
+    label: Asian Session
+    certainty: contextual
+    weight: 1.0
+    session_affinity: {asian: 2.0, sydney: 1.6}
+    teaching_points:
+      - "Asian hours are often quieter for gold, with narrower ranges."
+      - "A quiet session is a reason to size differently, not a reason to force a trade."
+    phrases:
+      - "Asia keeps it narrow, mostly"
+      - "quiet tape, patient hands"
+    forbidden: ["Asia never moves", "guaranteed quiet"]
+    pairs_with: [patience, consolidation, volatility]
+
+  session_overlap:
+    category: gold
+    label: Session Overlap
+    certainty: contextual
+    weight: 1.0
+    session_affinity: {london_new_york_overlap: 2.0, asian_london_overlap: 1.5}
+    teaching_points:
+      - "The London/New York overlap is usually the deepest part of the gold day."
+      - "Deeper liquidity absorbs size better; it does not make direction clearer."
+    phrases:
+      - "both desks awake, deepest book of the day"
+      - "depth absorbs size, not uncertainty"
+    pairs_with: [liquidity, london_session, new_york_session]
+
+  dxy_relationship:
+    category: gold
+    label: Dollar Relationship
+    certainty: speculative
+    weight: 0.7
+    teaching_points:
+      - "Gold and the dollar have often moved inversely, but the relationship weakens and sometimes inverts."
+      - "Treating a historical correlation as a rule is how a hedge becomes a second position in the same direction."
+    phrases:
+      - "dollar up, gold down, usually, not always"
+      - "the correlation shows up when it feels like it"
+    forbidden:
+      - "always inverse"
+      - "guaranteed inverse"
+      - "dollar up means gold down"
+      - "perfect hedge"
+    pairs_with: [correlation, risk_sentiment, treasury_yields]
+
+  treasury_yields:
+    category: gold
+    label: Treasury Yields
+    certainty: speculative
+    weight: 0.6
+    teaching_points:
+      - "Rising real yields have often coincided with pressure on gold, with many exceptions."
+      - "Macro relationships are context, not signals."
+    phrases:
+      - "real yields lean on it, some seasons"
+      - "macro is context, not a trigger"
+    # Specific phrases, never bare words. A standalone "always" here rejected the
+    # *correct* hedge "not always, but often", which is exactly the phrasing §14 wants.
+    # The library validator now refuses single-word entries for this reason.
+    forbidden:
+      - "yields up means gold down"
+      - "always inverse"
+      - "always moves"
+      - "guaranteed move"
+    pairs_with: [dxy_relationship, risk_sentiment, economic_events]
+
+  economic_events:
+    category: gold
+    label: Economic Events
+    certainty: contextual
+    weight: 1.0
+    regime_affinity: {extreme_volatility: 1.5, post_event_normalization: 1.6}
+    teaching_points:
+      - "Scheduled releases often widen spreads and increase slippage risk."
+      - "Knowing when a release happens is not knowing what it will do."
+      - "Many traders reduce size or stand aside around major data for reasons of execution, not prediction."
+    phrases:
+      - "the time is on the calendar, the move isn't"
+      - "spreads widen, slippage shows up"
+      - "smaller size into the number"
+    forbidden: ["guaranteed spike direction", "always trades up after"]
+    pairs_with: [gold_volatility, position_sizing, new_york_session]
+
+  risk_sentiment:
+    category: gold
+    label: Risk Sentiment
+    certainty: speculative
+    weight: 0.7
+    teaching_points:
+      - "Gold is often described as a haven, but it has fallen during some periods of market stress."
+      - "Sentiment narratives are built after the move more often than before it."
+    phrases:
+      - "they call it a haven, mostly"
+      - "the story arrives after the candle"
+    forbidden:
+      - "always a safe haven"
+      - "guaranteed haven"
+      - "gold always rises in a crisis"
+    pairs_with: [dxy_relationship, gold_volatility, correlation]
+
+  gold_liquidity:
+    category: gold
+    label: Gold Liquidity
+    certainty: contextual
+    weight: 0.9
+    session_affinity: {london_new_york_overlap: 1.5, asian: 0.8, closed: 0.4}
+    teaching_points:
+      - "Spot gold trades nearly around the clock, but not with the same depth at every hour."
+      - "The same stop is more likely to slip in a thin hour."
+    phrases:
+      - "open all hours, not all depths"
+      - "thin hour, wider slip"
+    pairs_with: [liquidity, session_overlap, stop_losses]

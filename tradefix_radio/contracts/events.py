@@ -54,6 +54,26 @@ class MarketStateChanged(BaseEvent):
     previous_regime: str | None = None
 
 
+class MarketRegimeChanged(BaseEvent):
+    """The regime specifically changed (§5, §28).
+
+    ``market.state_changed`` fires for a regime, direction *or* session change. §28's replan
+    trigger is the regime alone, and a subscriber filtering the combined event has to re-derive
+    "did the regime actually change?" from a nullable previous value — which is the sort of
+    thing that works until someone publishes the combined event without the previous regime
+    filled in.
+    """
+
+    TOPIC: ClassVar[str] = "market.regime_changed"
+
+    state: MarketStateV1
+    previous_regime: str = Field(min_length=1, max_length=48)
+    new_regime: str = Field(min_length=1, max_length=48)
+    #: Absolute change in §6 energy across the transition, 0-100. The scheduler uses this to
+    #: decide whether the change is big enough to disturb soft-locked programming (§28).
+    energy_delta: float = Field(ge=0.0, le=100.0)
+
+
 class MarketEnergyChanged(BaseEvent):
     """Throttled energy update. Rate limited by the publisher, not the bus."""
 
@@ -139,6 +159,73 @@ class TrackFinished(BaseEvent):
     end_reason: str | None = Field(default=None, max_length=48)
 
 
+class TrackQueued(BaseEvent):
+    """A ready track took a position in the forward schedule (§27).
+
+    Separate from ``track.ready`` because the two are genuinely different moments: a track
+    becomes ready when its audio passes QC, and enters the queue when the scheduler decides
+    *where* it goes. The §41 panel shows position, which only exists at the second.
+    """
+
+    TOPIC: ClassVar[str] = "track.queued"
+
+    track_id: str = Field(min_length=1, max_length=64)
+    position: int = Field(ge=0)
+    lock_level: str = Field(min_length=1, max_length=24)
+    queue_duration_seconds: float = Field(ge=0.0)
+
+
+# ---------------------------------------------------------------- generation jobs
+#
+# Job events are distinct from the track events above. One track can own several jobs over its
+# life — a timeout, a retry, a success — so a subscriber counting "generation attempts" needs
+# the job stream, while one counting "tracks produced" needs the track stream. Collapsing them
+# would make both counts wrong.
+
+
+class GenerationJobPlanned(BaseEvent):
+    TOPIC: ClassVar[str] = "generation.job_planned"
+
+    job_id: str = Field(min_length=1, max_length=64)
+    track_id: str = Field(min_length=1, max_length=64)
+    priority: str = Field(min_length=1, max_length=24)
+    provider: str = Field(min_length=1, max_length=64)
+
+
+class GenerationStarted(BaseEvent):
+    TOPIC: ClassVar[str] = "generation.started"
+
+    job_id: str = Field(min_length=1, max_length=64)
+    track_id: str = Field(min_length=1, max_length=64)
+    attempt: int = Field(ge=1)
+    worker_id: str = Field(min_length=1, max_length=96)
+    timeout_seconds: float = Field(gt=0.0)
+
+
+class GenerationCompleted(BaseEvent):
+    TOPIC: ClassVar[str] = "generation.completed"
+
+    job_id: str = Field(min_length=1, max_length=64)
+    track_id: str = Field(min_length=1, max_length=64)
+    wall_seconds: float = Field(ge=0.0)
+    audio_seconds: float = Field(gt=0.0)
+    capacity_ratio: float = Field(ge=0.0)
+
+
+class GenerationFailed(BaseEvent):
+    """One job attempt failed. ``will_retry`` distinguishes a setback from a loss."""
+
+    TOPIC: ClassVar[str] = "generation.failed"
+
+    job_id: str = Field(min_length=1, max_length=64)
+    track_id: str = Field(min_length=1, max_length=64)
+    kind: str = Field(min_length=1, max_length=48)
+    detail: str = Field(default="", max_length=2000)
+    attempt: int = Field(ge=1)
+    will_retry: bool
+    retry_after_seconds: float | None = Field(default=None, ge=0.0)
+
+
 # ---------------------------------------------------------------- generator
 
 
@@ -168,20 +255,61 @@ class RadioBufferLow(BaseEvent):
     critical: bool
 
 
-class RadioFallbackStarted(BaseEvent):
+class RadioBufferCritical(BaseEvent):
+    """Separate from ``buffer_low`` so subscribers can route them differently.
+
+    ``low`` is a scheduling signal — generate harder, stop experimenting. ``critical`` is an
+    operator signal (§57) and the point at which emergency tiers prepare. A single event with a
+    boolean flag forced every subscriber to re-derive the distinction, and §57's alerting would
+    have had to filter rather than subscribe.
+    """
+
+    TOPIC: ClassVar[str] = "radio.buffer_critical"
+
+    buffer: BufferHealthV1
+    #: Projected seconds until the buffer empties, when the trajectory allows an estimate.
+    seconds_to_failure: float | None = Field(default=None, ge=0.0)
+
+
+class RadioBufferRecovered(BaseEvent):
+    TOPIC: ClassVar[str] = "radio.buffer_recovered"
+
+    buffer: BufferHealthV1
+    #: How long the station spent below the minimum, for the §101 report.
+    degraded_seconds: float = Field(ge=0.0)
+
+
+class PlayoutFallbackEntered(BaseEvent):
     """Tier escalation (§33). Always alertable — the station is degraded."""
 
-    TOPIC: ClassVar[str] = "radio.fallback_started"
+    TOPIC: ClassVar[str] = "playout.fallback_entered"
 
     tier: PlayoutTier
+    previous_tier: PlayoutTier
     reason: str = Field(min_length=1, max_length=200)
 
 
-class RadioFallbackEnded(BaseEvent):
-    TOPIC: ClassVar[str] = "radio.fallback_ended"
+class PlayoutFallbackExited(BaseEvent):
+    TOPIC: ClassVar[str] = "playout.fallback_exited"
 
     tier: PlayoutTier
+    previous_tier: PlayoutTier
     duration_seconds: float = Field(ge=0.0)
+
+
+class StationIdRequested(BaseEvent):
+    """The scheduler decided an identifier would improve the station (§31).
+
+    A request, not a play: the decision and the airing are separated so the §41 panel can show
+    an upcoming identifier, and so a request that the playout engine declines (because the queue
+    changed underneath it) is visible rather than silent.
+    """
+
+    TOPIC: ClassVar[str] = "station_id.requested"
+
+    category: str = Field(min_length=1, max_length=32)
+    reason: str = Field(min_length=1, max_length=200)
+    tracks_since_last: int = Field(ge=0)
 
 
 class StationIdPlayed(BaseEvent):
@@ -239,23 +367,32 @@ __all__ = [
     "AlertCleared",
     "AlertRaised",
     "BaseEvent",
+    "GenerationCompleted",
+    "GenerationFailed",
+    "GenerationJobPlanned",
+    "GenerationStarted",
     "GeneratorFailed",
     "GeneratorRecovered",
     "HealthChanged",
     "MarketEnergyChanged",
     "MarketFeedStatusChanged",
+    "MarketRegimeChanged",
     "MarketStateChanged",
     "ObsConnected",
     "ObsDisconnected",
+    "PlayoutFallbackEntered",
+    "PlayoutFallbackExited",
+    "RadioBufferCritical",
     "RadioBufferLow",
-    "RadioFallbackEnded",
-    "RadioFallbackStarted",
+    "RadioBufferRecovered",
     "StationIdPlayed",
+    "StationIdRequested",
     "TrackFinished",
     "TrackGenerated",
     "TrackGenerationStarted",
     "TrackPlanned",
     "TrackPlaying",
+    "TrackQueued",
     "TrackReady",
     "TrackRejected",
 ]

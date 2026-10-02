@@ -30,15 +30,23 @@ dependencies = [
     # Required for §2.6 session classification (London/New York DST boundaries)
     # and by Alembic's UTC timestamping.
     "tzdata>=2024.1",
+    # Core from Phase 4 onward, not optional. ADR-06 puts an in-process NumPy PCM
+    # mixer in the playout critical path, and every track is read and written through
+    # soundfile. A station that cannot mix or cannot write a file does not run at all,
+    # so making these optional would only mean failing later with a worse message.
+    "numpy>=1.26,<2.3",
+    "soundfile>=0.12,<1",
 ]
 
 [project.optional-dependencies]
+# Genuinely optional: §72's simulation mode runs headless with no sound card, and the
+# Phase 6 analysis stack is only needed where audio is actually inspected.
 audio = [
-    "numpy>=1.26,<2.2",
-    "soundfile>=0.12,<1",
+    "sounddevice>=0.4.7,<1",
+]
+analysis = [
     "librosa>=0.10.2,<1",
     "pyloudnorm>=0.1.1,<1",
-    "sounddevice>=0.4.7,<1",
     "pillow>=10.4,<12",
 ]
 obs = ["obsws-python>=1.7,<2"]

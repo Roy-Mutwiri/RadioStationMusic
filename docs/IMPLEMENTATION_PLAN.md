@@ -88,7 +88,9 @@ feature/energy/regime timeline. → `docs/status/PHASE_2_REPORT.md`.
 | 3.12 | **Statistical report**: 10 000 simulated decisions across all regimes | `tradefix report-director` emits genre/BPM/key/topic/vocal distributions + diversity-over-time; asserts no collapse (no genre > configured share; entropy above floor) |
 
 **Phase exit:** suite green + the §3.12 statistical report committed as evidence.
-→ `docs/status/PHASE_3_REPORT.md`.
+→ `docs/status/PHASE_3_REPORT.md`. ✅ **Complete** — 9 996 decisions, all 28 genres, all 49
+topics, zero signature or title collisions, genre entropy 0.997, top genre share 5.3 %.
+Twenty defects found and fixed, four of which had made §11's rules silently inert.
 
 ---
 
@@ -110,6 +112,14 @@ feature/energy/regime timeline. → `docs/status/PHASE_2_REPORT.md`.
 
 **Phase exit:** §63 Scenarios **C** (generator killed) and **D** (queue depletion) pass here,
 before any AI model exists. → `docs/status/PHASE_4_REPORT.md`.
+
+**Status: complete.** Acceptance gates A–J live in `tests/integration/test_phase4_gates.py`.
+Milestone 4.3's capacity predictor moved into `generation/capacity.py` and is consumed by
+`radio/buffer.py`, which adds the predictive `time_to_buffer_failure` the plan did not call
+for but §4.5 requires. Runtime coordination (`runtime/coordinator.py`) and the three-tier
+emergency ladder were split out of the single `radio/` module the plan implied, because a
+playout engine that shares a task with scheduling cannot hold the continuity invariant — see
+`docs/ARCHITECTURE.md` §3.
 
 ---
 

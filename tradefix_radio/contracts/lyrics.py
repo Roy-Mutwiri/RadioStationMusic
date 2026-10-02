@@ -117,6 +117,11 @@ class LyricViolationV1(Contract):
     excerpt: str | None = Field(default=None, max_length=200)
     #: ``True`` when the rule is a hard safety stop rather than a quality nudge.
     fatal: bool = True
+    #: For threshold rules, what was measured and what the limit was. §48 requires a
+    #: rejection to be explainable, and "lexical diversity 0.18 below the 0.26 minimum"
+    #: is actionable where "low diversity" is not.
+    measured: float | None = None
+    threshold: float | None = None
 
 
 class LyricValidationResultV1(Contract):

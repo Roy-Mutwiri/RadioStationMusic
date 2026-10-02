@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from tradefix_radio.config.schema import DatabaseSettings
+from tradefix_radio.core.clock import Clock, SystemClock
 from tradefix_radio.core.errors import PersistenceError
 from tradefix_radio.persistence.models import Base
 
@@ -116,10 +117,11 @@ class Database:
     module-level singleton would be the first thing to break.
     """
 
-    def __init__(self, settings: DatabaseSettings) -> None:
+    def __init__(self, settings: DatabaseSettings, *, clock: Clock | None = None) -> None:
         self._settings = settings
         self._engine: AsyncEngine | None = None
         self._session_factory: async_sessionmaker[AsyncSession] | None = None
+        self._clock: Clock = clock or SystemClock()
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -206,14 +208,28 @@ class Database:
         if self._session_factory is None:
             raise PersistenceError("database is not connected; call connect() first")
         session = self._session_factory()
-        try:
-            yield session
-            await session.commit()
-        except BaseException:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+        # Held on the injected clock for the life of the unit of work.
+        #
+        # A no-op under :class:`~tradefix_radio.core.clock.SystemClock`, which is what
+        # production uses. Under a virtual clock it is what stops simulated time running past
+        # a database round trip: aiosqlite hands every statement to a worker thread, so the
+        # calling task is *runnable* rather than sleeping and holds no clock waiter. An
+        # accelerated run would then advance to some other task's deadline while this query
+        # was still in flight — and it did: with the clock free to jump, a generation claim
+        # that takes three real milliseconds consumed hundreds of virtual seconds, every job
+        # hit its deadline, and a fifteen-minute gate run aired nothing but Tier 3 cover.
+        #
+        # Safe as a hold because a unit of work is a *leaf*: nothing inside it sleeps on the
+        # clock or waits on another task that needs time to advance.
+        with self._clock.hold():
+            try:
+                yield session
+                await session.commit()
+            except BaseException:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
 
     @contextlib.asynccontextmanager
     async def read_session(self) -> AsyncIterator[AsyncSession]:
@@ -235,7 +251,8 @@ class Database:
             raise PersistenceError("database is not connected; call connect() first")
         session = self._session_factory()
         try:
-            yield session
+            with self._clock.hold():
+                yield session
         finally:
             session.expunge_all()
             await session.rollback()
