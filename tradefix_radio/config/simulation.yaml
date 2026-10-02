@@ -1,0 +1,36 @@
+# ============================================================================
+#  Mode overlay: SIMULATION  (§72)
+#
+#  "Real application architecture + simulated market."
+#
+#  Everything behaves as production except the market data source. Buffers,
+#  retention, logging and locking all use production-shaped values, because the
+#  point of this mode is to exercise the real control flow — a simulation with
+#  toy buffers would not reproduce the queue behaviour it is meant to validate.
+#
+#  The generator defaults to mock so this mode runs without a GPU; set
+#  TRADEFIX_GENERATION__PROVIDER=ace_step to simulate the market while generating
+#  real music.
+# ============================================================================
+
+market:
+  feed: simulated
+  poll_interval_seconds: 1.0
+
+generation:
+  provider: mock
+
+audio:
+  # Null by default so an unattended simulation does not seize the sound card.
+  # Switch to sounddevice when you want to actually hear the run.
+  sink: null_sink
+
+logging:
+  level: INFO
+  console_format: console
+
+obs:
+  enabled: false
+
+retention:
+  enabled: true

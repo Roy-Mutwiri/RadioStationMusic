@@ -1,0 +1,43 @@
+# ============================================================================
+#  Mode overlay: DEVELOPMENT  (§72)
+#
+#  Mock market + mock audio generator. No credentials, no GPU, no internet, no
+#  audio device. Everything that could touch the outside world is off.
+# ============================================================================
+
+market:
+  feed: simulated
+  # Fast polling so a developer sees regime changes without waiting.
+  poll_interval_seconds: 0.25
+  # Short warm-up so the engine produces usable features within seconds rather
+  # than an hour of simulated bars.
+  warmup_bars: 30
+  percentile_window_bars: 240
+
+generation:
+  provider: mock
+
+audio:
+  # Null sink: the playout engine runs its full mixing path but writes nowhere.
+  # This is what makes the pipeline testable on a machine with no sound card.
+  sink: null_sink
+
+logging:
+  level: DEBUG
+  console_format: console
+
+obs:
+  enabled: false
+
+retention:
+  # Keep everything while developing; sweeping would delete fixtures mid-session.
+  enabled: false
+
+radio:
+  # Smaller buffers so queue behaviour is observable in a short session.
+  minimum_buffer_minutes: 4.0
+  target_buffer_minutes: 10.0
+  maximum_buffer_minutes: 20.0
+  locked_slots: 1
+  semi_locked_slots: 1
+  emergency_reserve_minutes: 5.0

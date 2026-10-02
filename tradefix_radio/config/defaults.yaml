@@ -1,0 +1,25 @@
+# ============================================================================
+#  TRADE FIX RADIO — shipped baseline configuration
+#
+#  DELIBERATELY ALMOST EMPTY.
+#
+#  The authoritative default for every setting is the field default in
+#  `tradefix_radio/config/schema.py`. Restating those values here would create
+#  two sources of truth that drift apart on the first upgrade — the classic way a
+#  config system starts lying.
+#
+#  This file exists for defaults that are genuinely *deployment* rather than
+#  *code* concerns, and as the lowest layer operators can override.
+#
+#  Layering (lowest to highest):
+#     schema defaults -> defaults.yaml -> <mode>.yaml -> operator file
+#       -> .env -> TRADEFIX_* environment
+#
+#  To see every available knob with its default, run:  tradefix config --dump
+#  For a commented operator template, copy:            config/example.yaml
+# ============================================================================
+
+# Default run mode when neither the CLI nor the environment specifies one.
+# Development means: simulated market, mock generator, null audio sink — the
+# station runs end to end with no GPU, no broker and no internet.
+mode: development

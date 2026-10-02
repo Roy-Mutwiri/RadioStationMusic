@@ -1,0 +1,38 @@
+# ============================================================================
+#  Mode overlay: PRODUCTION  (§72)
+#
+#  Real market feed + real music model + OBS.
+#
+#  This overlay sets only what production *requires*. It deliberately does NOT
+#  set secrets: api.control_token, obs.password and market.rest_api_key must come
+#  from .env or the environment (§68). AppSettings refuses to start in production
+#  without a control token, and without a real feed and provider — so a
+#  misconfigured production launch fails at startup, not on air.
+# ============================================================================
+
+market:
+  # MetaTrader 5 attaches to a locally running, logged-in terminal — no API key
+  # (ADR-03). Change to `rest` and set market.rest_base_url / rest_api_key to use
+  # an HTTP data provider instead.
+  feed: metatrader5
+  poll_interval_seconds: 1.0
+
+generation:
+  provider: ace_step
+
+audio:
+  # VB-Audio Virtual Cable keeps station output off the operator's desktop mixer
+  # and gives OBS a clean, level-stable capture source.
+  sink: sounddevice
+  device_name: CABLE Input
+
+logging:
+  level: INFO
+  # Structured JSON so a week of unattended logs is machine-queryable (§55).
+  console_format: json
+
+obs:
+  enabled: true
+
+retention:
+  enabled: true

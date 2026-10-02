@@ -1,0 +1,206 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tradefix-radio"
+version = "0.1.0"
+description = "Autonomous 24/7 market-reactive AI music radio station driven by XAUUSD"
+readme = "README.md"
+# ADR-01: pinned to 3.10.x. 3.14 lacks numba/librosa wheels; ACE-Step runs
+# out-of-process in its own 3.12 environment (ADR-02) so it does not constrain us.
+requires-python = ">=3.10,<3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "Trade Fix Radio" }]
+
+dependencies = [
+    "pydantic>=2.9,<3",
+    "pydantic-settings>=2.5,<3",
+    "sqlalchemy[asyncio]>=2.0.35,<2.1",
+    "alembic>=1.13,<2",
+    "aiosqlite>=0.20,<1",
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.31,<1",
+    "structlog>=24.4,<26",
+    "pyyaml>=6.0,<7",
+    "psutil>=6.0,<8",
+    "httpx>=0.27,<1",
+    "typing-extensions>=4.12",
+    # Windows ships no system tz database, so zoneinfo has nothing to read.
+    # Required for §2.6 session classification (London/New York DST boundaries)
+    # and by Alembic's UTC timestamping.
+    "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+audio = [
+    "numpy>=1.26,<2.2",
+    "soundfile>=0.12,<1",
+    "librosa>=0.10.2,<1",
+    "pyloudnorm>=0.1.1,<1",
+    "sounddevice>=0.4.7,<1",
+    "pillow>=10.4,<12",
+]
+obs = ["obsws-python>=1.7,<2"]
+# Windows-only: attaches to a running MetaTrader 5 terminal, no API key needed (ADR-03).
+mt5 = ["MetaTrader5>=5.0.45; sys_platform == 'win32'"]
+postgres = ["asyncpg>=0.29,<1"]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.24,<1",
+    "pytest-cov>=5.0,<7",
+    "hypothesis>=6.112,<7",
+    "ruff>=0.6.9,<1",
+    "mypy>=1.11,<2",
+    "types-PyYAML",
+    "freezegun>=1.5,<2",
+]
+
+[project.scripts]
+tradefix = "tradefix_radio.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["tradefix_radio*"]
+
+[tool.setuptools.package-data]
+tradefix_radio = ["config/*.yaml", "config/**/*.yaml"]
+
+# ---------------------------------------------------------------- ruff
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["."]
+extend-exclude = [".venv", "frontend", "generated", "logs", "data", "models"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",      # pycodestyle
+    "F",           # pyflakes
+    "I",           # isort
+    "B",           # bugbear
+    "C4",          # comprehensions
+    "UP",          # pyupgrade
+    "SIM",         # simplify
+    "RET",         # returns
+    "ARG",         # unused arguments
+    "PTH",         # use pathlib
+    "RUF",         # ruff-specific
+    "ASYNC",       # async misuse
+    "BLE",         # blind except            (§86)
+    "TRY",         # exception antipatterns  (§86)
+    "LOG", "G",    # logging correctness     (§55)
+    "TD", "FIX",   # no TODO placeholders    (§86)
+    "S",           # bandit security         (§68)
+    "DTZ",         # naive datetimes
+    "N",           # naming
+    "PLC0415",     # imports must be top-level unless deliberately deferred
+]
+ignore = [
+    "TRY003",   # long messages in raise — we want descriptive config errors
+    "TRY400",   # logger.error vs exception — structlog usage differs
+    "S101",     # assert: allowed (tests, and internal invariants)
+    "B008",     # FastAPI Depends() in defaults is idiomatic
+    "RUF012",   # ClassVar annotations on mutable class attrs — noisy with pydantic
+    "N818",     # error suffix on exception names
+    # Docs and docstrings cite the specification with § and use en dashes for
+    # ranges (§26–§30). These are correct typography, not homoglyph smuggling.
+    "RUF001", "RUF002", "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests may use magic values, long lines in fixtures, and private access.
+#   I001  - import order inside test bodies is deliberate (local imports grouped
+#           with the assertion they support)
+#   RUF043- pytest `match=` patterns read better as plain strings; they are our own
+#           literals, not untrusted input
+#   RUF015- explicit [0] indexing is clearer than next() in an assertion
+#   SIM105- an explicit try/except around task cancellation documents intent
+"tests/**" = [
+    "S", "ARG", "TD", "FIX", "E501", "TRY", "BLE", "DTZ", "PLC0415",
+    "I001", "RUF043", "RUF015", "SIM105",
+]
+"scripts/**" = ["S", "TD", "FIX", "PLC0415"]
+"tradefix_radio/persistence/migrations/**" = ["ARG", "N", "TD", "FIX", "PLC0415"]
+# SQLAlchemy's TypeDecorator hooks are called with `dialect` whether or not an
+# implementation needs it; the parameter is part of the contract, not dead code.
+"tradefix_radio/persistence/types.py" = ["ARG002"]
+# The CLI imports heavy/optional modules inside command handlers on purpose, so
+# that `tradefix doctor` still runs on a half-broken installation.
+"tradefix_radio/cli/main.py" = ["PLC0415"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
+# ---------------------------------------------------------------- mypy
+
+[tool.mypy]
+python_version = "3.10"
+plugins = ["pydantic.mypy"]
+files = ["tradefix_radio"]
+strict = false
+warn_return_any = true
+# Off deliberately: the third-party overrides below cover optional extras
+# (audio, obs, mt5) that are not imported in every phase, and the "unused
+# section" note would otherwise make a clean run look dirty.
+warn_unused_configs = false
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+show_error_codes = true
+namespace_packages = true
+exclude = ["tradefix_radio/persistence/migrations/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "librosa.*", "soundfile.*", "pyloudnorm.*", "sounddevice.*",
+    "obsws_python.*", "MetaTrader5.*", "psutil.*",
+]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------- pytest
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --strict-markers --strict-config"
+filterwarnings = [
+    # Warnings are errors by default: a DeprecationWarning from our own code or a
+    # dependency is a defect to fix, not noise to scroll past.
+    "error",
+    "ignore::DeprecationWarning:pkg_resources.*",
+    # ResourceWarning is reported but not fatal, for one specific reason:
+    # on Windows, asyncio's ProactorEventLoop builds its self-pipe from
+    # socket.socketpair(). pytest-asyncio creates a loop per async test, and those
+    # socket objects are finalised by the garbage collector at an arbitrary later
+    # point. pytest's unraisable-exception plugin then attributes the warning to
+    # whichever *unrelated* test happened to be running when GC fired, making the
+    # suite's pass/fail depend on allocation timing.
+    #
+    # This is a harness artifact, not a station defect: no Trade Fix Radio code
+    # opens a socket, and every engine, session, subprocess and file handle we do
+    # own is closed through a context manager or an explicit disconnect, which the
+    # persistence and CLI suites assert directly. Revisit if a future phase adds
+    # code that owns sockets (the OBS client and the ACE-Step HTTP adapter), where
+    # a genuine leak would matter.
+    "always::ResourceWarning",
+]
+markers = [
+    "slow: long-running tests (excluded from the fast suite)",
+    "endurance: accelerated endurance simulations (Phase 10)",
+    "soak: real-time soak tests, opt-in only",
+    "gpu: requires a GPU and a running ACE-Step service",
+    "obs: requires a running OBS instance with websocket enabled",
+    "postgres: requires a reachable PostgreSQL server",
+    "audio_device: requires a real audio output device",
+]
+
+[tool.coverage.run]
+source = ["tradefix_radio"]
+branch = true
+omit = ["*/migrations/*"]

@@ -1,0 +1,51 @@
+# --- Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+# --- Secrets & local config
+.env
+.env.*
+!.env.example
+*.secret
+secrets/
+
+# --- Runtime data (regenerable; never committed)
+generated/
+emergency/*.flac
+emergency/*.wav
+logs/
+data/
+models/
+checkpoints/
+artwork/
+
+# --- Reports produced by benchmark/endurance runs (committed selectively)
+reports/*.json
+!reports/.gitkeep
+
+# --- OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/settings.json.example
