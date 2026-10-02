@@ -128,6 +128,26 @@ class VirtualClock:
         """Virtual monotonic time of the earliest waiter, or ``None`` if idle."""
         return self._waiters[0][0] if self._waiters else None
 
+    def advance_sync(self, seconds: float) -> None:
+        """Advance virtual time without an event loop.
+
+        For fully synchronous drivers — the ``tradefix market-sim`` report, offline
+        analysis, batch replays — where nothing is ever awaiting this clock, so there
+        are no waiters to wake. Raises if anyone *is* waiting, because silently
+        skipping past a sleeping task would make a simulation quietly wrong rather
+        than loudly broken.
+
+        Async callers want :meth:`advance`.
+        """
+        if seconds < 0:
+            raise ValueError("cannot advance a clock backwards")
+        if self._waiters:
+            raise RuntimeError(
+                f"advance_sync called with {len(self._waiters)} task(s) sleeping on "
+                "this clock; use the async advance() so they are woken in order"
+            )
+        self._virtual += seconds
+
     async def advance(self, seconds: float) -> None:
         """Advance virtual time by ``seconds``, waking waiters in order."""
         if seconds < 0:

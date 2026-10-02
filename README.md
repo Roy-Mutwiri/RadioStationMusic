@@ -20,8 +20,8 @@ monitors, recovers, and repeats.
 | --- | --- | --- |
 | 0 | Repository & environment audit | ✅ `docs/INITIAL_AUDIT.md` |
 | 1 | Core domain: config, contracts, persistence, logging, events, health | ✅ `docs/status/PHASE_1_REPORT.md` |
-| 2 | Market engine: simulator, features, energy, regimes | ⏳ next |
-| 3 | Music director, lyric director, diversity engine | — |
+| 2 | Market engine: simulator, features, energy, regimes | ✅ `docs/status/PHASE_2_REPORT.md` |
+| 3 | Music director, lyric director, diversity engine | ⏳ next |
 | 4 | Mock radio: queue, scheduler, playout, fallback | — |
 | 5 | API + control centre + stream overlay | — |
 | 6 | Audio QC, fingerprinting, duplication prevention, mastering | — |
@@ -30,7 +30,7 @@ monitors, recovers, and repeats.
 | 9 | Resilience: watchdog, recovery, chaos | — |
 | 10 | Endurance: 24 h / 72 h / 7 d | — |
 
-**615 tests passing · 88 % coverage · ruff and mypy clean.**
+**919 tests passing · 88 % coverage · ruff and mypy clean.**
 
 Plan and milestone exit criteria: `docs/IMPLEMENTATION_PLAN.md`.
 
@@ -82,11 +82,25 @@ tradefix doctor [--json]       environment and dependency report
 tradefix init                  create directories, apply migrations
 tradefix migrate [up|down|current|history]
 tradefix config [--section S]  resolved configuration, secrets masked
+tradefix market-sim            run a market scenario, print the engine's reading
 tradefix version
 ```
 
-Later phases add `market-sim`, `report-director`, `soak`, `benchmark`, and the
+Later phases add `report-director`, `soak`, `benchmark`, and the
 `dev` / `simulation` / `production` runners.
+
+### Seeing the market engine work
+
+```powershell
+# A dead market that suddenly breaks out
+.\.venv\Scripts\tradefix market-sim --scenario flat `
+    --switch-to violent_breakout --switch-at 150 --bars 300 --every 60
+```
+
+Prints the real feature engine, energy score and regime classifier reacting to a
+simulated §7 scenario — energy climbing from ~10 to ~80, the regime passing through
+`extreme_volatility` into `bullish_trend`, and roughly one regime change per 27 bars
+rather than one per bar. Reproducible from `--seed`.
 
 ---
 

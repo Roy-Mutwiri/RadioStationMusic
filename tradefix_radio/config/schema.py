@@ -300,10 +300,15 @@ class RegimeSettings(Section):
 
     @model_validator(mode="after")
     def _sane(self) -> RegimeSettings:
-        if self.cooldown_seconds > self.min_duration_seconds * 10:
+        # Only meaningful when a minimum duration is actually set. With
+        # min_duration_seconds = 0 ("no minimum", a legitimate choice for testing and
+        # for a deliberately twitchy station) the ratio degenerates and any positive
+        # cooldown would be rejected.
+        if self.min_duration_seconds > 0 and self.cooldown_seconds > self.min_duration_seconds * 10:
             raise ValueError(
                 "regime.cooldown_seconds is implausibly large relative to "
-                "min_duration_seconds; the engine would be unable to react"
+                f"min_duration_seconds ({self.cooldown_seconds} > "
+                f"{self.min_duration_seconds * 10}); the engine would be unable to react"
             )
         return self
 

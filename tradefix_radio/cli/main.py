@@ -7,9 +7,10 @@ Commands available in Phase 1::
     tradefix migrate     apply database migrations
     tradefix config      show the resolved configuration, secrets masked
     tradefix version     version and interpreter
+    tradefix market-sim  run a market scenario and print the engine's reading (§7, §47)
 
-Later phases add ``market-sim``, ``report-director``, ``soak``, ``benchmark``,
-``dev``, ``simulation`` and ``production`` (§78).
+Later phases add ``report-director``, ``soak``, ``benchmark``, ``dev``,
+``simulation`` and ``production`` (§78).
 
 ``argparse`` rather than a CLI framework: this is the one component that must run
 on a half-broken installation to tell the operator what is broken. Adding a
@@ -379,6 +380,12 @@ async def _cmd_config(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _cmd_market_sim(args: argparse.Namespace) -> int:
+    from tradefix_radio.cli import market_sim
+
+    return await market_sim.command(args, _load(args))
+
+
 async def _cmd_version(_args: argparse.Namespace) -> int:
     print(f"tradefix-radio {__version__}")
     print(f"python {sys.version.split()[0]} ({sys.executable})")
@@ -441,6 +448,11 @@ def build_parser() -> argparse.ArgumentParser:
     config_cmd = sub.add_parser("config", help="print resolved configuration, secrets masked")
     config_cmd.add_argument("--section", default=None, help="limit output to one section")
     config_cmd.set_defaults(handler=_cmd_config)
+
+    from tradefix_radio.cli import market_sim
+
+    market_sim.register(sub)
+    sub.choices["market-sim"].set_defaults(handler=_cmd_market_sim)
 
     version = sub.add_parser("version", help="print version information")
     version.set_defaults(handler=_cmd_version)
