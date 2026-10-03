@@ -37,7 +37,13 @@ from tradefix_radio.audio.analysis import EMBEDDING_VERSION
 from tradefix_radio.audio.io import read_info
 from tradefix_radio.audio.sinks import AudioSink
 from tradefix_radio.config.schema import AppSettings
-from tradefix_radio.contracts.enums import MarketRegime, PlayoutTier, TransitionType
+from tradefix_radio.contracts.enums import (
+    MarketRegime,
+    PlayoutTier,
+    RunMode,
+    TrackProvenance,
+    TransitionType,
+)
 from tradefix_radio.contracts.events import (
     GenerationCompleted,
     GenerationFailed,
@@ -133,6 +139,21 @@ def _slot_to_entry(slot: PersistedQueueSlot) -> QueueEntry:
         audio_path=slot.audio_path,
         started_at=slot.started_at,
     )
+
+
+def _provenance_for(mode: RunMode) -> str:
+    """The provenance class a run in this mode produces.
+
+    Production is the only mode that makes broadcast radio. Development and simulation
+    both drive the real architecture against a simulated market, and §72 is explicit that
+    neither may be mistaken for the real thing — that applies to the novelty library as
+    much as to the dashboard.
+    """
+    if mode is RunMode.PRODUCTION:
+        return str(TrackProvenance.PRODUCTION_RADIO.value)
+    if mode is RunMode.SIMULATION:
+        return str(TrackProvenance.SIMULATION.value)
+    return str(TrackProvenance.ENGINEERING_TEST.value)
 
 
 def _as_history_entry(entry: object) -> HistoryEntry:
@@ -304,6 +325,12 @@ class RadioStation:
         self._station_ids = station_ids
         #: Set when the active symbol changes, cleared when the identifier is queued.
         self._pending_market_switch: tuple[str, str] | None = None
+        #: Which provenance class the tracks this process plans belong to.
+        #:
+        #: Derived from the run mode rather than configured, because the honest answer is
+        #: a property of how the station was started. A development or simulation run is
+        #: not making radio anybody hears, and its output must not age the real library.
+        self._provenance = _provenance_for(settings.mode)
         # Optional so the proven Phase 4 and Phase 5 configurations are untouched. When it is
         # absent the station behaves exactly as it did when those phases were accepted; when
         # it is present, §6.14's rule applies and nothing reaches READY without passing it.
@@ -767,6 +794,7 @@ class RadioStation:
                     now=now,
                     provider=self._settings.generation.provider,
                     model_identifier=provider,
+                    provenance=self._provenance,
                 )
 
     async def _publish_new_entries(

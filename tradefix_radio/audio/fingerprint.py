@@ -114,6 +114,10 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+#: The provider name whose fingerprints are compared bit-wise rather than by cosine.
+_CHROMAPRINT_NAME: Final = "chromaprint"
+
+
 @dataclass(frozen=True)
 class AudioFingerprint:
     """A perceptual fingerprint, and who computed it."""
@@ -134,6 +138,73 @@ class AudioFingerprint:
         trusting that a library was built by one provider.
         """
         return self.provider == other.provider
+
+    def similarity_to(self, other: AudioFingerprint) -> float | None:
+        """How alike two fingerprints are, by the measure this provider warrants.
+
+        ``None`` means "this provider cannot say", which the engine treats as a missing
+        input rather than as evidence of difference — the distinction matters, because
+        scoring an unanswerable comparison as 0.0 would record "definitely unalike".
+
+        Chromaprint is compared **bit by bit**, not by cosine over its raw integers. Each
+        value is a packed 32-bit subfingerprint, so its magnitude is an artefact of bit
+        layout and a cosine over them measures nothing musical. Measured over 10 440 pairs
+        of this station's own output:
+
+        ====================  ======  ======  ======  ==================
+        measure               self    mean    max     same−cross genre
+        ====================  ======  ======  ======  ==================
+        cosine over raw ints  1.000   0.712   0.961   −0.010
+        bit agreement         1.000   0.511   0.643   +0.003
+        ====================  ======  ======  ======  ==================
+
+        Bit agreement sits at 0.51 for unrelated material — half the bits match by chance,
+        which is exactly right — reaches 1.0 only for the same recording, and is blind to
+        genre. That blindness is the entire point: every other component in the engine
+        saturates on one model's output in one genre, and this is the one signal that
+        answers "is this the same *song*" rather than "is this the same *kind* of music".
+        """
+        if not self.comparable_with(other):
+            return None
+        if self.fingerprint and self.fingerprint == other.fingerprint:
+            return 1.0
+        if self.provider == _CHROMAPRINT_NAME:
+            return _bit_agreement(self.fingerprint, other.fingerprint)
+        if self.vector and other.vector:
+            left = np.asarray(self.vector, dtype=np.float64)
+            right = np.asarray(other.vector, dtype=np.float64)
+            size = min(left.size, right.size)
+            if size == 0:
+                return None
+            denominator = float(
+                np.linalg.norm(left[:size]) * np.linalg.norm(right[:size])
+            )
+            if denominator == 0.0:
+                return None
+            return max(0.0, min(1.0, float(left[:size] @ right[:size]) / denominator))
+        return None
+
+
+def _bit_agreement(left: str, right: str) -> float | None:
+    """Fraction of agreeing bits between two comma-separated subfingerprint lists."""
+    first = _as_uint32(left)
+    second = _as_uint32(right)
+    size = min(first.size, second.size)
+    if size == 0:
+        return None
+    differing = int(
+        np.unpackbits(np.bitwise_xor(first[:size], second[:size]).view(np.uint8)).sum()
+    )
+    return 1.0 - differing / (size * 32)
+
+
+def _as_uint32(value: str) -> np.ndarray:
+    try:
+        return np.asarray(
+            [int(part) for part in value.split(",") if part.strip()], dtype=np.uint32
+        )
+    except ValueError:
+        return np.asarray([], dtype=np.uint32)
 
 
 class AudioFingerprintProvider(Protocol):

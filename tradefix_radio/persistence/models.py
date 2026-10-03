@@ -93,6 +93,15 @@ class Track(Base):
     primary_topic: Mapped[str | None] = mapped_column(String(96), index=True, default=None)
     secondary_topic: Mapped[str | None] = mapped_column(String(96), default=None)
 
+    #: Where this track came from; see `TrackProvenance`.
+    #:
+    #: Defaulted to ``unknown`` rather than to a plausible class. Every row written before
+    #: this column existed has an origin nobody recorded, and inventing one would be a
+    #: guess baked into the data — the one thing a provenance column must not contain.
+    provenance: Mapped[str] = mapped_column(
+        String(24), index=True, default="unknown", server_default=text("'unknown'")
+    )
+
     #: Which market the director planned this track against (routing V1).
     #:
     #: Denormalised from the blueprint for the same reason genre and BPM are: the §46

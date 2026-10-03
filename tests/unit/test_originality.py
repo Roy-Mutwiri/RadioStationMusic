@@ -27,6 +27,7 @@ from tradefix_radio.audio.analysis import (
     librosa_available,
 )
 from tradefix_radio.audio.fingerprint import (
+    AudioFingerprint,
     ChromaFingerprintProvider,
     canonical_sha256,
     default_provider,
@@ -465,3 +466,87 @@ def test_a_normal_lyric_is_not_flagged_for_repetition() -> None:
     """A chorus repeating is structure, not padding. The paired negative."""
     normal = LYRIC_A + LYRIC_A.split("[Chorus]")[1]
     assert internal_repetition_warning(fingerprint_lyrics("TF-NORMAL", normal)) is None
+
+
+# ------------------------------------------- Chromaprint comparison (post-test-01)
+
+
+def _chromaprint(values: list[int]) -> AudioFingerprint:
+    return AudioFingerprint(
+        provider="chromaprint",
+        provider_version="1",
+        fingerprint=",".join(str(v) for v in values),
+        duration_seconds=60.0,
+    )
+
+
+def test_chromaprint_is_compared_bit_wise_not_by_magnitude() -> None:
+    """Packed subfingerprints are bit fields, so their magnitude means nothing.
+
+    A cosine over the raw integers is dominated by how large the numbers happen to be,
+    which is an artefact of bit layout. Measured over 10 440 pairs of the station's own
+    output it read 0.712 on average and could not separate an approved track from a
+    rejected one (0.860 vs 0.849) — the same saturation trap MFCC[0] and the raw chroma
+    cosine already sprang in this codebase.
+
+    Bit agreement sits near 0.5 for unrelated material, which is what half-matching 32-bit
+    words should give.
+    """
+    rng = np.random.default_rng(7)
+    left = _chromaprint([int(v) for v in rng.integers(0, 2**32, 256, dtype=np.uint64)])
+    right = _chromaprint([int(v) for v in rng.integers(0, 2**32, 256, dtype=np.uint64)])
+
+    score = left.similarity_to(right)
+    assert score is not None
+    assert 0.4 < score < 0.6, f"unrelated fingerprints should sit near 0.5, got {score}"
+
+
+def test_an_identical_chromaprint_scores_one() -> None:
+    values = [1, 2, 3, 4, 5, 6, 7, 8]
+    assert _chromaprint(values).similarity_to(_chromaprint(values)) == 1.0
+
+
+def test_a_one_bit_difference_is_still_almost_identical() -> None:
+    """The measure has to be graded, not just an equality check."""
+    base = [0xFFFFFFFF] * 32
+    flipped = [0xFFFFFFFE] + [0xFFFFFFFF] * 31
+    score = _chromaprint(base).similarity_to(_chromaprint(flipped))
+    assert score is not None
+    assert score > 0.99, f"one flipped bit in 1024 should barely move the score: {score}"
+
+
+def test_fingerprints_from_different_providers_are_not_compared() -> None:
+    """A cross-provider number would be meaningless rather than merely imprecise."""
+    other = AudioFingerprint(
+        provider="chroma-builtin", provider_version="1", fingerprint="abc",
+        duration_seconds=60.0,
+    )
+    assert _chromaprint([1, 2, 3]).similarity_to(other) is None
+
+
+# ------------------------------------------------------ provenance (post-test-01)
+
+
+def test_bench_history_cannot_make_a_production_track_look_unoriginal() -> None:
+    """The defect the real station test exposed.
+
+    154 engineering tracks were acting as permanent station novelty history, so each bench
+    generation made the next one likelier to be rejected. Novelty is a promise to a
+    listener, and nobody heard any of them.
+    """
+    entry = LibraryEntry(track_id="TF-BENCH", provenance="engineering_test")
+    assert entry.counts_toward_graded_novelty is False
+
+    for label in ("simulation", "manual_lab", "unknown"):
+        assert (
+            LibraryEntry(track_id="x", provenance=label).counts_toward_graded_novelty
+            is False
+        ), label
+
+    assert LibraryEntry(track_id="x", provenance="production_radio").counts_toward_graded_novelty
+
+
+def test_an_entry_with_no_stated_provenance_gets_the_stricter_treatment() -> None:
+    """Forgetting to state provenance must not quietly widen what the station may repeat."""
+    assert LibraryEntry(track_id="x").counts_toward_graded_novelty is True
+    assert LibraryEntry(track_id="x", provenance="nonsense").counts_toward_graded_novelty is True

@@ -127,6 +127,51 @@ class RunMode(str, enum.Enum):
     """Real feed, real model, real OBS."""
 
 
+class TrackProvenance(str, enum.Enum):
+    """Where a track came from, which decides what it may be compared against.
+
+    Novelty is a promise to a *listener*: do not play me the same thing twice. A track a
+    listener never heard cannot break that promise, so bench output has no business making
+    a real song look unoriginal — and the real station test showed it doing exactly that,
+    with 154 engineering tracks acting as permanent station history.
+
+    The split is deliberately not "delete the test data". Exact-duplicate protection still
+    spans every class, because shipping a byte-identical file is wrong whatever produced
+    the original, and every row is kept for diagnostics.
+    """
+
+    PRODUCTION_RADIO = "production_radio"
+    """Aired, or intended to air, on the real station. The only class that counts toward
+    graded creative novelty."""
+
+    ENGINEERING_TEST = "engineering_test"
+    """Produced by a bench script, benchmark or acceptance run."""
+
+    SIMULATION = "simulation"
+    """Produced by the station running against a simulated market."""
+
+    MANUAL_LAB = "manual_lab"
+    """Produced by a human experimenting through the API or CLI."""
+
+    UNKNOWN = "unknown"
+    """Origin is not recorded and cannot be proven.
+
+    Exists so that backfilling history never requires a guess. Rows written before
+    provenance existed are this, and they are reported rather than quietly assigned to a
+    class that would suit the policy.
+    """
+
+    @property
+    def counts_toward_graded_novelty(self) -> bool:
+        """Whether this class participates in *graded* creative similarity.
+
+        Only production does. UNKNOWN is excluded too: what is known about those rows is
+        that nothing proves they aired, and treating unproven history as if a listener
+        heard it is the error this enum exists to stop.
+        """
+        return self is TrackProvenance.PRODUCTION_RADIO
+
+
 class HealthStatus(str, enum.Enum):
     """§35 watchdog health states, also used per-component by §73."""
 

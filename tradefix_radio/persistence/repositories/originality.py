@@ -410,6 +410,11 @@ class OriginalityRepository(Repository):
                     lyrics=_rehydrate_lyrics(lyric_row),
                     blueprint=_rehydrate_blueprint(track_row, fingerprint_row),
                     created_at=fingerprint_row.computed_at,
+                    # Production when the join found no track row: a fingerprint whose
+                    # track has been deleted still deserves the stricter treatment.
+                    provenance=(
+                        getattr(track_row, "provenance", None) or "production_radio"
+                    ),
                 )
             )
         return entries
@@ -568,9 +573,11 @@ def _rehydrate_fingerprint(row: AudioFingerprint) -> FingerprintValue | None:
     remaining ones — including the timbre comparison, which saturates on material from a
     single generator. The data was being written and then ignored.
 
-    No ``vector``: the only providers in use either store none (the builtin, whose vector
-    duplicates the embedding) or are not vector-comparable from storage. The equality check
-    on the signature is what this contributes.
+    No ``vector`` is stored, and none needs to be. The builtin publishes none by design
+    (its vector duplicates the embedding), and Chromaprint's comparison reads the stored
+    signature directly — `AudioFingerprint.similarity_to` compares those packed integers
+    bit-wise, which is both the correct measure and the reason the raw string is worth
+    keeping. A separate vector column would store the same numbers twice.
     """
     if row.fingerprint_provider is None or row.fingerprint_value is None:
         return None

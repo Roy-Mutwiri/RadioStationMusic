@@ -70,6 +70,7 @@ class TrackRepository(Repository):
         provider: str,
         model_identifier: str,
         state: TrackState = TrackState.PLANNED,
+        provenance: str = "production_radio",
     ) -> Track:
         """Insert a track plus its complete blueprint (§8).
 
@@ -92,6 +93,7 @@ class TrackRepository(Repository):
             vocal_style=blueprint.vocal.style.value,
             primary_topic=blueprint.lyrics.primary_topic,
             secondary_topic=blueprint.lyrics.secondary_topic,
+            provenance=provenance,
             symbol_at_generation=blueprint.market.symbol,
             regime_at_generation=blueprint.market.regime.value,
             energy_at_generation=blueprint.market.energy,

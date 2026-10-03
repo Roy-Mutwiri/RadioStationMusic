@@ -137,6 +137,12 @@ class TrackComparison:
     blueprint_threshold: float = 1.0
     blueprint_is_recent: bool = False
     detail: str = ""
+    #: Whether the compared-against track may contribute a *graded* judgement.
+    #:
+    #: Carried on the comparison so the independent rules can honour the provenance
+    #: policy. Exact-audio rejection ignores it by design; "the creative blueprint repeats
+    #: a bench track" does not, because §11's promise is to a listener and nobody heard it.
+    counts_toward_graded_novelty: bool = True
 
 
 @dataclass(frozen=True)
@@ -197,6 +203,30 @@ class LibraryEntry:
     lyrics: LyricFingerprint | None = None
     blueprint: BlueprintSummary | None = None
     created_at: datetime | None = None
+    #: Where this historical track came from. See `TrackProvenance`.
+    #:
+    #: Defaults to production so that a caller which does not supply it keeps the old,
+    #: stricter behaviour. Loosening must be something a caller opts into by stating the
+    #: provenance, never something that happens because a field was forgotten.
+    provenance: str = "production_radio"
+
+    @property
+    def counts_toward_graded_novelty(self) -> bool:
+        """Whether this entry may contribute a *graded* similarity score.
+
+        Exact and fingerprint matches are checked against every entry regardless — see
+        `SimilarityEngine._compare`. What this gates is the continuous "how alike are
+        these" judgement, which is a statement about listener experience and therefore
+        only meaningful against tracks a listener could actually have heard.
+        """
+        from tradefix_radio.contracts.enums import TrackProvenance  # noqa: PLC0415
+
+        try:
+            return TrackProvenance(self.provenance).counts_toward_graded_novelty
+        except ValueError:
+            # An unrecognised value is treated as production: an unknown label must not
+            # silently widen what the station is allowed to repeat.
+            return True
 
 
 class LibraryRepository(Protocol):
@@ -367,21 +397,17 @@ class SimilarityEngine:
 
         fingerprint_score = 0.0
         fingerprint_comparable = False
-        if (
-            candidate_fingerprint is not None
-            and entry.fingerprint is not None
-            # Never compare across providers: the numbers are not on the same scale and the
-            # result would be meaningless rather than merely imprecise.
-            and candidate_fingerprint.comparable_with(entry.fingerprint)
-        ):
-            if candidate_fingerprint.fingerprint == entry.fingerprint.fingerprint:
-                fingerprint_score = 1.0
-                fingerprint_comparable = True
-            elif candidate_fingerprint.vector and entry.fingerprint.vector:
-                fingerprint_score = _cosine(
-                    np.asarray(candidate_fingerprint.vector, dtype=np.float64),
-                    np.asarray(entry.fingerprint.vector, dtype=np.float64),
-                )
+        if candidate_fingerprint is not None and entry.fingerprint is not None:
+            # Delegated to the fingerprint itself, which knows the right measure for its
+            # own provider — Chromaprint is compared bit-wise, not by cosine over packed
+            # integers. `None` means the provider cannot answer, which stays a *missing*
+            # input rather than becoming a 0.0 that would read as "definitely unalike".
+            #
+            # Cross-provider pairs return None here too: the numbers are not on the same
+            # scale and comparing them would be meaningless rather than merely imprecise.
+            measured = candidate_fingerprint.similarity_to(entry.fingerprint)
+            if measured is not None:
+                fingerprint_score = measured
                 fingerprint_comparable = True
 
         lyric_score = 0.0
@@ -425,6 +451,22 @@ class SimilarityEngine:
             "lyrics": candidate_lyrics is not None and entry.lyrics is not None,
             "blueprint": candidate_blueprint is not None and entry.blueprint is not None,
         }
+        if not entry.counts_toward_graded_novelty:
+            # Non-production history: duplication-specific evidence only.
+            #
+            # An engineering or simulation track was never broadcast, so "this resembles
+            # it" says nothing about whether a listener would hear a repeat — and the real
+            # station test showed 154 bench tracks acting as permanent novelty history,
+            # each one making the next generation likelier to be rejected.
+            #
+            # What survives is the evidence that does not depend on anyone having heard
+            # the original: an exact audio match, or a fingerprint that says this is the
+            # same recording. Shipping a byte-identical file is wrong whatever produced
+            # the original, so those checks deliberately still span every class.
+            present = {
+                name: ok and name == "audio_fingerprint" for name, ok in present.items()
+            }
+
         active = {name: self._weights[name] for name, ok in present.items() if ok}
         total_weight = sum(active.values())
         values = components.as_dict()
@@ -434,6 +476,9 @@ class SimilarityEngine:
             else 0.0
         )
 
+        # Exactness is judged against every entry, production or not. This is the line
+        # the provenance policy must not cross: graded resemblance is about listener
+        # experience, but an identical recording is identical regardless of who heard it.
         is_exact_audio = (
             components.embedding >= EXACT_AUDIO_THRESHOLD
             and components.chroma >= EXACT_AUDIO_THRESHOLD
@@ -447,6 +492,7 @@ class SimilarityEngine:
             is_exact_lyrics=exact_lyrics,
             blueprint_threshold=blueprint_limit,
             blueprint_is_recent=recent,
+            counts_toward_graded_novelty=entry.counts_toward_graded_novelty,
             detail=f"closest on {components.strongest()[0].replace('_', ' ')}",
         )
 
@@ -562,7 +608,12 @@ class SimilarityEngine:
                 f"(similarity {exact_audio.components.embedding:.3f})"
             )
 
-        exact_lyrics = next((c for c in comparisons if c.is_exact_lyrics), None)
+        # Identical lyrics and a repeated blueprint are both creative-repetition rules, so
+        # both are scoped to history a listener could have heard. Exact *audio* above is
+        # not: shipping the same recording twice is wrong whoever generated the original.
+        graded = [c for c in comparisons if c.counts_toward_graded_novelty]
+
+        exact_lyrics = next((c for c in graded if c.is_exact_lyrics), None)
         if exact_lyrics is not None:
             verdict = OriginalityVerdict.REJECT
             deciding = deciding or "lyrics"
@@ -571,11 +622,7 @@ class SimilarityEngine:
             )
 
         blueprint_repeat = next(
-            (
-                c
-                for c in comparisons
-                if c.components.blueprint >= c.blueprint_threshold
-            ),
+            (c for c in graded if c.components.blueprint >= c.blueprint_threshold),
             None,
         )
         if blueprint_repeat is not None:
