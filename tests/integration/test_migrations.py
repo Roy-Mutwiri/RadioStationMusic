@@ -187,3 +187,110 @@ def test_every_migration_has_a_downgrade() -> None:
         assert body.strip() not in {"-> None:\n    pass", "-> None:"}, (
             f"{revision.revision} has an empty downgrade"
         )
+
+
+
+def _insert_minimal_row(connection, table: str, values: dict[str, object]) -> None:
+    """Insert a row supplying a placeholder for every NOT NULL column.
+
+    Built from `PRAGMA table_info` rather than written out, so a new required column
+    does not silently turn this regression test into a schema-drift test.
+    """
+    columns = connection.exec_driver_sql(f"PRAGMA table_info({table})").fetchall()
+    row = dict(values)
+    for _cid, name, declared, not_null, default, _pk in columns:
+        if name in row or not not_null or default is not None:
+            continue
+        kind = (declared or "").upper()
+        if "INT" in kind:
+            row[name] = 0
+        elif "REAL" in kind or "FLOA" in kind or "DOUB" in kind:
+            row[name] = 0.0
+        elif "DATE" in kind or "TIME" in kind:
+            row[name] = "2026-10-03T00:00:00+00:00"
+        else:
+            row[name] = "[]"
+    names = ", ".join(row)
+    placeholders = ", ".join(f":{n}" for n in row)
+    connection.execute(
+        text(f"INSERT INTO {table} ({names}) VALUES ({placeholders})"), row
+    )
+
+
+def test_migrations_run_with_foreign_keys_disabled(
+    settings: AppSettings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The migration engine must not enforce foreign keys.
+
+    SQLite cannot ALTER COLUMN, so Alembic's batch mode rebuilds a table: create new,
+    copy, DROP original, rename. Every child of `tracks` declares ON DELETE CASCADE, so
+    with enforcement on that DROP cascades — adding one column deletes every fingerprint,
+    QC result, feature row and blueprint attached to it.
+
+    This is a regression test for something that happened. The `track provenance`
+    migration took audio_fingerprints from 144 rows to 0 and track_qc_checks from 65 to 0
+    on a database holding the only copy of a diagnostic corpus, and nothing errored,
+    because from SQLite's point of view the cascade was correct.
+
+    Asserted on the engine's configuration rather than by re-running a batch migration:
+    the pragma is the whole mechanism, and a test that rebuilt a table by hand would be
+    testing its own scaffolding instead of the one line that matters.
+    """
+    from tradefix_radio.persistence.database import apply_sqlite_pragmas_sync
+
+    engine = create_engine(_sync_url(settings))
+    apply_sqlite_pragmas_sync(engine, settings.database, foreign_keys=False)
+    with engine.connect() as connection:
+        enforced = connection.exec_driver_sql("PRAGMA foreign_keys").scalar()
+    engine.dispose()
+    assert enforced == 0, "migrations would run with cascades armed"
+
+    # And the application's own engine must still enforce them, or a stray delete would
+    # leave orphans at runtime. The two settings are deliberately opposite.
+    app_engine = create_engine(_sync_url(settings))
+    apply_sqlite_pragmas_sync(app_engine, settings.database)
+    with app_engine.connect() as connection:
+        app_enforced = connection.exec_driver_sql("PRAGMA foreign_keys").scalar()
+    app_engine.dispose()
+    assert app_enforced == 1
+
+
+def test_a_batch_rebuild_of_tracks_keeps_its_child_rows(
+    settings: AppSettings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same hazard, demonstrated end to end on a real schema.
+
+    Rebuilds `tracks` the way `op.batch_alter_table` does — create, copy, drop, rename —
+    on a connection configured the way `env.py` now configures them, and asserts the
+    fingerprint attached to the track is still there afterwards.
+    """
+    from tradefix_radio.persistence.database import apply_sqlite_pragmas_sync
+
+    monkeypatch.setenv("TRADEFIX_DATABASE__URL", settings.database.url)
+    command.upgrade(alembic_config(settings), "head")
+
+    seed = create_engine(_sync_url(settings))
+    apply_sqlite_pragmas_sync(seed, settings.database)
+    with seed.begin() as connection:
+        _insert_minimal_row(connection, "tracks", {"track_id": "TF-CASCADE-1"})
+        _insert_minimal_row(connection, "audio_fingerprints", {"track_id": "TF-CASCADE-1"})
+    seed.dispose()
+
+    rebuild = create_engine(_sync_url(settings))
+    apply_sqlite_pragmas_sync(rebuild, settings.database, foreign_keys=False)
+    with rebuild.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE tracks_new AS SELECT * FROM tracks"
+        )
+        connection.exec_driver_sql("DROP TABLE tracks")
+        connection.exec_driver_sql("ALTER TABLE tracks_new RENAME TO tracks")
+    with rebuild.connect() as connection:
+        survived = connection.exec_driver_sql(
+            "SELECT COUNT(*) FROM audio_fingerprints"
+        ).scalar()
+    rebuild.dispose()
+
+    assert survived == 1, (
+        "rebuilding `tracks` cascade-deleted its fingerprint; migrations must run with "
+        "foreign_keys=OFF"
+    )

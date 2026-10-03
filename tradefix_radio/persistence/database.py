@@ -314,19 +314,33 @@ def _redact_url(url: str) -> str:
     return f"{scheme}://{user}:***@{host}"
 
 
-def apply_sqlite_pragmas_sync(engine: Engine, settings: DatabaseSettings) -> None:
+def apply_sqlite_pragmas_sync(
+    engine: Engine, settings: DatabaseSettings, *, foreign_keys: bool = True
+) -> None:
     """Pragma hook for the synchronous engine Alembic uses.
 
-    Alembic runs migrations on a sync connection; without ``foreign_keys=ON`` there
-    too, a migration that rebuilds a table would drop its FK behaviour silently.
+    ``foreign_keys`` is a parameter rather than a constant because migrations need the
+    opposite of what the application needs, and the difference is destructive.
+
+    SQLite cannot ALTER COLUMN, so Alembic's batch mode rebuilds a table: create new,
+    copy, DROP original, rename. Every child of ``tracks`` declares ON DELETE CASCADE, so
+    with enforcement on that DROP cascades and adding one column deletes every
+    fingerprint, QC result and feature row attached to it. That is not a hypothetical —
+    see the ``track provenance`` migration, which did exactly that.
+
+    It is set here, on *connect*, rather than by executing the pragma on a live
+    connection: SQLite silently ignores the pragma inside a transaction, and issuing it
+    through SQLAlchemy opens an implicit one, which also leaves the migration's own work
+    uncommitted.
     """
+    enforce = "ON" if foreign_keys else "OFF"
 
     @event.listens_for(engine, "connect")
     def _on_connect(dbapi_connection: Any, _record: Any) -> None:
         cursor = dbapi_connection.cursor()
         try:
             cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.execute(f"PRAGMA foreign_keys={enforce}")
             cursor.execute(f"PRAGMA busy_timeout={settings.sqlite_busy_timeout_ms}")
         finally:
             cursor.close()

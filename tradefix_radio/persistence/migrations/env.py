@@ -86,7 +86,9 @@ def run_migrations_online() -> None:
     )
     if is_sqlite:
         settings = load_settings()
-        apply_sqlite_pragmas_sync(connectable, settings.database)
+        # foreign_keys=OFF for migrations; see the helper for why this is required
+        # rather than merely convenient.
+        apply_sqlite_pragmas_sync(connectable, settings.database, foreign_keys=False)
 
     with connectable.connect() as connection:
         context.configure(
@@ -98,6 +100,20 @@ def run_migrations_online() -> None:
         )
         with context.begin_transaction():
             context.run_migrations()
+
+        if is_sqlite:
+            # Report rather than repair. A migration that left a dangling child row has a
+            # bug, and with enforcement off nothing else will catch it — but deleting the
+            # offending rows here would destroy the evidence of the very defect this check
+            # exists to surface.
+            violations = list(
+                connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+            )
+            if violations:
+                raise RuntimeError(
+                    "migration left foreign-key violations: "
+                    f"{violations[:10]}{' ...' if len(violations) > 10 else ''}"
+                )
     connectable.dispose()
 
 
