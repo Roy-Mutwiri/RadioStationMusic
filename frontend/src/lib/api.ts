@@ -143,6 +143,7 @@ export const api = {
     return request<GenerationJob[]>(`/generation/jobs?${query}`)
   },
   jobCounts: () => request<{ by_state: Record<string, number>; total: number }>('/generation/counts'),
+  providerStatus: () => request<ProviderStatus>('/generation/provider'),
 
   resources: () => request<SystemResources>('/system/resources'),
 
@@ -351,4 +352,35 @@ export interface TrackEvidence {
   mastering: MasteringRecord | null
   fingerprint: FingerprintRecord | null
   lyrics: LyricFingerprintRecord | null
+}
+
+
+// -------------------------------------------------------------- provider
+
+export interface ProviderStatus {
+  provider: string
+  /** `unavailable` | `loading` | `ready` | `generating` | `unloading` | `failed` */
+  status: string
+  model: string
+  lm_model: string | null
+  version: string | null
+  loaded: boolean
+  load_seconds: number | null
+  last_success_at: string | null
+  last_error: string | null
+  last_error_at: string | null
+  generations: number
+  failures: number
+  oom_events: number
+  latency_p50_seconds: number | null
+  latency_p95_seconds: number | null
+  current_track_id: string | null
+  current_elapsed_seconds: number | null
+  vram_total_mb: number | null
+  vram_used_mb: number | null
+  vram_free_mb: number | null
+  peak_vram_mb: number | null
+  gpu_temperature_c: number | null
+  /** False for ACE-Step: it reports pending/done, so a percentage would be invented. */
+  supports_progress: boolean
 }

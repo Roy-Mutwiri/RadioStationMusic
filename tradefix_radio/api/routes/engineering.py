@@ -36,6 +36,7 @@ from tradefix_radio.api.dto import (
     MasteringV1,
     OriginalityResultV1,
     OriginalitySummaryV1,
+    ProviderStatusV1,
     QcCheckV1,
     QcResultV1,
     SimilarityComponentV1,
@@ -151,6 +152,100 @@ async def get_generation_jobs(
                 if record is not None:
                     jobs.append(record)
     return [job_to_dto(job, now=now) for job in jobs]
+
+
+@router.get("/generation/provider", response_model=ProviderStatusV1)
+async def get_provider_status(view: ViewDep) -> ProviderStatusV1:
+    """Live provider state (§7.24).
+
+    Served from the provider rather than the database, because every interesting field —
+    model state, VRAM, in-flight track, observed latencies — is process state that was never
+    written down. A provider without a `status` attribute (the mock) still answers, with the
+    fields it can honestly fill and `null` for the rest.
+    """
+    generation = view.generation
+    if generation is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No generation manager is attached to this API process.",
+        )
+
+    provider = getattr(generation, "provider", None)
+    description = provider.describe() if provider is not None else None
+    live = getattr(provider, "status", None)
+
+    if live is None:
+        # A provider with no status surface — the mock. Report what `describe()` gives and
+        # leave the rest absent. Inventing a "ready" here would put a green light on a
+        # subsystem nobody asked.
+        healthy = await generation.provider_health()  # type: ignore[attr-defined]
+        return ProviderStatusV1(
+            provider=description.name if description else "unknown",
+            status="ready" if healthy else "failed",
+            model=description.model_identifier if description else "unknown",
+            loaded=healthy,
+            supports_progress=False,
+        )
+
+    payload = live.as_payload()
+    gpu = payload.get("gpu") or {}
+    assert isinstance(gpu, dict)
+
+    elapsed: float | None = None
+    started = getattr(live, "current_started_monotonic", None)
+    if started is not None:
+        elapsed = max(0.0, time.monotonic() - float(started))
+
+    return ProviderStatusV1(
+        provider=str(payload["provider"]),
+        status=str(payload["status"]),
+        model=str(payload["model"]),
+        lm_model=_text(payload.get("lm_model")),
+        version=_text(payload.get("version")),
+        loaded=bool(payload["loaded"]),
+        load_seconds=_number(payload.get("load_seconds")),
+        last_success_at=_moment(payload.get("last_success_at")),
+        last_error=_text(payload.get("last_error")),
+        last_error_at=_moment(payload.get("last_error_at")),
+        generations=int(payload.get("generations") or 0),
+        failures=int(payload.get("failures") or 0),
+        oom_events=int(payload.get("oom_events") or 0),
+        latency_p50_seconds=_number(payload.get("latency_p50_seconds")),
+        latency_p95_seconds=_number(payload.get("latency_p95_seconds")),
+        current_track_id=_text(payload.get("current_track_id")),
+        current_elapsed_seconds=elapsed,
+        vram_total_mb=_number(gpu.get("total_mb")),
+        vram_used_mb=_number(gpu.get("used_mb_after") or gpu.get("used_mb_before")),
+        vram_free_mb=_number(gpu.get("free_mb_before")),
+        peak_vram_mb=_number(gpu.get("peak_used_mb")),
+        gpu_temperature_c=_number(
+            gpu.get("temperature_c_after") or gpu.get("temperature_c_before")
+        ),
+        # §7.25: ACE-Step reports pending or done, nothing between.
+        supports_progress=False,
+    )
+
+
+def _number(value: Any) -> float | None:
+    """A float, or ``None``. Never a zero standing in for "not measured"."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _text(value: Any) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _moment(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    with contextlib.suppress(ValueError):
+        return datetime.fromisoformat(value)
+    return None
 
 
 @router.get("/generation/counts", response_model=JobCountsV1)

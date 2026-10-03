@@ -20,6 +20,43 @@ market:
 generation:
   provider: ace_step
 
+  # One job at a time. §7.22 measured the alternative and the schema refuses
+  # max_concurrent_jobs > 1 for this provider: two generations on one card is how
+  # an OOM is manufactured, not how throughput is gained.
+  max_concurrent_jobs: 1
+
+  ace_step:
+    # ACE-Step runs as a separate OS process under its own Python 3.12. That is
+    # forced rather than chosen — ACE-Step declares requires-python >=3.11,<3.13
+    # and ADR-01 pins this project to 3.10 for librosa's numba wheels — and it is
+    # also what §7.5 wants, so a model crash cannot reach the playout engine.
+    # See docs/status/PHASE_7_ENVIRONMENT.md.
+    base_url: http://127.0.0.1:8001
+
+    # The 8-16 GB tier from ACE-Step's own hardware table. XL (4B) needs ~9 GB
+    # bf16 and does not fit alongside a desktop on a 12 GB card.
+    dit_model: acestep-v15-turbo
+    lm_model: acestep-5Hz-lm-0.6B
+
+    profile: balanced
+
+    # Measured on an RTX 3060 (12 GB): generation adds 1077-1170 MB on top of the
+    # resident model, and the card has ~2.3-2.6 GB free with a desktop running.
+    # The original 5200 placeholder would have refused every job.
+    min_free_vram_mb: 1800
+
+    # A 60-second track takes 42-55 s to generate on this hardware. 300 s leaves
+    # room for a long track at the quality profile without masking a hang.
+    timeout_seconds: 300.0
+
+    # Cold start loads ~6 GB of checkpoint and may download it on first run.
+    load_timeout_seconds: 1800.0
+
+    # Off: the station composed a deliberate caption and Phase 3 validated the
+    # lyrics against §14 and §17. Letting the model rewrite them would put
+    # unvalidated words about trading on air.
+    thinking: false
+
 audio:
   # VB-Audio Virtual Cable keeps station output off the operator's desktop mixer
   # and gives OBS a clean, level-stable capture source.

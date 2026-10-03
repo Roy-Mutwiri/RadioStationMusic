@@ -236,6 +236,17 @@ class GenerationManager:
     def describe_provider(self) -> str:
         return self._provider.describe().model_identifier
 
+    @property
+    def provider(self) -> MusicGenerationProvider:
+        """The provider itself.
+
+        Exposed so §7.24 can report ACE-Step's model state, VRAM and latency percentiles —
+        facts only the provider holds. Read-only by convention: the manager still owns the
+        job lifecycle, and a caller that generated through this would bypass leases, retries
+        and capacity tracking entirely.
+        """
+        return self._provider
+
     async def provider_health(self) -> bool:
         """Whether the provider could work right now (§18, §34). Never raises."""
         try:

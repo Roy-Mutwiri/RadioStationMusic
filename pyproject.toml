@@ -131,7 +131,10 @@ ignore = [
     "S", "ARG", "TD", "FIX", "E501", "TRY", "BLE", "DTZ", "PLC0415",
     "I001", "RUF043", "RUF015", "SIM105",
 ]
-"scripts/**" = ["S", "TD", "FIX", "PLC0415"]
+# Benchmark harnesses, run by hand and read by a human. They catch broad exceptions
+# because a failed generation must still be recorded in the report rather than ending
+# the run, and they do blocking I/O in async context because nothing else is waiting.
+"scripts/**" = ["S", "TD", "FIX", "PLC0415", "C408", "BLE001", "ASYNC240", "B007", "B023", "E501"]
 "tradefix_radio/persistence/migrations/**" = ["ARG", "N", "TD", "FIX", "PLC0415"]
 # SQLAlchemy's TypeDecorator hooks are called with `dialect` whether or not an
 # implementation needs it; the parameter is part of the contract, not dead code.

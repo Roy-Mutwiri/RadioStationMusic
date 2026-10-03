@@ -755,6 +755,41 @@ async def check_fingerprinting(clock: Clock) -> ComponentHealthV1:
     )
 
 
+async def check_ace_step_models(clock: Clock, settings: AppSettings) -> ComponentHealthV1:
+    """Whether the ACE-Step installation and its checkpoints are present (§7.28).
+
+    Reports; never downloads. §7.28 is explicit that tens of gigabytes must not arrive
+    silently, so this says exactly what is missing and names the command that fetches it.
+
+    Only required when the station is actually configured to use ACE-Step. On a mock
+    station the absence of a 6 GB checkpoint is not a fault, and reporting it as one would
+    train an operator to ignore the doctor output.
+    """
+    from tradefix_radio.generation.ace_step.install import (  # noqa: PLC0415
+        inspect_installation,
+    )
+
+    ace = settings.generation.ace_step
+    report = await asyncio.to_thread(
+        inspect_installation,
+        worker_directory=ace.worker_directory,
+        dit_model=ace.dit_model,
+        lm_model=ace.lm_model,
+    )
+
+    if report.ready:
+        return healthy("ace_step_models", clock=clock, detail=report.summary())
+
+    using_ace_step = settings.generation.provider == "ace_step"
+    return unhealthy(
+        "ace_step_models",
+        HealthStatus.CRITICAL if using_ace_step else HealthStatus.DEGRADED,
+        report.summary(),
+        clock=clock,
+        remediation=report.remediation(),
+    )
+
+
 def is_required(name: str, settings: AppSettings) -> bool:
     """Whether a failing check should block startup, given the run mode (§73).
 
@@ -776,6 +811,10 @@ def is_required(name: str, settings: AppSettings) -> bool:
         # Never required: the built-in provider always works. Its absence is a capability
         # difference to report, not a reason to refuse to start.
         return False
+    if name == "ace_step_models":
+        # Required exactly when the station intends to generate with ACE-Step. A mock
+        # station missing a 6 GB checkpoint is not broken.
+        return settings.generation.provider == "ace_step"
     if name == "node":
         # The station broadcasts without a frontend build.
         return False

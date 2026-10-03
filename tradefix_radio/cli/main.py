@@ -65,6 +65,7 @@ _LABELS = {
     "database": "Database",
     "gpu": "GPU",
     "ace_step_environment": "ACE-Step toolchain",
+    "ace_step_models": "ACE-Step models",
     "generation_provider": "Generation provider",
     "market_feed": "Market Feed",
     "obs": "OBS WebSocket",
@@ -185,6 +186,7 @@ def _build_registry(settings: AppSettings, clock: Clock) -> HealthRegistry:
     add("database", lambda: _check_database(clock, settings))
     add("gpu", lambda: env_checks.check_gpu(clock, settings))
     add("ace_step_environment", lambda: env_checks.check_ace_step_environment(clock))
+    add("ace_step_models", lambda: env_checks.check_ace_step_models(clock, settings))
     add("generation_provider", lambda: env_checks.check_generation_provider(clock, settings))
     add("market_feed", lambda: env_checks.check_market_feed(clock, settings))
     add("obs", lambda: env_checks.check_obs(clock, settings))
@@ -482,7 +484,16 @@ def build_parser() -> argparse.ArgumentParser:
     config_cmd.add_argument("--section", default=None, help="limit output to one section")
     config_cmd.set_defaults(handler=_cmd_config)
 
-    from tradefix_radio.cli import audio_tools, dev, market_sim, report_director, soak
+    from tradefix_radio.cli import (
+        audio_tools,
+        dev,
+        market_sim,
+        report_director,
+        soak,
+    )
+    from tradefix_radio.cli import (
+        models as models_cli,
+    )
 
     market_sim.register(sub)
     sub.choices["market-sim"].set_defaults(handler=_cmd_market_sim)
@@ -501,6 +512,9 @@ def build_parser() -> argparse.ArgumentParser:
     audio_tools.register(sub)
     for name, command in audio_tools.COMMANDS.items():
         sub.choices[name].set_defaults(handler=_with_settings(command))
+
+    models_cli.register(sub)
+    sub.choices["models"].set_defaults(handler=_with_settings(models_cli.command))
 
     version = sub.add_parser("version", help="print version information")
     version.set_defaults(handler=_cmd_version)

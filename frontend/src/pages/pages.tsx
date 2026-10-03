@@ -358,6 +358,8 @@ export function GenerationPage() {
 
       <GenerationStrip generation={state?.generation ?? null} />
 
+      <ProviderPanel />
+
       <Panel title="Job states" data-testid="job-counts">
         {counts.isLoading ? (
           <LoadingState />
@@ -454,6 +456,143 @@ export function GenerationPage() {
   )
 }
 
+
+
+/**
+ * Live generation-provider state (§7.25).
+ *
+ * Shows what is really there: model, load state, measured VRAM against the card's real
+ * total, the in-flight track and how long it has been running, and p50/p95 latency once
+ * there are samples to compute them from.
+ *
+ * **No percentage bar.** §7.25: *"Do not display fake percent complete if ACE-Step does not
+ * expose trustworthy progress. An indeterminate progress state is better."* ACE-Step does
+ * emit a progress number, but it is coarse — measured, it sits at 0.1 for the whole LM phase
+ * and then jumps to 1.0 — so a bar would spend most of a 45-second generation claiming 10%.
+ * The elapsed seconds are real and are what is shown instead.
+ */
+function ProviderPanel() {
+  const provider = useQuery({
+    queryKey: ['provider-status'],
+    queryFn: api.providerStatus,
+    refetchInterval: 3_000,
+    retry: false,
+  })
+
+  if (provider.isError) {
+    return (
+      <Panel title="Provider" data-testid="provider-panel">
+        <ErrorState
+          title="No provider attached"
+          detail={provider.error instanceof Error ? provider.error.message : undefined}
+        />
+      </Panel>
+    )
+  }
+  if (provider.isLoading || !provider.data) {
+    return (
+      <Panel title="Provider" data-testid="provider-panel">
+        <LoadingState />
+      </Panel>
+    )
+  }
+
+  const p = provider.data
+  const busy = p.status === 'generating'
+  const vramPercent =
+    p.vram_total_mb && p.vram_used_mb ? (p.vram_used_mb / p.vram_total_mb) * 100 : null
+
+  return (
+    <Panel
+      title="Provider"
+      data-testid="provider-panel"
+      action={
+        <div className="flex items-center gap-2">
+          <Chip tone={PROVIDER_TONE[p.status] ?? 'neutral'}>{p.status.toUpperCase()}</Chip>
+          {p.oom_events > 0 && <Chip tone="warn">{p.oom_events} OOM</Chip>}
+        </div>
+      }
+    >
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <Metric label="Provider" value={p.provider} size="sm" />
+        <Metric label="Model" value={p.model} size="sm" hint={p.lm_model ?? undefined} />
+        <Metric
+          label="VRAM"
+          value={
+            p.vram_used_mb && p.vram_total_mb
+              ? `${(p.vram_used_mb / 1024).toFixed(1)} / ${(p.vram_total_mb / 1024).toFixed(1)} GB`
+              : null
+          }
+          size="sm"
+          hint={vramPercent !== null ? `${vramPercent.toFixed(0)}% used` : undefined}
+        />
+        <Metric
+          label="Generated"
+          value={p.generations || null}
+          size="sm"
+          hint={p.failures ? `${p.failures} failed` : undefined}
+        />
+        <Metric
+          label="Latency p50 / p95"
+          value={
+            p.latency_p50_seconds !== null
+              ? `${p.latency_p50_seconds.toFixed(0)}s / ${
+                  p.latency_p95_seconds?.toFixed(0) ?? '—'
+                }s`
+              : null
+          }
+          size="sm"
+          hint={p.latency_p50_seconds === null ? 'no completed generations yet' : undefined}
+        />
+      </div>
+
+      {busy && p.current_track_id && (
+        <div className="mt-3 border-t hairline pt-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-2xs text-ink-500">Current job</span>
+            <span className="font-mono text-2xs text-ink-200">{p.current_track_id}</span>
+          </div>
+          <div className="mt-1 flex items-baseline justify-between gap-3">
+            <span className="text-2xs text-ink-500">Elapsed</span>
+            <span className="tabular-nums text-2xs text-gold-400">
+              {p.current_elapsed_seconds !== null
+                ? `${p.current_elapsed_seconds.toFixed(0)}s`
+                : '—'}
+            </span>
+          </div>
+          {/* Indeterminate, deliberately. See the component docstring. */}
+          <div
+            className="mt-2 h-0.5 w-full overflow-hidden rounded-full bg-ink-800"
+            role="progressbar"
+            aria-label="Generation in progress"
+            aria-busy="true"
+          >
+            <div className="h-full w-1/3 animate-pulse rounded-full bg-gold-500/60" />
+          </div>
+          <p className="mt-1 text-2xs text-ink-600">
+            ACE-Step does not report fine-grained progress; elapsed time is shown instead of
+            an invented percentage.
+          </p>
+        </div>
+      )}
+
+      {p.last_error && (
+        <p className="mt-3 border-t hairline pt-2 text-2xs text-status-degraded">
+          Last error: {p.last_error}
+        </p>
+      )}
+    </Panel>
+  )
+}
+
+const PROVIDER_TONE: Record<string, 'neutral' | 'gold' | 'warn' | 'danger' | 'soft'> = {
+  ready: 'soft',
+  generating: 'gold',
+  loading: 'warn',
+  unloading: 'warn',
+  unavailable: 'neutral',
+  failed: 'danger',
+}
 
 /**
  * Post-production outcomes, on the Generation page (§6.17).

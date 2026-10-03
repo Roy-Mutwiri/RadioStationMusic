@@ -50,6 +50,7 @@ __all__ = [
     "OriginalityResultV1",
     "OriginalitySummaryV1",
     "ProgrammingReasonV1",
+    "ProviderStatusV1",
     "QcCheckV1",
     "QcResultV1",
     "QueueItemV1",
@@ -612,3 +613,45 @@ class OriginalitySummaryV1(_Dto):
     fingerprint_detail: str
     #: §86: the station never claims a track has never existed before.
     scope_note: str
+
+
+# ------------------------------------------------------------------ provider
+
+
+class ProviderStatusV1(_Dto):
+    """Live generation-provider state (§7.24).
+
+    Every numeric field is optional, and that is load-bearing rather than defensive. A
+    `latency_p95_seconds` of 0.0 before any track has been generated renders as "instant",
+    which is the fabricated metric §86 forbids; `null` renders as absent. The same reasoning
+    governs every VRAM field — a station with no GPU reports nothing, not zero.
+    """
+
+    provider: str
+    #: `unavailable` | `loading` | `ready` | `generating` | `unloading` | `failed`
+    status: str
+    model: str
+    lm_model: str | None = None
+    version: str | None = None
+    loaded: bool
+    load_seconds: float | None = None
+    last_success_at: datetime | None = None
+    last_error: str | None = None
+    last_error_at: datetime | None = None
+    generations: int = Field(default=0, ge=0)
+    failures: int = Field(default=0, ge=0)
+    oom_events: int = Field(default=0, ge=0)
+    latency_p50_seconds: float | None = None
+    latency_p95_seconds: float | None = None
+    current_track_id: str | None = None
+    #: Seconds the in-flight generation has been running. `null` when nothing is running.
+    current_elapsed_seconds: float | None = None
+    #: VRAM in MB, as measured. Absent on a host with no GPU.
+    vram_total_mb: float | None = None
+    vram_used_mb: float | None = None
+    vram_free_mb: float | None = None
+    peak_vram_mb: float | None = None
+    gpu_temperature_c: float | None = None
+    #: §7.25: ACE-Step reports pending/done and nothing between, so a percentage would be
+    #: invented. The UI renders an indeterminate state instead.
+    supports_progress: bool = False

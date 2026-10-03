@@ -270,6 +270,12 @@ async def run_soak(
     director = MusicDirector(
         soak_settings, library, selector=WeightedSelector(random.Random(seed))  # noqa: S311
     )
+    # The soak always uses the mock, whatever the configuration says.
+    #
+    # Deliberate, and not an oversight: a soak simulates days of broadcast in minutes against
+    # a virtual clock, and a real GPU cannot be accelerated. Driving ACE-Step from here would
+    # make a 24-hour run take 24 hours. Real-generation measurement is §7.21 and §7.23, which
+    # run against the wall clock and say so.
     provider = MockMusicProvider(
         soak_settings.generation.mock.model_copy(
             update={"sample_rate": SOAK_SAMPLE_RATE, "latency_seconds": 20.0}

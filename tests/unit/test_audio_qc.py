@@ -297,3 +297,56 @@ def test_a_full_rate_file_is_still_held_to_the_top_end_check(
     check = _check(result, "high_frequency_content")
     assert check.status is not QcStatus.PASS
     assert check.value is not None
+
+
+def test_bright_loud_music_is_not_called_corrupt(qc_settings: AppSettings) -> None:
+    """The regression real ACE-Step output exposed.
+
+    The discontinuity floor was an absolute 0.5 amplitude step. At 48 kHz a sine of
+    amplitude A at frequency f steps by ``A·2πf/fs`` between samples, so a loud component at
+    5 kHz reaches 0.58 — and hi-hats live well above 5 kHz. A real, clean, mastered UK drill
+    track counted 50 "impossible sample steps" and was rejected as *probably corrupt*.
+
+    The fixtures that justified the old floor were all built from low sine partials and
+    could never reach it, so nothing caught this until real audio arrived. This fixture is
+    deliberately bright and loud: high-frequency content at near-full scale, no faults.
+    """
+    rate = 48_000
+    t = np.arange(int(rate * 4.0)) / rate
+    rng = np.random.default_rng(5)
+    # A bright mix: dominant 8 kHz and 11 kHz partials over a bass note, near full scale.
+    # The high partials are weighted heavily on purpose — the per-sample step of a sine is
+    # proportional to its frequency, so it is the top end that produces the large steps the
+    # old absolute floor mistook for corruption.
+    signal = (
+        0.30 * np.sin(2 * np.pi * 110.0 * t)
+        + 0.70 * np.sin(2 * np.pi * 8_000.0 * t)
+        + 0.35 * np.sin(2 * np.pi * 11_000.0 * t)
+        + rng.normal(0.0, 0.01, t.size)
+    )
+    signal = signal / np.abs(signal).max() * 0.89
+    bright = AudioBuffer(np.stack([signal, signal], axis=1).astype(np.float32), rate)
+
+    features = extract_features(bright)
+    # The physics this guards: a single step here legitimately exceeds the old 0.5 floor.
+    samples = np.asarray(bright.samples, dtype=np.float64).mean(axis=1)
+    assert np.abs(np.diff(samples)).max() > 0.5, "fixture is not bright enough to be a test"
+
+    assert features.discontinuity_count == 0, (
+        f"{features.discontinuity_count} false discontinuities in clean bright audio"
+    )
+    result = _qc(bright, qc_settings)
+    assert _check(result, "discontinuities").status is QcStatus.PASS
+
+
+def test_real_clicks_are_still_caught_after_the_fix(qc_settings: AppSettings) -> None:
+    """The paired positive. The floor was raised, not removed.
+
+    Without this, the fix above could be achieved by deleting the check — which would let a
+    genuinely corrupt render reach air.
+    """
+    result = _qc(clicking(clicks=64), qc_settings)
+    check = _check(result, "discontinuities")
+    assert check.status is QcStatus.FAIL
+    assert check.value is not None
+    assert check.value >= 32

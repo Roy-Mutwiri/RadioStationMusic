@@ -340,12 +340,40 @@ def _discontinuities(mono: np.ndarray) -> int:
     """Count sample-to-sample jumps that no real signal produces.
 
     A decode fault, a truncated write or a corrupted frame shows up as a step far larger than
-    anything the surrounding signal is doing. The threshold is relative to the track's own
-    dynamics, so a loud track is not penalised for being loud.
+    anything the surrounding signal is doing. Two conditions must both hold: the step is a
+    statistical outlier *and* it is large relative to the track's own peak.
+
+    Why the floor is relative to peak rather than an absolute 0.5
+    -------------------------------------------------------------
+    It used to be ``max(limit, 0.5)`` — an absolute amplitude. That encodes "no real signal
+    moves 0.5 between consecutive samples", and at 48 kHz that is simply false: a sine of
+    amplitude *A* at frequency *f* has a maximum step of ``A·2πf/fs``, so a loud component at
+    just 5 kHz reaches 0.58. Hi-hats and transients live well above 5 kHz.
+
+    Measured on real ACE-Step output, where this first showed up as a rejection:
+
+    ========================================  ==========  ===============  =============
+    material                                  max |Δ|     hits at 0.5      hits at peak
+    ========================================  ==========  ===============  =============
+    ACE-Step master, UK drill 142 BPM         0.666       50  (FAIL)       0
+    ACE-Step master, DnB 174 BPM              0.607       18               0
+    ACE-Step master, trap 148 BPM             0.713        1               0
+    `clicking` fixture, 64 injected clicks    1.248       114              113
+    `musical` fixture, clean                  0.057        0               0
+    `noise` fixture, broadband                1.243        0               0
+    ========================================  ==========  ===============  =============
+
+    The absolute floor rejected a perfectly good master as "probably corrupt" while the
+    fixtures that motivated it were all built from low sine partials and never exercised the
+    case. Scaling with peak separates real music from real clicks with a wide margin and has
+    a physical reading: exceeding the track's own peak in one sample step requires full-scale
+    content above ``fs/2π`` (7.6 kHz at 48 kHz), which mastered music does not have, while a
+    click — a sample flipped to the opposite rail — gives a step of about twice the peak.
     """
     if mono.size < 3:
         return 0
-    deltas = np.abs(np.diff(mono.astype(np.float64)))
+    samples = mono.astype(np.float64)
+    deltas = np.abs(np.diff(samples))
     if deltas.size == 0:
         return 0
     # Nine standard deviations above the mean step. Chosen high on purpose: percussion is full
@@ -353,8 +381,18 @@ def _discontinuities(mono: np.ndarray) -> int:
     limit = deltas.mean() + 9.0 * deltas.std()
     if not math.isfinite(limit) or limit <= 0:
         return 0
-    return int((deltas > max(limit, 0.5)).sum())
+    peak = float(np.abs(samples).max())
+    if peak <= 0:
+        return 0
+    return int((deltas > max(limit, peak * _DISCONTINUITY_PEAK_FACTOR)).sum())
 
+
+#: Minimum sample step, as a multiple of the track's peak, before it can count as a fault.
+#:
+#: 1.0. Measured rather than chosen: real ACE-Step masters reach 0.71-0.76 of their peak in a
+#: single step, and the click fixture reaches 1.27. Anything in that gap separates them; 1.0
+#: sits in the middle and has a physical reading of its own (see `_discontinuities`).
+_DISCONTINUITY_PEAK_FACTOR: Final = 1.0
 
 #: Floor for the reported mono fold-down loss, in dB.
 #:

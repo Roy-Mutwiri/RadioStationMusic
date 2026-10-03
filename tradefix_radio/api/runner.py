@@ -39,8 +39,8 @@ from tradefix_radio.core.clock import UTC, SystemClock
 from tradefix_radio.director.library import load_content_library
 from tradefix_radio.director.music_director import MusicDirector
 from tradefix_radio.director.selection import WeightedSelector
+from tradefix_radio.generation.factory import build_provider
 from tradefix_radio.generation.manager import DatabaseJobUnitOfWork, GenerationManager
-from tradefix_radio.generation.mock import MockMusicProvider
 from tradefix_radio.market.feeds.simulated import SimulatedFeed
 from tradefix_radio.market.service import MarketDataService
 from tradefix_radio.market.simulation import Scenario
@@ -213,9 +213,9 @@ class ControlCenterRunner:
             load_content_library(config_dir=CONFIG_DIR),
             selector=WeightedSelector(random.Random(self._seed)),  # noqa: S311 - creative
         )
-        provider = MockMusicProvider(
-            settings.generation.mock, clock=self._clock, seed=self._seed
-        )
+        # The factory, not a direct construction: §7 requires ACE-Step to be one
+        # implementation of the interface rather than a branch at every call site.
+        provider = build_provider(settings, clock=self._clock, seed=self._seed)
         generation = GenerationManager(
             provider=provider,
             settings=settings.generation,
@@ -260,6 +260,24 @@ class ControlCenterRunner:
             playout_block_seconds=1.0,
             post_production=post_production,
         )
+        # Pay the cold start here rather than on the first scheduled track. §7.6 keeps the
+        # model loaded across tracks; this is where the first load happens, alongside the
+        # market warm-up, so a 60-second checkpoint load does not land on an empty buffer.
+        loader = getattr(provider, "load", None)
+        if loader is not None:
+            try:
+                await loader()
+            except Exception as error:  # noqa: BLE001 - a cold model must not stop start-up
+                _log.warning(
+                    "control_center.provider_load_failed",
+                    error_type=type(error).__name__,
+                    error=str(error),
+                    detail=(
+                        "the station will start and retry on the first generation; "
+                        "run `tradefix doctor` to check the ACE-Step service"
+                    ),
+                )
+
         await station.start()
         self._station = station
 

@@ -528,26 +528,116 @@ class RadioSettings(Section):
 # ============================================================ generation
 
 
-class AceStepSettings(Section):
-    """ACE-Step provider settings (ADR-02, ADR-04).
+class AceStepProfileSettings(Section):
+    """One §7.8 generation preset.
 
-    ``base_url`` rather than a model path, because ACE-Step runs out of process.
-    All of these are per-ADR-04 *defaults to be revisited* after the Phase 7
-    benchmark on real hardware.
+    Generation parameters only. §7.20 is explicit that buffer pressure may change *how the
+    model is asked*, never what the audio has to pass afterwards — so there is deliberately
+    nowhere in this type to put a QC threshold. The restriction is structural rather than a
+    rule someone has to remember.
+    """
+
+    inference_steps: int = Field(default=8, ge=1, le=200)
+    guidance_scale: float = Field(default=3.0, ge=0.0, le=30.0)
+    #: Scales the request timeout. A quality preset may legitimately take longer before it
+    #: is called hung.
+    timeout_multiplier: float = Field(default=1.0, gt=0.0, le=10.0)
+    max_duration_seconds: float | None = Field(default=None, gt=0.0, le=600.0)
+    description: str = ""
+
+
+def _default_profiles() -> dict[str, AceStepProfileSettings]:
+    """Starting points, to be revisited against the §7.21 benchmark.
+
+    Step counts follow ACE-Step's documented turbo range (1-20).
+    """
+    return {
+        "fast": AceStepProfileSettings(
+            inference_steps=4,
+            guidance_scale=2.0,
+            timeout_multiplier=0.6,
+            description="Fewest steps, for buffer pressure.",
+        ),
+        "balanced": AceStepProfileSettings(
+            inference_steps=8,
+            guidance_scale=3.0,
+            timeout_multiplier=1.0,
+            description="The documented turbo default. Normal operation.",
+        ),
+        "quality": AceStepProfileSettings(
+            inference_steps=16,
+            guidance_scale=4.5,
+            timeout_multiplier=1.8,
+            description="More steps and stronger guidance, when the buffer is healthy.",
+        ),
+    }
+
+
+class AceStepSettings(Section):
+    """ACE-Step provider settings (ADR-02, ADR-04, §7.29).
+
+    ``base_url`` rather than a model path, because ACE-Step runs out of process. That is not
+    a preference: ACE-Step 1.5 declares ``requires-python = ">=3.11,<3.13"`` and ADR-01 pins
+    this project to 3.10 for librosa's numba wheels, so the two cannot share an interpreter
+    at any price. See ``docs/status/PHASE_7_ENVIRONMENT.md``.
+
+    §7.29: every ACE-Step setting lives here, so none of them is scattered through code.
     """
 
     base_url: str = "http://127.0.0.1:8001"
     dit_model: str = "acestep-v15-turbo"
     lm_model: str = "acestep-5Hz-lm-0.6B"
+    #: Bearer token, when the service was started with ``ACESTEP_API_KEY``.
+    #:
+    #: ``SecretStr`` so §50's "secrets must never display unmasked after save" holds for it
+    #: the same way it does for the OBS password and the broker credentials.
+    api_key: SecretStr | None = None
+
     inference_steps: int = Field(default=8, ge=1, le=200)
     guidance_scale: float = Field(default=3.0, ge=0.0, le=30.0)
     precision: Literal["bf16", "fp16", "fp32"] = "bf16"
     offload: bool = True
+    #: Let ACE-Step's 5Hz LM expand tags and lyrics before diffusion.
+    #:
+    #: Off by default. The station already composed a deliberate caption and validated the
+    #: lyrics against §14 and §17; letting the model rewrite them would put unvalidated words
+    #: about trading into a broadcast, which is the one place this project cannot be casual.
+    thinking: bool = False
+
+    #: Which §7.8 preset to use when the buffer is healthy.
+    profile: str = "balanced"
+    profiles: dict[str, AceStepProfileSettings] = Field(default_factory=_default_profiles)
+    #: §7.20: let buffer health step the profile down toward `fast`. Never up.
+    buffer_aware_profile: bool = True
+
     timeout_seconds: float = Field(default=300.0, gt=0.0, le=3600.0)
-    #: Refuse to start a job below this much free VRAM (§20 pre-flight).
-    min_free_vram_mb: int = Field(default=5_200, ge=0, le=100_000)
+    #: Cold start pulls a checkpoint into VRAM and may download it, so it gets its own,
+    #: much longer budget than a generation.
+    load_timeout_seconds: float = Field(default=1_800.0, gt=0.0, le=14_400.0)
+    #: Refuse to start a job below this much free VRAM (§20, §7.7 pre-flight).
+    #:
+    #: 1800 MB, **measured** in the Phase 7 benchmark rather than estimated. ADR-04 marked
+    #: the original 5200 as a placeholder to revisit on real hardware, and the measurement
+    #: inverted it: with the model already resident the card has only ~2.3-2.6 GB free, and
+    #: a generation adds 1077-1170 MB on top. A 5200 MB floor would have refused every job
+    #: on the very hardware it was written for.
+    #:
+    #: The figure is the measured demand plus roughly 50% margin. It is a *pre-flight*, not
+    #: a guarantee: the real OOM path (§7.7) still exists because a desktop can allocate
+    #: VRAM between the check and the generation.
+    min_free_vram_mb: int = Field(default=1_800, ge=0, le=100_000)
     #: Where the external service writes audio; must be readable by us.
     output_dir: Path | None = None
+    #: Run the service as a child process managed by the station (§7.5).
+    #:
+    #: Default off: on a workstation the service is usually already running and owned by the
+    #: operator, and a station that silently spawned a second copy would contend for the GPU
+    #: with the first.
+    worker_process: bool = False
+    #: Where ACE-Step is installed, when the station is to launch it.
+    worker_directory: Path | None = None
+    worker_command: tuple[str, ...] = ("uv", "run", "acestep-api")
+    worker_startup_timeout_seconds: float = Field(default=600.0, gt=0.0, le=7_200.0)
 
     @field_validator("base_url")
     @classmethod
@@ -555,6 +645,20 @@ class AceStepSettings(Section):
         if not value.startswith(("http://", "https://")):
             raise ValueError(f"generation.ace_step.base_url must be http(s), got {value!r}")
         return value.rstrip("/")
+
+    @model_validator(mode="after")
+    def _check_profile(self) -> AceStepSettings:
+        if self.profile not in self.profiles:
+            raise ValueError(
+                f"generation.ace_step.profile={self.profile!r} is not among the configured "
+                f"profiles ({', '.join(sorted(self.profiles))})"
+            )
+        if self.worker_process and self.worker_directory is None:
+            raise ValueError(
+                "generation.ace_step.worker_process requires worker_directory, so the "
+                "station knows which installation to launch"
+            )
+        return self
 
 
 class MockProviderSettings(Section):
