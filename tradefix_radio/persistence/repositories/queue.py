@@ -79,6 +79,12 @@ class PersistedQueueSlot:
 class QueueRepository(Repository):
     """Stores and restores the forward schedule."""
 
+    #: Track ids dropped by the most recent :meth:`load` for want of a blueprint.
+    #:
+    #: Populated per call rather than accumulated, so a second load does not resurrect
+    #: the findings of the first.
+    dropped_track_ids: list[str]
+
     async def save(self, slots: list[PersistedQueueSlot]) -> int:
         """Replace the persisted queue with ``slots``.
 
@@ -92,7 +98,14 @@ class QueueRepository(Repository):
         return len(slots)
 
     async def load(self) -> list[PersistedQueueSlot]:
-        """Every stored slot, ordered by position. Rows without a blueprint are dropped."""
+        """Every stored slot, ordered by position. Rows without a blueprint are dropped.
+
+        Which rows were dropped is recorded on :attr:`dropped_track_ids`, because the
+        caller needs it: the generation job for such a slot is still pending, can never
+        succeed — the provider is handed a blueprint and there is nothing to hand it — and
+        will otherwise be claimed, fail and retry on every scheduling cycle.
+        """
+        self.dropped_track_ids = []
         result = await self._session.execute(
             select(QueueItem).order_by(QueueItem.position)
         )
@@ -110,6 +123,7 @@ class QueueRepository(Repository):
                     track_id=row.track_id,
                     detail="dropped; a slot with no blueprint cannot be explained or replanned",
                 )
+                self.dropped_track_ids.append(row.track_id)
                 continue
             slots.append(_to_slot(row, blueprint))
         return slots

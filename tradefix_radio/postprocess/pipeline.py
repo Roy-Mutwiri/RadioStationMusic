@@ -62,6 +62,10 @@ from tradefix_radio.originality.lyrics import (
     fingerprint_lyrics,
     internal_repetition_warning,
 )
+from tradefix_radio.originality.review import (
+    ReviewResolution,
+    ReviewResolver,
+)
 from tradefix_radio.originality.similarity import (
     LibraryEntry,
     OriginalityVerdict,
@@ -193,6 +197,10 @@ class PipelineOutcome:
     file_hash: str | None = None
     lyrics: LyricFingerprint | None = None
     similarity: SimilarityOutcome | None = None
+    #: Set when the candidate entered REVIEW and the resolver decided it. Carries the
+    #: initial verdict alongside the final one, so the §48 page can show that a track
+    #: began as REVIEW rather than presenting the approval as if it were first-pass.
+    review: ReviewResolution | None = None
     mastering: MasteringResult | None = None
     rejection_reason: RejectionReason | None = None
     #: One sentence an operator can act on, without opening a log.
@@ -225,6 +233,7 @@ class PostProductionPipeline:
         self._clock = clock or SystemClock()
         self._provider = fingerprint_provider or default_provider()
         self._engine = SimilarityEngine(settings.originality)
+        self._review_resolver = ReviewResolver(settings.originality)
         self._master_dir = master_dir or (settings.paths.generated_dir / "mastered")
         if warm_analysis:
             # Paid once here rather than on the first real track — see
@@ -355,12 +364,40 @@ class PostProductionPipeline:
         timings["similarity"] = time.perf_counter() - started
 
         verdict = similarity.verdict
-        if verdict is OriginalityVerdict.REVIEW and self._settings.originality.regenerate_on_review:
-            # §6.6: autonomous mode rejects REVIEW rather than leaving a track in limbo. A
-            # station with nobody watching cannot wait for an answer, and the cost of
-            # regenerating is one job while the cost of airing a near-duplicate is a listener
-            # noticing.
-            verdict = OriginalityVerdict.REJECT
+        resolution: ReviewResolution | None = None
+        if verdict is OriginalityVerdict.REVIEW:
+            # §6.6 said autonomous mode must not leave a track in limbo, and the previous
+            # implementation satisfied that by rejecting every REVIEW outright — behind a
+            # setting named `regenerate_on_review` that never regenerated anything. The
+            # real station test measured the cost: 43% of all generated audio discarded,
+            # a 7% approval rate, and an hour of procedural fallback.
+            #
+            # REVIEW now goes to a resolver that looks at *what kind* of similarity it
+            # was. Two lo-fi tracks at 86 and 87 BPM are not a duplicate; the same
+            # recording re-encoded is. The initial verdict is kept, never overwritten.
+            production_references = sum(
+                1 for entry in library if entry.counts_toward_graded_novelty
+            )
+            resolution = self._review_resolver.resolve(
+                similarity, now=moment, production_references=production_references
+            )
+            verdict = (
+                OriginalityVerdict.APPROVE
+                if resolution.approved
+                else OriginalityVerdict.REJECT
+            )
+            _log.info(
+                "originality.review_resolved",
+                track_id=track_id,
+                initial="review",
+                disposition=resolution.disposition.value,
+                evidence=resolution.evidence_class.value,
+                duplication_risk=round(resolution.duplication_risk, 3),
+                creative_similarity=round(resolution.creative_similarity, 3),
+                production_references=production_references,
+                resolver_version=resolution.resolver_version,
+                reason=resolution.reason,
+            )
 
         if verdict is OriginalityVerdict.REJECT:
             stage = self._advance(stage, PipelineStage.ORIGINALITY_REJECTED)
@@ -375,6 +412,7 @@ class PostProductionPipeline:
                 file_hash=file_hash,
                 lyrics=lyric_fingerprint,
                 similarity=similarity,
+                review=resolution,
                 rejection_reason=_rejection_reason_for(similarity),
                 detail=similarity.explain(),
                 timings=timings,
@@ -408,6 +446,7 @@ class PostProductionPipeline:
                 file_hash=file_hash,
                 lyrics=lyric_fingerprint,
                 similarity=similarity,
+                review=resolution,
                 mastering=mastering,
                 rejection_reason=RejectionReason.MASTER_FAILURE,
                 detail=mastering.detail,
@@ -449,6 +488,7 @@ class PostProductionPipeline:
                 file_hash=file_hash,
                 lyrics=lyric_fingerprint,
                 similarity=similarity,
+                review=resolution,
                 mastering=mastering,
                 rejection_reason=RejectionReason.FINAL_QC_DEFECT,
                 detail=loudness_problem or final_qc.summary(),
@@ -473,6 +513,7 @@ class PostProductionPipeline:
             file_hash=file_hash,
             lyrics=lyric_fingerprint,
             similarity=similarity,
+            review=resolution,
             mastering=mastering,
             detail=(
                 f"approved; novelty {similarity.novelty_score:.2f}"

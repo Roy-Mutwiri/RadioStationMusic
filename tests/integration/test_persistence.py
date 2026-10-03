@@ -18,7 +18,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from tradefix_radio.core.errors import IllegalTransitionError, PersistenceError
 from tradefix_radio.core.state_machine import TrackState
@@ -1075,3 +1075,113 @@ async def _advance_to_playing(repo: TrackRepository, track_id: str) -> None:
         TrackState.PLAYING,
     ):
         await repo.transition(track_id, state, now=FIXED_NOW, reason="test_pipeline")
+
+
+async def test_a_review_resolution_round_trips_beside_its_initial_verdict(
+    database: Database,
+) -> None:
+    """The second stage's answer is stored *with* the first stage's, never instead of it.
+
+    An approval that hides having begun as REVIEW is the silent reinterpretation B2 exists
+    to remove — the §48 page has to be able to say "this entered REVIEW and here is why it
+    was let through".
+    """
+    from tradefix_radio.originality.review import (
+        EvidenceClass,
+        ReviewDisposition,
+        ReviewResolution,
+    )
+    from tradefix_radio.originality.similarity import (
+        OriginalityVerdict,
+        SimilarityComponents,
+        SimilarityOutcome,
+        TrackComparison,
+    )
+    from tradefix_radio.persistence.repositories.originality import OriginalityRepository
+
+    closest = TrackComparison(
+        existing_track_id="TF-OTHER",
+        score=0.79,
+        components=SimilarityComponents(
+            audio_fingerprint=0.55, embedding=0.93, chroma=0.88, mfcc=0.98, tempo=1.0
+        ),
+    )
+    outcome = SimilarityOutcome(
+        track_id="TF-REVIEWED",
+        verdict=OriginalityVerdict.REVIEW,
+        novelty_score=0.21,
+        max_similarity=0.79,
+        threshold=0.84,
+        closest=closest,
+        top_comparisons=(closest,),
+        compared_against=1,
+        deciding_component="mfcc",
+    )
+    resolution = ReviewResolution(
+        track_id="TF-REVIEWED",
+        initial_verdict=OriginalityVerdict.REVIEW,
+        disposition=ReviewDisposition.FINAL_APPROVE,
+        evidence_class=EvidenceClass.STYLE_ONLY,
+        reason="the similarity is mfcc, a style signal, with no duplicate evidence",
+        duplication_risk=0.55,
+        creative_similarity=1.0,
+        closest_track_id="TF-OTHER",
+        production_references=7,
+    )
+
+    async with database.session() as session:
+        await OriginalityRepository(session).record_similarity(
+            "TF-REVIEWED", outcome, evaluated_at=FIXED_NOW, resolution=resolution
+        )
+
+    async with database.read_session() as session:
+        row = (
+            await session.execute(
+                text(
+                    "SELECT verdict, final_disposition, evidence_class, resolver_version, "
+                    "duplication_risk, creative_similarity, production_references, "
+                    "resolution_reason FROM similarity_results WHERE track_id='TF-REVIEWED'"
+                )
+            )
+        ).first()
+
+    assert row is not None
+    assert row[0] == "review", "the first-stage verdict was overwritten"
+    assert row[1] == "final_approve"
+    assert row[2] == "style_only"
+    assert row[3], "a disposition without a resolver version cannot be interpreted later"
+    assert row[4] == pytest.approx(0.55)
+    assert row[5] == pytest.approx(1.0)
+    assert row[6] == 7
+    assert "style signal" in row[7]
+
+
+async def test_a_first_stage_decision_records_no_resolution(database: Database) -> None:
+    """Nothing resolved means nothing claimed. The columns stay NULL rather than zero."""
+    from tradefix_radio.originality.similarity import OriginalityVerdict, SimilarityOutcome
+    from tradefix_radio.persistence.repositories.originality import OriginalityRepository
+
+    outcome = SimilarityOutcome(
+        track_id="TF-CLEAN",
+        verdict=OriginalityVerdict.APPROVE,
+        novelty_score=0.9,
+        max_similarity=0.1,
+        threshold=0.84,
+        closest=None,
+        compared_against=0,
+    )
+    async with database.session() as session:
+        await OriginalityRepository(session).record_similarity(
+            "TF-CLEAN", outcome, evaluated_at=FIXED_NOW
+        )
+
+    async with database.read_session() as session:
+        row = (
+            await session.execute(
+                text(
+                    "SELECT final_disposition, evidence_class, duplication_risk "
+                    "FROM similarity_results WHERE track_id='TF-CLEAN'"
+                )
+            )
+        ).first()
+    assert row == (None, None, None)

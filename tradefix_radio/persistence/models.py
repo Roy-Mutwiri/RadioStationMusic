@@ -312,6 +312,32 @@ class SimilarityResult(Base):
     compared_against: Mapped[int] = mapped_column(Integer, default=0)
     evaluated_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
 
+    # -- second-stage resolution (B2) -------------------------------------
+    #
+    # `verdict` above is the *first-stage* answer and is never overwritten. A candidate
+    # that entered REVIEW and was then approved must still show that it entered REVIEW:
+    # an approval that hides its own history is the silent reinterpretation this work
+    # exists to remove.
+
+    #: ``final_approve`` | ``final_reject`` | ``needs_human_review``. NULL when the
+    #: first stage decided outright and no resolver ran.
+    final_disposition: Mapped[str | None] = mapped_column(
+        String(24), index=True, default=None
+    )
+    #: Which class of evidence decided it — see `EvidenceClass`.
+    evidence_class: Mapped[str | None] = mapped_column(String(40), index=True, default=None)
+    #: A sentence naming the evidence, for the §48 page and the rejection audit.
+    resolution_reason: Mapped[str | None] = mapped_column(String(600), default=None)
+    #: Which rules produced this. A disposition is uninterpretable without it, because
+    #: "approved" means something different under a different policy.
+    resolver_version: Mapped[str | None] = mapped_column(String(16), default=None)
+    #: The two scores kept apart, so the UI need not re-derive them from `components`.
+    duplication_risk: Mapped[float | None] = mapped_column(Float, default=None)
+    creative_similarity: Mapped[float | None] = mapped_column(Float, default=None)
+    #: How many PRODUCTION_RADIO tracks this was compared against. 0 is a cold start, and
+    #: is reported as such rather than presented as a confident approval.
+    production_references: Mapped[int | None] = mapped_column(Integer, default=None)
+
 
 class TrackQcResult(Base):
     """One QC pass over one track (SS6.1, SS6.10).
@@ -791,6 +817,46 @@ class SystemEvent(Base):
     __table_args__ = (
         Index("ix_system_events_level_at", "level", "at"),
     )
+
+
+class OperatorFeedback(Base):
+    """A human's opinion of a track that aired.
+
+    A table of its own, deliberately — and nothing reads it on the generation path.
+
+    Technical QC answers "is this fit to broadcast": measured, thresholded, and the only
+    thing allowed to stop a track playing. This answers "was it any good", which is a
+    judgement, and the two must not be confused. If human preference fed back into the
+    Phase 6 gates automatically, a run of "boring" ratings would start tightening
+    thresholds that exist to catch clipping and silence, and the station would lose the
+    ability to distinguish a dull track from a broken one.
+
+    So the relationship is one-way by construction: the pipeline writes QC, a person writes
+    this, and any influence from here on future programming is a deliberate change someone
+    makes after reading it — not something the system does on its own.
+    """
+
+    __tablename__ = "operator_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
+    track_id: Mapped[str] = mapped_column(String(64), index=True)
+    #: ``good`` | ``bad`` | ``skip``.
+    verdict: Mapped[str] = mapped_column(String(16), index=True)
+    #: Optional shorthand from the offered list (``boring``, ``wrong_genre``, ``distorted``…).
+    #:
+    #: A free string rather than an enum column: the vocabulary is a UI affordance that will
+    #: change as listening reveals what people actually want to say, and a migration per
+    #: adjective would discourage improving it.
+    reason: Mapped[str | None] = mapped_column(String(48), index=True, default=None)
+    note: Mapped[str | None] = mapped_column(String(500), default=None)
+    #: What was true when the opinion was formed, so a rating stays interpretable.
+    symbol: Mapped[str | None] = mapped_column(String(32), index=True, default=None)
+    market_regime: Mapped[str | None] = mapped_column(String(48), default=None)
+    #: Seconds into the track when the verdict was given. ``None`` if not reported.
+    elapsed_seconds: Mapped[float | None] = mapped_column(Float, default=None)
+
+    __table_args__ = (Index("ix_operator_feedback_verdict_at", "verdict", "at"),)
 
 
 class HealthEvent(Base):

@@ -123,6 +123,57 @@ class SimilarityComponents:
         name, value = max(self.as_dict().items(), key=lambda item: item[1])
         return name, value
 
+    # -- the two questions, kept apart ------------------------------------
+    #
+    # These components answer different questions and averaging them into one number
+    # loses the distinction that decides whether a track may air.
+    #
+    #   "is this the same recording"    -> duplication_risk
+    #   "does this sound like the last  -> creative_similarity
+    #    thing we played"
+    #
+    # The split is not a preference. Measured over 10 440 pairs of this station's own
+    # output (docs/status/COMPONENT_AUTHORITY.md):
+    #
+    #   component     all pairs        same-genre delta   same-BPM delta
+    #   fingerprint   0.511 +/-0.021   +0.003             +0.002
+    #   mfcc          0.971 +/-0.026   +0.007             +0.003
+    #   chroma        0.308 +/-0.271   +0.078             +0.034
+    #   tempo         0.397 +/-0.360   +0.450             +0.598
+    #
+    # MFCC returns ~0.97 for every pair, so it cannot be evidence about anything; tempo
+    # tracks the BPM band the director deliberately chose. Neither says a recording was
+    # copied. The fingerprint does, and its calibration against real duplicates is in
+    # docs/status/CHROMAPRINT_CALIBRATION.md.
+
+    @property
+    def duplication_risk(self) -> float:
+        """How much evidence there is that this is the *same recording*.
+
+        The fingerprint, and only the fingerprint. It is the one component calibrated
+        against real duplicates (docs/status/CHROMAPRINT_CALIBRATION.md): every
+        time-aligned modification of one recording scored 0.9068–1.0000 and every
+        different recording scored at most 0.6404.
+
+        An earlier version blended in `min(embedding, chroma)` as corroboration and it
+        reported a mean risk of 0.849 across a corpus measured to contain no duplicates
+        at all — because both of those saturate on one generator's output in one genre.
+        Corroboration is a *rule* in `ReviewResolver`, applied only to a fingerprint that
+        is already suspicious; as a score it manufactured the alarm it was meant to
+        qualify.
+        """
+        return self.audio_fingerprint
+
+    @property
+    def creative_similarity(self) -> float:
+        """How much this resembles other programming, as a listener would hear it.
+
+        Drives rotation and diversity, never a duplication verdict. Tempo and timbre
+        belong here precisely because they describe a production family.
+        """
+        parts = (self.embedding, self.chroma, self.mfcc, self.tempo, self.blueprint)
+        return max(parts) if parts else 0.0
+
 
 @dataclass(frozen=True)
 class TrackComparison:
@@ -137,6 +188,13 @@ class TrackComparison:
     blueprint_threshold: float = 1.0
     blueprint_is_recent: bool = False
     detail: str = ""
+    #: When the compared-against track aired, for recency-sensitive rotation rules.
+    #:
+    #: ``None`` means it never aired or nobody recorded when — treated as *not* recent,
+    #: because rejecting a track on a timestamp that does not exist would be inventing a
+    #: reason. Exact-duplicate detection ignores this field entirely: a duplicated
+    #: recording stays duplicated however old the original is.
+    existing_aired_at: datetime | None = None
     #: Whether the compared-against track may contribute a *graded* judgement.
     #:
     #: Carried on the comparison so the independent rules can honour the provenance
@@ -203,6 +261,8 @@ class LibraryEntry:
     lyrics: LyricFingerprint | None = None
     blueprint: BlueprintSummary | None = None
     created_at: datetime | None = None
+    #: When this track first aired, if it ever did. Drives recency-sensitive rotation.
+    aired_at: datetime | None = None
     #: Where this historical track came from. See `TrackProvenance`.
     #:
     #: Defaults to production so that a caller which does not supply it keeps the old,
@@ -492,6 +552,7 @@ class SimilarityEngine:
             is_exact_lyrics=exact_lyrics,
             blueprint_threshold=blueprint_limit,
             blueprint_is_recent=recent,
+            existing_aired_at=entry.aired_at,
             counts_toward_graded_novelty=entry.counts_toward_graded_novelty,
             detail=f"closest on {components.strongest()[0].replace('_', ' ')}",
         )

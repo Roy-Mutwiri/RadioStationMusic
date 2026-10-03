@@ -56,6 +56,7 @@ __all__ = [
     "QcCheckV1",
     "QcResultV1",
     "QueueItemV1",
+    "ReviewResolutionV1",
     "SimilarityComponentV1",
     "StationStatusV1",
     "SystemResourcesV1",
@@ -455,6 +456,12 @@ class StationStatusV1(_Dto):
     version: str
     environment: str
     mode: str
+    #: True when this process is an interactive test run with lowered buffer targets.
+    #:
+    #: A persistent chip rather than something tucked into a panel, for the same reason the
+    #: simulation badge is: a 12-minute buffer target where production uses 45 is not wrong,
+    #: but it is only not-wrong if the reader knows why.
+    test_mode: bool = False
     started_at: datetime | None = None
     uptime_seconds: float = Field(ge=0.0)
 
@@ -517,6 +524,27 @@ class LiveStateV1(_Dto):
 
 
 # ---------------------------------------------------------------- originality
+
+
+class ReviewResolutionV1(_Dto):
+    """How a REVIEW candidate was resolved, and on what evidence.
+
+    Carries the initial verdict beside the final disposition on purpose: an approval that
+    hides having begun as REVIEW is the silent reinterpretation the second stage was
+    built to replace.
+    """
+
+    initial_verdict: str
+    disposition: str
+    evidence_class: str
+    reason: str
+    resolver_version: str
+    #: Fingerprint agreement — the only signal calibrated against real duplicates.
+    duplication_risk: float = Field(ge=0.0, le=1.0)
+    #: Timbre, tempo, key and structure. Drives rotation, never duplication.
+    creative_similarity: float = Field(ge=0.0, le=1.0)
+    closest_track_id: str | None = None
+    production_references: int = Field(default=0, ge=0)
 
 
 class QcCheckV1(_Dto):
@@ -686,6 +714,26 @@ class OriginalitySummaryV1(_Dto):
     fingerprint_detail: str
     #: §86: the station never claims a track has never existed before.
     scope_note: str
+
+    # -- the two questions, kept apart on the page as well (B2) ------------
+    #
+    # One novelty number could not say both "this is not a copy" and "this sounds like
+    # the last thing we played", and the station spent an hour on procedural audio partly
+    # because nobody could see the difference.
+
+    #: How many PRODUCTION_RADIO tracks exist to compare against.
+    production_references: int = Field(default=0, ge=0)
+    #: True when nothing has aired yet, so graded novelty has no basis.
+    #:
+    #: Surfaced explicitly because the alternative is a 100% approval rate that looks like
+    #: quality and is actually an empty library. §86 forbids exactly that kind of
+    #: impressive-looking metric.
+    cold_start: bool = False
+    #: Dispositions of candidates that entered REVIEW, by the evidence that decided them.
+    resolution_counts: dict[str, int] = Field(default_factory=dict)
+    evidence_counts: dict[str, int] = Field(default_factory=dict)
+    #: Which resolver policy produced the stored dispositions. ``None`` before any ran.
+    resolver_version: str | None = None
 
 
 # ------------------------------------------------------------------ provider

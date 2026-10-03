@@ -306,8 +306,29 @@ class RadioQueue:
 
     # -- removal and replacement -------------------------------------------
 
+    def discard(self, track_id: str, *, force: bool = False) -> QueueEntry | None:
+        """Remove a slot if it is present; return ``None`` if it was not.
+
+        The automatic counterpart to :meth:`remove`. Two callers want opposite things from
+        a missing track: an operator pressing "remove" on a slot that has vanished needs to
+        be told, while automatic cleanup of a permanently failed job only needs the slot
+        *gone* — and already-gone satisfies that completely.
+
+        The distinction is not hypothetical. Recovery legitimately drops a restored slot
+        whose blueprint is missing, while the generation job for that same track is still
+        pending; the job then fails, and cleanup used to raise `QueueError` from inside the
+        failure handler, replacing the real failure with a confusing secondary one on every
+        scheduling cycle.
+        """
+        if self.position_of(track_id) is None:
+            return None
+        return self.remove(track_id, force=force)
+
     def remove(self, track_id: str, *, force: bool = False) -> QueueEntry:
         """Remove a slot. Refuses protected slots unless ``force``.
+
+        Raises when the track is absent — see :meth:`discard` for the automatic path that
+        treats absence as success.
 
         ``force`` exists for §44's operator actions, which are allowed to override automatic
         protection — with confirmation, which is the UI's business rather than this method's.

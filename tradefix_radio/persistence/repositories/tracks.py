@@ -13,8 +13,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+import structlog
 from sqlalchemy import func, select, update
 
+from tradefix_radio.contracts.enums import TrackProvenance
 from tradefix_radio.contracts.music import MusicBlueprintV1
 from tradefix_radio.core.errors import PersistenceError
 from tradefix_radio.core.state_machine import (
@@ -28,6 +30,8 @@ from tradefix_radio.persistence.models import (
     TrackTitle,
 )
 from tradefix_radio.persistence.repositories.base import Repository
+
+_log = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -61,6 +65,35 @@ class TrackRepository(Repository):
     """Reads and writes tracks, blueprints, titles and state transitions."""
 
     # -- creation ----------------------------------------------------------
+
+    async def promote_to_production(self, track_id: str, *, now: datetime) -> bool:
+        """Mark a track as PRODUCTION_RADIO because it has begun airing for real.
+
+        This is the only way a track enters production provenance, and the trigger is
+        deliberately narrow: **playout actually starting, outside simulation and test
+        mode**. Not generated, not approved, not queued, not previewed.
+
+        The looser triggers were all tempting and all wrong. A station generates far more
+        candidates than it airs, and counting an approved-but-never-played track as
+        production history means the novelty library fills with music nobody heard — which
+        is precisely the defect that made 154 bench tracks age real output.
+
+        Returns whether the row changed, so a caller can log a promotion once rather than
+        on every repeat play.
+        """
+        row = await self._session.get(Track, track_id)
+        if row is None or row.provenance == TrackProvenance.PRODUCTION_RADIO.value:
+            return False
+        previous = row.provenance
+        row.provenance = TrackProvenance.PRODUCTION_RADIO.value
+        row.updated_at = now
+        _log.info(
+            "track.promoted_to_production",
+            track_id=track_id,
+            previous=previous,
+            detail="began airing outside simulation/test mode",
+        )
+        return True
 
     async def create(
         self,

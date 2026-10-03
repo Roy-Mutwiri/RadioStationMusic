@@ -294,3 +294,128 @@ def test_a_batch_rebuild_of_tracks_keeps_its_child_rows(
         "rebuilding `tracks` cascade-deleted its fingerprint; migrations must run with "
         "foreign_keys=OFF"
     )
+
+
+#: Every child table of `tracks`, with the parent that owns it.
+#:
+#: Named explicitly rather than discovered, so adding a child table to the schema and
+#: forgetting it here is a visible omission rather than a silent gap in coverage.
+CHILD_TABLES = (
+    "track_blueprints",
+    "track_files",
+    "lyrics",
+    "audio_fingerprints",
+    "track_qc_results",
+    "audio_features",
+    "mastering_results",
+    "lyric_fingerprints",
+    "similarity_results",
+)
+
+
+def _populate_relational_fixture(connection) -> dict[str, int]:
+    """One parent track with a row in every child table, and the counts to verify."""
+    _insert_minimal_row(connection, "tracks", {"track_id": "TF-FIXTURE-1"})
+    for table in CHILD_TABLES:
+        _insert_minimal_row(connection, table, {"track_id": "TF-FIXTURE-1"})
+    # A QC check hangs off the QC result rather than off the track, so the chain is two
+    # levels deep — which is where a cascade does the most damage and the least noise.
+    result_id = connection.exec_driver_sql(
+        "SELECT id FROM track_qc_results WHERE track_id = 'TF-FIXTURE-1'"
+    ).scalar()
+    if result_id is not None:
+        _insert_minimal_row(connection, "track_qc_checks", {"result_id": result_id})
+
+    counts = {}
+    for table in (*CHILD_TABLES, "track_qc_checks", "tracks"):
+        counts[table] = connection.exec_driver_sql(
+            f"SELECT COUNT(*) FROM {table}"
+        ).scalar()
+    return counts
+
+
+def test_migrating_to_head_preserves_every_child_row(
+    settings: AppSettings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Station history must survive a migration. Permanent policy, not a one-off check.
+
+    A migration test that only asserts "upgrade succeeded" is insufficient: the cascade
+    defect that deleted 144 fingerprints, 3 QC results and 65 QC checks raised no error
+    and left the schema perfectly valid. Only the rows were gone.
+
+    So this populates a full relational fixture, migrates, and verifies that every child
+    row is still there and that no foreign key dangles.
+    """
+    monkeypatch.setenv("TRADEFIX_DATABASE__URL", settings.database.url)
+    config = alembic_config(settings)
+
+    # Stop one revision short so there is a real migration left to run over live data.
+    revisions = _revision_sequence(config)
+    assert len(revisions) >= 2, "need at least two revisions to test preservation"
+    command.upgrade(config, revisions[-2])
+
+    engine = create_engine(_sync_url(settings))
+    from tradefix_radio.persistence.database import apply_sqlite_pragmas_sync
+
+    apply_sqlite_pragmas_sync(engine, settings.database)
+    with engine.begin() as connection:
+        before = _populate_relational_fixture(connection)
+    engine.dispose()
+
+    assert all(count >= 1 for count in before.values()), f"fixture did not populate: {before}"
+
+    command.upgrade(config, "head")
+
+    verify = create_engine(_sync_url(settings))
+    apply_sqlite_pragmas_sync(verify, settings.database)
+    with verify.connect() as connection:
+        after = {
+            table: connection.exec_driver_sql(f"SELECT COUNT(*) FROM {table}").scalar()
+            for table in before
+        }
+        violations = connection.exec_driver_sql("PRAGMA foreign_key_check").fetchall()
+    verify.dispose()
+
+    lost = {t: (before[t], after[t]) for t in before if after[t] != before[t]}
+    assert not lost, f"migration lost rows (table: before -> after): {lost}"
+    assert not violations, f"migration left dangling foreign keys: {violations[:5]}"
+
+
+def test_downgrading_one_revision_preserves_child_rows(
+    settings: AppSettings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same guarantee in reverse, since every migration here declares a downgrade."""
+    monkeypatch.setenv("TRADEFIX_DATABASE__URL", settings.database.url)
+    config = alembic_config(settings)
+    command.upgrade(config, "head")
+
+    engine = create_engine(_sync_url(settings))
+    from tradefix_radio.persistence.database import apply_sqlite_pragmas_sync
+
+    apply_sqlite_pragmas_sync(engine, settings.database)
+    with engine.begin() as connection:
+        before = _populate_relational_fixture(connection)
+    engine.dispose()
+
+    revisions = _revision_sequence(config)
+    command.downgrade(config, revisions[-2])
+
+    verify = create_engine(_sync_url(settings))
+    apply_sqlite_pragmas_sync(verify, settings.database)
+    with verify.connect() as connection:
+        after = {
+            table: connection.exec_driver_sql(f"SELECT COUNT(*) FROM {table}").scalar()
+            for table in before
+        }
+    verify.dispose()
+
+    lost = {t: (before[t], after[t]) for t in before if after[t] != before[t]}
+    assert not lost, f"downgrade lost rows (table: before -> after): {lost}"
+
+
+def _revision_sequence(config: Config) -> list[str]:
+    """Revisions oldest-first, so a test can stop one short of head."""
+    from alembic.script import ScriptDirectory
+
+    script = ScriptDirectory.from_config(config)
+    return [revision.revision for revision in reversed(list(script.walk_revisions()))]

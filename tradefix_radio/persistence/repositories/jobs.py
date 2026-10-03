@@ -649,6 +649,13 @@ class GenerationJobRepository(Repository):
           for up to the lease duration for no reason.
         * ``RETRY_PENDING`` — left alone. Its backoff is in the database and still valid.
         * ``PLANNED`` / ``QUEUED`` — left alone. Nothing was started.
+
+        Jobs whose track has no blueprint are **not** handled here, though they were in a
+        first attempt. A job is planned before its track row is written in some callers,
+        so "no blueprint yet" is a normal transient state rather than an orphan — and
+        deciding otherwise would make this repository reach into the track schema to
+        answer a question the station already knows the answer to. See
+        `RadioStation.recover`, which abandons jobs for the specific slots it dropped.
         """
         counts = {"reclaimed": 0, "abandoned": 0, "cleared": 0}
         for job in await self.in_state(*LEASED_JOB_STATES):

@@ -46,9 +46,11 @@ from tradefix_radio.api.dto import (
 )
 from tradefix_radio.api.snapshot import RuntimeView, capabilities_to_dtos, job_to_dto
 from tradefix_radio.audio.fingerprint import fingerprint_capability
+from tradefix_radio.contracts.enums import TrackProvenance
 from tradefix_radio.core.clock import UTC
 from tradefix_radio.persistence.models import (
     GenerationJob,
+    SimilarityResult,
     Track,
     TrackBlueprint,
     TrackFile,
@@ -631,6 +633,40 @@ async def get_originality_summary(view: ViewDep) -> OriginalitySummaryV1:
         library_size = await repository.library_size()
         verdict_counts = await repository.verdict_counts()
         histogram = await repository.novelty_distribution()
+        production_references = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(Track)
+                .where(Track.provenance == TrackProvenance.PRODUCTION_RADIO.value)
+            )
+            or 0
+        )
+        resolution_counts = {
+            str(row[0]): int(row[1])
+            for row in (
+                await session.execute(
+                    select(SimilarityResult.final_disposition, func.count())
+                    .where(SimilarityResult.final_disposition.is_not(None))
+                    .group_by(SimilarityResult.final_disposition)
+                )
+            ).all()
+        }
+        evidence_counts = {
+            str(row[0]): int(row[1])
+            for row in (
+                await session.execute(
+                    select(SimilarityResult.evidence_class, func.count())
+                    .where(SimilarityResult.evidence_class.is_not(None))
+                    .group_by(SimilarityResult.evidence_class)
+                )
+            ).all()
+        }
+        resolver_version = await session.scalar(
+            select(SimilarityResult.resolver_version)
+            .where(SimilarityResult.resolver_version.is_not(None))
+            .order_by(SimilarityResult.id.desc())
+            .limit(1)
+        )
     capability = fingerprint_capability()
     return OriginalitySummaryV1(
         library_size=library_size,
@@ -640,6 +676,14 @@ async def get_originality_summary(view: ViewDep) -> OriginalitySummaryV1:
         fingerprint_provider=str(capability["active_provider"]),
         fingerprint_detail=str(capability["detail"]),
         scope_note=ORIGINALITY_SCOPE_NOTE,
+        production_references=production_references,
+        # Stated rather than inferred from a zero count, so the page can say "cold start"
+        # instead of showing an approval rate that looks like quality and is an empty
+        # library.
+        cold_start=production_references == 0,
+        resolution_counts=resolution_counts,
+        evidence_counts=evidence_counts,
+        resolver_version=None if resolver_version is None else str(resolver_version),
     )
 
 

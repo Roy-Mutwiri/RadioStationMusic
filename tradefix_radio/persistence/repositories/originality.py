@@ -54,6 +54,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from tradefix_radio.audio.mastering import MasteringResult
     from tradefix_radio.audio.qc import TrackQcResult as QcResult
     from tradefix_radio.originality.lyrics import LyricFingerprint
+    from tradefix_radio.originality.review import ReviewResolution
     from tradefix_radio.originality.similarity import LibraryEntry, SimilarityOutcome
 
 __all__ = [
@@ -291,7 +292,12 @@ class OriginalityRepository(Repository):
         )
 
     async def record_similarity(
-        self, track_id: str, outcome: SimilarityOutcome, *, evaluated_at: datetime
+        self,
+        track_id: str,
+        outcome: SimilarityOutcome,
+        *,
+        evaluated_at: datetime,
+        resolution: ReviewResolution | None = None,
     ) -> None:
         """Persist the originality evaluation with its component breakdown (§6.5).
 
@@ -310,6 +316,27 @@ class OriginalityRepository(Repository):
                     None if outcome.closest is None else outcome.closest.existing_track_id
                 ),
                 deciding_component=outcome.deciding_component,
+                # The first-stage verdict above stays as it was; these record what the
+                # resolver then did with it.
+                final_disposition=(
+                    None if resolution is None else resolution.disposition.value
+                ),
+                evidence_class=(
+                    None if resolution is None else resolution.evidence_class.value
+                ),
+                resolution_reason=None if resolution is None else resolution.reason[:600],
+                resolver_version=(
+                    None if resolution is None else resolution.resolver_version
+                ),
+                duplication_risk=(
+                    None if resolution is None else resolution.duplication_risk
+                ),
+                creative_similarity=(
+                    None if resolution is None else resolution.creative_similarity
+                ),
+                production_references=(
+                    None if resolution is None else resolution.production_references
+                ),
                 components=[
                     {
                         "track_id": comparison.existing_track_id,

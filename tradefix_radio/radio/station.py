@@ -68,6 +68,7 @@ from tradefix_radio.core.errors import (
     IllegalTransitionError,
     PersistenceError,
 )
+from tradefix_radio.core.job_states import TERMINAL_JOB_STATES
 from tradefix_radio.core.state_machine import TrackState
 from tradefix_radio.director.history import HistoryEntry, ProgrammingHistory
 from tradefix_radio.director.memory import restore_director_state, save_director_state
@@ -76,6 +77,7 @@ from tradefix_radio.generation.manager import GenerationManager, GenerationOutco
 from tradefix_radio.persistence.database import Database
 from tradefix_radio.persistence.models import Lyrics as LyricsRow
 from tradefix_radio.persistence.repositories import (
+    GenerationJobRepository,
     MemoryKeys,
     OriginalityRepository,
     RadioMemoryRepository,
@@ -494,7 +496,37 @@ class RadioStation:
         self._stats.recovered_jobs = await self._generation.recover_on_startup()
 
         async with self._database.session() as session:
-            slots = await QueueRepository(session).load()
+            queue_repository = QueueRepository(session)
+            slots = await queue_repository.load()
+            # A slot dropped for want of a blueprint leaves its generation job pending,
+            # and that job can never succeed — the provider is handed a blueprint and
+            # there is nothing to hand it. Left alone it is claimed, fails, retries to
+            # exhaustion and logs a traceback on every scheduling cycle, which is exactly
+            # how it presented: a station that looked like its generator was broken while
+            # it ground on five rows that could not possibly complete.
+            #
+            # Abandoned here rather than inside `classify_on_startup`, because this is
+            # the only place that knows *which* slots were dropped. The job repository
+            # would have to reach into the track schema to work it out, and would wrongly
+            # condemn a job planned before its track row was written.
+            orphaned = 0
+            jobs = GenerationJobRepository(session)
+            for track_id in queue_repository.dropped_track_ids:
+                for job in await jobs.for_track(track_id):
+                    if job.state in TERMINAL_JOB_STATES:
+                        continue
+                    if await jobs.mark_abandoned(
+                        job.job_id,
+                        now=self._clock.now(),
+                        reason="the queue slot was dropped: no blueprint is stored",
+                    ):
+                        orphaned += 1
+            if orphaned:
+                _log.warning(
+                    "station.orphaned_jobs_abandoned",
+                    count=orphaned,
+                    track_ids=queue_repository.dropped_track_ids[:10],
+                )
             tracks = TrackRepository(session)
             history = await tracks.recent_history(limit=400)
             titles = await tracks.recent_titles(limit=500)
@@ -880,8 +912,13 @@ class RadioStation:
         if outcome.is_terminal_failure:
             # The slot can never be filled. Removing it keeps the queue's duration honest —
             # a permanent pending slot would inflate the buffer forever.
+            #
+            # `discard`, not `remove`: the slot may already be gone, because recovery drops
+            # restored slots whose blueprint is missing while their jobs are still pending.
+            # Raising there replaced the real generation failure with a `QueueError` from
+            # inside the failure handler, on every cycle.
             with _reporting("drop permanently failed slot", track_id=outcome.track_id):
-                self._queue.remove(outcome.track_id, force=True)
+                self._queue.discard(outcome.track_id, force=True)
         return outcome
 
     async def _accept_generated(self, outcome: GenerationOutcome) -> None:
@@ -1140,7 +1177,10 @@ class RadioStation:
                 )
             if outcome.similarity is not None:
                 await repository.record_similarity(
-                    outcome.track_id, outcome.similarity, evaluated_at=now
+                    outcome.track_id,
+                    outcome.similarity,
+                    evaluated_at=now,
+                    resolution=outcome.review,
                 )
             if outcome.lyrics is not None:
                 await repository.record_lyric_fingerprint(outcome.lyrics, computed_at=now)
@@ -1282,13 +1322,27 @@ class RadioStation:
     ) -> None:
         await self._advance_track(item.track_id, PLAYING_LIFECYCLE, reason="airing")
         async with self._database.session() as session:
+            tracks = TrackRepository(session)
             with contextlib.suppress(IllegalTransitionError, PersistenceError):
-                await TrackRepository(session).mark_played(
+                await tracks.mark_played(
                     item.track_id,
                     now=self._clock.now(),
                     completed=completed,
                     reason=reason,
                 )
+            # Airing is what makes a track production history, and only here.
+            #
+            # A station generates far more candidates than it plays, so promoting on
+            # approval or on queueing would fill the novelty library with music nobody
+            # heard — the exact shape of the defect where 154 bench tracks aged real
+            # output. The run mode gate matters just as much: a simulation run drives the
+            # whole architecture and airs to a null sink, and §72 is explicit that it must
+            # never be mistaken for the real thing.
+            if self._provenance == TrackProvenance.PRODUCTION_RADIO.value:
+                with contextlib.suppress(PersistenceError):
+                    await tracks.promote_to_production(
+                        item.track_id, now=self._clock.now()
+                    )
     async def _maybe_request_station_id(self) -> None:
         # A market switch gets an identifier of its own, ahead of the rotation and
         # regardless of how long it has been since the last one. The listener has just had
