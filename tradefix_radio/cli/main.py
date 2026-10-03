@@ -8,6 +8,7 @@ Commands available in Phase 1::
     tradefix config      show the resolved configuration, secrets masked
     tradefix version     version and interpreter
     tradefix market-sim  run a market scenario and print the engine's reading (§7, §47)
+    tradefix visual      behaviour simulation, asset manifest and visual self-checks
 
 Later phases add ``report-director``, ``soak``, ``benchmark``, ``dev``,
 ``simulation`` and ``production`` (§78).
@@ -500,6 +501,9 @@ def build_parser() -> argparse.ArgumentParser:
     from tradefix_radio.cli import (
         station as station_cli,
     )
+    from tradefix_radio.cli import (
+        visual as visual_cli,
+    )
 
     market_sim.register(sub)
     sub.choices["market-sim"].set_defaults(handler=_cmd_market_sim)
@@ -527,6 +531,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     audio_cli.register(sub)
     sub.choices["audio"].set_defaults(handler=_with_settings(audio_cli.command))
+
+    visual_cli.register(sub)
+    sub.choices["visual"].set_defaults(handler=_with_settings(visual_cli.command))
 
     version = sub.add_parser("version", help="print version information")
     version.set_defaults(handler=_cmd_version)

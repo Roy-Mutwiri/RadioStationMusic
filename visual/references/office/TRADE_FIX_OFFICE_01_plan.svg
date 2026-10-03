@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 7640 6700" width="7640" height="6700" role="img">
+  <title>TRADE_FIX_OFFICE_01 — floor plan and camera layout</title>
+  <rect width="7640" height="6700" fill="#07080a"/>
+  <text x="620.0" y="150.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="86" font-weight="600" letter-spacing="3" fill="#e6e8ec" text-anchor="start" opacity="1.0">TRADE_FIX_OFFICE_01</text>
+  <text x="620.0" y="225.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">Floor plan and camera layout · millimetres · origin at the floor of the south-west corner</text>
+  <text x="620.0" y="283.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="28" font-weight="400" letter-spacing="1" fill="#8a6f1c" text-anchor="start" opacity="1.0">GENERATED FROM TRADE_FIX_OFFICE_01.blockout.json — do not edit by hand</text>
+  <circle cx="6870.0" cy="215.0" r="92.0" fill="none" stroke="#232935" stroke-width="2"/>
+  <line x1="6870.0" y1="277.0" x2="6870.0" y2="153.0" stroke="#444d5d" stroke-width="3" stroke-linecap="butt"/>
+  <polygon points="6870.0,137.0 6855.0,165.0 6885.0,165.0" fill="#c9a227" stroke="none" stroke-width="2" opacity="1.0"/>
+  <text x="6870.0" y="117.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="600" letter-spacing="0.0" fill="#c9a227" text-anchor="middle" opacity="1.0">N</text>
+  <text x="6870.0" y="343.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#444d5d" text-anchor="middle" opacity="1.0">+Y</text>
+  <text x="6982.0" y="225.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#444d5d" text-anchor="middle" opacity="1.0">+X</text>
+  <line x1="6808.0" y1="215.0" x2="6932.0" y2="215.0" stroke="#2f3744" stroke-width="2" stroke-linecap="butt"/>
+  <rect x="620.0" y="760.0" width="6400.0" height="4800.0" rx="0" fill="#0c0e12" stroke="#2f3744" stroke-width="5"/>
+  <line x1="1620.0" y1="5560.0" x2="1620.0" y2="760.0" stroke="#151922" stroke-width="1.5" stroke-linecap="butt"/>
+  <line x1="2620.0" y1="5560.0" x2="2620.0" y2="760.0" stroke="#151922" stroke-width="1.5" stroke-linecap="butt"/>
+  <line x1="3620.0" y1="5560.0" x2="3620.0" y2="760.0" stroke="#151922" stroke-width="1.5" stroke-linecap="butt"/>
+  <line x1="4620.0" y1="5560.0" x2="4620.0" y2="760.0" stroke="#151922" stroke-width="1.5" stroke-linecap="butt"/>
+  <line x1="5620.0" y1="5560.0" x2="5620.0" y2="760.0" stroke="#151922" stroke-width="1.5" stroke-linecap="butt"/>
+  <line x1="6620.0" y1="5560.0" x2="6620.0" y2="760.0" stroke="#151922" stroke-width="1.5" stroke-linecap="butt"/>
+  <line x1="620.0" y1="4560.0" x2="7020.0" y2="4560.0" stroke="#151922" stroke-width="1.5" stroke-linecap="butt"/>
+  <line x1="620.0" y1="3560.0" x2="7020.0" y2="3560.0" stroke="#151922" stroke-width="1.5" stroke-linecap="butt"/>
+  <line x1="620.0" y1="2560.0" x2="7020.0" y2="2560.0" stroke="#151922" stroke-width="1.5" stroke-linecap="butt"/>
+  <line x1="620.0" y1="1560.0" x2="7020.0" y2="1560.0" stroke="#151922" stroke-width="1.5" stroke-linecap="butt"/>
+  <line x1="1420.0" y1="760.0" x2="6220.0" y2="760.0" stroke="#4a7fc2" stroke-width="16" stroke-linecap="butt"/>
+  <line x1="1420.0" y1="738.0" x2="6220.0" y2="738.0" stroke="#4a7fc2" stroke-width="5" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="1420.0" y1="714.0" x2="6220.0" y2="714.0" stroke="#4a7fc2" stroke-width="3" stroke-linecap="butt" opacity="0.25"/>
+  <line x1="3020.0" y1="726.0" x2="3020.0" y2="794.0" stroke="#2f3744" stroke-width="7" stroke-linecap="butt"/>
+  <line x1="4620.0" y1="726.0" x2="4620.0" y2="794.0" stroke="#2f3744" stroke-width="7" stroke-linecap="butt"/>
+  <text x="3820.0" y="674.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="36" font-weight="600" letter-spacing="2" fill="#4a7fc2" text-anchor="middle" opacity="1.0">ZONE E — WINDOW / NIGHT CITY</text>
+  <text x="3820.0" y="792.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="middle" opacity="1.0">glazing x 800–5600 · sill z400 · head z2700 · mullions x2400, x4000</text>
+  <rect x="620.0" y="1360.0" width="400.0" height="3300.0" rx="0" fill="#151922" stroke="#2f3744" stroke-width="3"/>
+  <text x="820.0" y="3010.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="32" font-weight="600" letter-spacing="2" fill="#9aa1ad" text-anchor="middle" opacity="1.0" transform="rotate(-90 820.0 3010.0)">ZONE D — BOOKSHELF</text>
+  <line x1="680.0" y1="3460.0" x2="680.0" y2="2160.0" stroke="#c9a227" stroke-width="11" stroke-linecap="butt"/>
+  <text x="742.0" y="2822.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="27" font-weight="400" letter-spacing="0.0" fill="#c9a227" text-anchor="start" opacity="1.0">TF_GOLD_STATEMENT</text>
+  <rect x="6320.0" y="2460.0" width="650.0" height="500.0" rx="0" fill="#151922" stroke="#2f3744" stroke-width="3"/>
+  <text x="6620.0" y="1960.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="32" font-weight="600" letter-spacing="2" fill="#9aa1ad" text-anchor="middle" opacity="1.0">ZONE C</text>
+  <text x="6620.0" y="2006.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="middle" opacity="1.0">COFFEE / RESET</text>
+  <circle cx="6620.0" cy="2710.0" r="26.0" fill="#232935" stroke="#444d5d" stroke-width="2"/>
+  <circle cx="6840.0" cy="2560.0" r="26.0" fill="#232935" stroke="#444d5d" stroke-width="2"/>
+  <circle cx="6770.0" cy="4060.0" r="78.0" fill="none" stroke="#4f9d69" stroke-width="3" opacity="0.5"/>
+  <text x="6770.0" y="4188.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="400" letter-spacing="0.0" fill="#444d5d" text-anchor="middle" opacity="1.0">plant</text>
+  <line x1="7020.0" y1="4960.0" x2="7020.0" y2="4060.0" stroke="#6b7383" stroke-width="11" stroke-linecap="butt"/>
+  <text x="6984.0" y="4510.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="400" letter-spacing="0.0" fill="#444d5d" text-anchor="end" opacity="1.0">door</text>
+  <line x1="3520.0" y1="5560.0" x2="4120.0" y2="5560.0" stroke="#232935" stroke-width="9" stroke-linecap="butt"/>
+  <text x="3820.0" y="5616.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="400" letter-spacing="0.0" fill="#444d5d" text-anchor="middle" opacity="1.0">TF_MARK_SOUTH  ·  south wall is the camera side</text>
+  <rect x="2020.0" y="2560.0" width="3600.0" height="800.0" rx="0" fill="#151922" stroke="#6b7383" stroke-width="4"/>
+  <text x="2038.0" y="3340.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="30" font-weight="600" letter-spacing="0.0" fill="#9aa1ad" text-anchor="start" opacity="1.0">ZONE A — TRADING DESK   surface z735</text>
+  <rect x="3220.0" y="2660.0" width="1050.0" height="400.0" rx="0" fill="#232935" stroke="#2f3744" stroke-width="2" opacity="0.8"/>
+  <rect x="3220.0" y="2660.0" width="1050.0" height="400.0" rx="0" fill="none" stroke="#8a6f1c" stroke-width="3" stroke-dasharray="14 10"/>
+  <line x1="3521.0" y1="3210.0" x2="4119.0" y2="3210.0" stroke="#4a7fc2" stroke-width="17" stroke-linecap="butt"/>
+  <text x="3820.0" y="3262.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="middle" opacity="1.0">MON_1</text>
+  <line x1="2821.0" y1="3210.0" x2="3419.0" y2="3210.0" stroke="#4a7fc2" stroke-width="17" stroke-linecap="butt"/>
+  <text x="3120.0" y="3262.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="middle" opacity="1.0">MON_2</text>
+  <line x1="4221.0" y1="3210.0" x2="4819.0" y2="3210.0" stroke="#4a7fc2" stroke-width="17" stroke-linecap="butt"/>
+  <text x="4520.0" y="3262.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="middle" opacity="1.0">MON_3</text>
+  <line x1="4933.8" y1="3309.5" x2="5426.2" y2="3110.5" stroke="#4a7fc2" stroke-width="17" stroke-linecap="butt"/>
+  <text x="5180.0" y="3262.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="middle" opacity="1.0">MON_4</text>
+  <line x1="2213.8" y1="3110.5" x2="2706.2" y2="3309.5" stroke="#4a7fc2" stroke-width="17" stroke-linecap="butt"/>
+  <text x="2460.0" y="3262.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="middle" opacity="1.0">MON_5</text>
+  <rect x="680.0" y="3306.0" width="40.0" height="708.0" rx="0" fill="#4a7fc2" stroke="#e6e8ec" stroke-width="2" opacity="0.5"/>
+  <text x="742.0" y="3670.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="start" opacity="1.0">PANEL_W1</text>
+  <rect x="680.0" y="2606.0" width="40.0" height="708.0" rx="0" fill="#4a7fc2" stroke="#e6e8ec" stroke-width="2" opacity="0.5"/>
+  <text x="742.0" y="2970.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="start" opacity="1.0">PANEL_W2</text>
+  <text x="3820.0" y="3176.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="29" font-weight="600" letter-spacing="0.0" fill="#4a7fc2" text-anchor="middle" opacity="1.0">ZONE B — CHART ARRAY   centre z1130 · top bezel z1298</text>
+  <circle cx="2220.0" cy="2680.0" r="22.0" fill="#151922" stroke="#9aa1ad" stroke-width="2"/>
+  <text x="2220.0" y="2724.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="middle" opacity="1.0">desk_lamp</text>
+  <rect x="3026.0" y="2645.0" width="148.0" height="210.0" rx="0" fill="#232935" stroke="#9aa1ad" stroke-width="3"/>
+  <text x="3100.0" y="2622.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="middle" opacity="1.0">notebook</text>
+  <circle cx="3100.0" cy="2670.0" r="22.0" fill="#151922" stroke="#9aa1ad" stroke-width="2"/>
+  <text x="3100.0" y="2636.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="middle" opacity="1.0">pen</text>
+  <circle cx="2170.0" cy="3210.0" r="22.0" fill="#151922" stroke="#2f3744" stroke-width="2"/>
+  <text x="2170.0" y="3254.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="middle" opacity="1.0">books_desk</text>
+  <circle cx="3340.0" cy="3000.0" r="34.0" fill="#232935" stroke="#9aa1ad" stroke-width="3"/>
+  <text x="3340.0" y="2946.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="middle" opacity="1.0">mouse</text>
+  <rect x="3660.0" y="2760.0" width="320.0" height="120.0" rx="0" fill="#232935" stroke="#9aa1ad" stroke-width="3"/>
+  <text x="3820.0" y="2912.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="middle" opacity="1.0">keyboard</text>
+  <circle cx="4380.0" cy="2940.0" r="34.0" fill="#232935" stroke="#c9a227" stroke-width="3"/>
+  <text x="4380.0" y="2886.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="middle" opacity="1.0">mug</text>
+  <circle cx="4670.0" cy="3140.0" r="22.0" fill="#151922" stroke="#2f3744" stroke-width="2"/>
+  <text x="4670.0" y="3184.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="middle" opacity="1.0">phone</text>
+  <circle cx="4520.0" cy="2700.0" r="22.0" fill="#151922" stroke="#9aa1ad" stroke-width="2"/>
+  <text x="4520.0" y="2658.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="middle" opacity="1.0">stream_pad</text>
+  <circle cx="5380.0" cy="3060.0" r="22.0" fill="#151922" stroke="#2f3744" stroke-width="2"/>
+  <text x="5380.0" y="3104.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="middle" opacity="1.0">laptop</text>
+  <circle cx="5240.0" cy="2610.0" r="22.0" fill="#151922" stroke="#2f3744" stroke-width="2"/>
+  <text x="5240.0" y="2654.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="middle" opacity="1.0">mic_boom</text>
+  <circle cx="5240.0" cy="2660.0" r="22.0" fill="#151922" stroke="#9aa1ad" stroke-width="2"/>
+  <circle cx="3820.0" cy="2560.0" r="830.0" fill="none" stroke="#c9a227" stroke-width="3" stroke-dasharray="20 14" opacity="0.65"/>
+  <text x="4401.0" y="1979.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="27" font-weight="400" letter-spacing="0.0" fill="#c9a227" text-anchor="start" opacity="1.0">seated reach 830 mm</text>
+  <circle cx="3820.0" cy="2560.0" r="115.0" fill="#232935" stroke="#e7cd74" stroke-width="4"/>
+  <polygon points="3820.0,2725.0 3774.0,2660.0 3866.0,2660.0" fill="#e7cd74" stroke="none" stroke-width="2" opacity="1.0"/>
+  <text x="3820.0" y="2572.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="40" font-weight="600" letter-spacing="0.0" fill="#07080a" text-anchor="middle" opacity="1.0">TF</text>
+  <text x="3820.0" y="2795.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="middle" opacity="1.0">TF_TRADER_01  ·  faces south (−Y)</text>
+  <rect x="3580.0" y="2200.0" width="480.0" height="320.0" rx="30" fill="none" stroke="#2f3744" stroke-width="3"/>
+  <polygon points="3820.0,4660.0 2895.2,2091.4 4744.8,2091.4" fill="#c9a227" stroke="none" stroke-width="2" opacity="0.085"/>
+  <line x1="3820.0" y1="4660.0" x2="2895.2" y2="2091.4" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="3820.0" y1="4660.0" x2="4744.8" y2="2091.4" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="3820.0" y1="4660.0" x2="3820.0" y2="2560.0" stroke="#e7cd74" stroke-width="2" stroke-linecap="butt" stroke-dasharray="12 10" opacity="0.6"/>
+  <circle cx="3820.0" cy="4660.0" r="46.0" fill="#07080a" stroke="#c9a227" stroke-width="4"/>
+  <text x="3820.0" y="4673.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="36" font-weight="600" letter-spacing="0.0" fill="#c9a227" text-anchor="middle" opacity="1.0">1</text>
+  <text x="3890.0" y="4598.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="start" opacity="1.0">Hero front  50mm</text>
+  <polygon points="6570.0,2810.0 3218.6,3671.2 3438.8,1337.3" fill="#c9a227" stroke="none" stroke-width="2" opacity="0.085"/>
+  <line x1="6570.0" y1="2810.0" x2="3218.6" y2="3671.2" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="6570.0" y1="2810.0" x2="3438.8" y2="1337.3" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="6570.0" y1="2810.0" x2="3920.0" y2="2560.0" stroke="#e7cd74" stroke-width="2" stroke-linecap="butt" stroke-dasharray="12 10" opacity="0.6"/>
+  <circle cx="6570.0" cy="2810.0" r="46.0" fill="#07080a" stroke="#c9a227" stroke-width="4"/>
+  <text x="6570.0" y="2823.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="36" font-weight="600" letter-spacing="0.0" fill="#c9a227" text-anchor="middle" opacity="1.0">2</text>
+  <text x="6500.0" y="2748.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="end" opacity="1.0">Side profile  50mm</text>
+  <polygon points="3400.0,1480.0 4972.6,3166.9 3178.6,3775.6" fill="#c9a227" stroke="none" stroke-width="2" opacity="0.085"/>
+  <line x1="3400.0" y1="1480.0" x2="4972.6" y2="3166.9" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="3400.0" y1="1480.0" x2="3178.6" y2="3775.6" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="3400.0" y1="1480.0" x2="3970.0" y2="3160.0" stroke="#e7cd74" stroke-width="2" stroke-linecap="butt" stroke-dasharray="12 10" opacity="0.6"/>
+  <circle cx="3400.0" cy="1480.0" r="46.0" fill="#07080a" stroke="#c9a227" stroke-width="4"/>
+  <text x="3400.0" y="1493.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="36" font-weight="600" letter-spacing="0.0" fill="#c9a227" text-anchor="middle" opacity="1.0">3</text>
+  <text x="3470.0" y="1418.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="start" opacity="1.0">Over-shoulder  40mm</text>
+  <polygon points="3960.0,3810.0 3465.9,2260.2 4136.1,2192.9" fill="#c9a227" stroke="none" stroke-width="2" opacity="0.085"/>
+  <line x1="3960.0" y1="3810.0" x2="3465.9" y2="2260.2" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="3960.0" y1="3810.0" x2="4136.1" y2="2192.9" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="3960.0" y1="3810.0" x2="3835.0" y2="2565.0" stroke="#e7cd74" stroke-width="2" stroke-linecap="butt" stroke-dasharray="12 10" opacity="0.6"/>
+  <circle cx="3960.0" cy="3810.0" r="46.0" fill="#07080a" stroke="#c9a227" stroke-width="4"/>
+  <text x="3960.0" y="3823.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="36" font-weight="600" letter-spacing="0.0" fill="#c9a227" text-anchor="middle" opacity="1.0">4</text>
+  <text x="4030.0" y="3748.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="start" opacity="1.0">Face close-up  85mm</text>
+  <polygon points="6020.0,4860.0 1548.2,4312.4 5290.5,414.3" fill="#c9a227" stroke="none" stroke-width="2" opacity="0.085"/>
+  <line x1="6020.0" y1="4860.0" x2="1548.2" y2="4312.4" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="6020.0" y1="4860.0" x2="5290.5" y2="414.3" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="6020.0" y1="4860.0" x2="3520.0" y2="2460.0" stroke="#e7cd74" stroke-width="2" stroke-linecap="butt" stroke-dasharray="12 10" opacity="0.6"/>
+  <circle cx="6020.0" cy="4860.0" r="46.0" fill="#07080a" stroke="#c9a227" stroke-width="4"/>
+  <text x="6020.0" y="4873.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="36" font-weight="600" letter-spacing="0.0" fill="#c9a227" text-anchor="middle" opacity="1.0">5</text>
+  <text x="5950.0" y="4798.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="end" opacity="1.0">Wide office  24mm</text>
+  <polygon points="4601.0,3869.0 3040.6,3196.2 4239.7,2208.5" fill="#c9a227" stroke="none" stroke-width="2" opacity="0.085"/>
+  <line x1="4601.0" y1="3869.0" x2="3040.6" y2="3196.2" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="4601.0" y1="3869.0" x2="4239.7" y2="2208.5" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="4601.0" y1="3869.0" x2="3770.0" y2="2860.0" stroke="#e7cd74" stroke-width="2" stroke-linecap="butt" stroke-dasharray="12 10" opacity="0.6"/>
+  <circle cx="4601.0" cy="3869.0" r="46.0" fill="#07080a" stroke="#c9a227" stroke-width="4"/>
+  <text x="4601.0" y="3882.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="36" font-weight="600" letter-spacing="0.0" fill="#c9a227" text-anchor="middle" opacity="1.0">6</text>
+  <text x="4671.0" y="3807.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="start" opacity="1.0">Hands / desk  35mm</text>
+  <polygon points="5170.0,4380.0 2668.0,2940.6 4590.2,1552.4" fill="#c9a227" stroke="none" stroke-width="2" opacity="0.085"/>
+  <line x1="5170.0" y1="4380.0" x2="2668.0" y2="2940.6" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="5170.0" y1="4380.0" x2="4590.2" y2="1552.4" stroke="#c9a227" stroke-width="2" stroke-linecap="butt" opacity="0.45"/>
+  <line x1="5170.0" y1="4380.0" x2="3870.0" y2="2580.0" stroke="#e7cd74" stroke-width="2" stroke-linecap="butt" stroke-dasharray="12 10" opacity="0.6"/>
+  <circle cx="5170.0" cy="4380.0" r="46.0" fill="#07080a" stroke="#c9a227" stroke-width="4"/>
+  <text x="5170.0" y="4393.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="36" font-weight="600" letter-spacing="0.0" fill="#c9a227" text-anchor="middle" opacity="1.0">7</text>
+  <text x="5240.0" y="4318.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="26" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="start" opacity="1.0">Three-quarter cinematic  40mm</text>
+  <line x1="620.0" y1="6350.0" x2="2620.0" y2="6350.0" stroke="#9aa1ad" stroke-width="4" stroke-linecap="butt"/>
+  <line x1="620.0" y1="6334.0" x2="620.0" y2="6366.0" stroke="#9aa1ad" stroke-width="4" stroke-linecap="butt"/>
+  <line x1="1620.0" y1="6334.0" x2="1620.0" y2="6366.0" stroke="#9aa1ad" stroke-width="4" stroke-linecap="butt"/>
+  <line x1="2620.0" y1="6334.0" x2="2620.0" y2="6366.0" stroke="#9aa1ad" stroke-width="4" stroke-linecap="butt"/>
+  <text x="620.0" y="6316.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="middle" opacity="1.0">0</text>
+  <text x="1620.0" y="6316.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="middle" opacity="1.0">1 m</text>
+  <text x="2620.0" y="6316.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="middle" opacity="1.0">2 m</text>
+  <line x1="3120.0" y1="6300.0" x2="3176.0" y2="6300.0" stroke="#4a7fc2" stroke-width="7" stroke-linecap="butt"/>
+  <text x="3196.0" y="6311.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">live screen surface / glazing</text>
+  <line x1="3120.0" y1="6352.0" x2="3176.0" y2="6352.0" stroke="#c9a227" stroke-width="7" stroke-linecap="butt"/>
+  <text x="3196.0" y="6363.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">camera, field of view, reach envelope</text>
+  <line x1="3120.0" y1="6404.0" x2="3176.0" y2="6404.0" stroke="#8a6f1c" stroke-width="7" stroke-linecap="butt"/>
+  <text x="3196.0" y="6415.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">reserved hand working envelope</text>
+  <line x1="3120.0" y1="6456.0" x2="3176.0" y2="6456.0" stroke="#9aa1ad" stroke-width="7" stroke-linecap="butt"/>
+  <text x="3196.0" y="6467.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">interactive object (has an anchor)</text>
+  <line x1="3120.0" y1="6508.0" x2="3176.0" y2="6508.0" stroke="#2f3744" stroke-width="7" stroke-linecap="butt"/>
+  <text x="3196.0" y="6519.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">decor — beyond reach, no anchor</text>
+  <text x="7020.0" y="6580.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="28" font-weight="400" letter-spacing="0.0" fill="#444d5d" text-anchor="end" opacity="1.0">room 6400 × 4800 × 3000 mm   ·   desk z735   ·   eye z1295   ·   bezel z1298</text>
+</svg>

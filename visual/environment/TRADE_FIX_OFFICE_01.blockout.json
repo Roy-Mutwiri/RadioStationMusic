@@ -1,0 +1,343 @@
+{
+  "$schema_version": "1.0.0",
+  "id": "TRADE_FIX_OFFICE_01",
+  "created": "2026-10-03",
+  "authority": "AUTHORITATIVE. Where a painted plate, a rig or an animation disagrees with this file, the plate, rig or animation is wrong. See docs/visual/OFFICE_BIBLE.md and docs/visual/ADR_VISUAL_RUNTIME.md (ADR-13).",
+
+  "coordinate_system": {
+    "units": "millimetres",
+    "handedness": "right",
+    "origin": "floor level, south-west corner of the room",
+    "axes": { "x": "east", "y": "north", "z": "up" },
+    "note": "Never shipped to the renderer. Used offline to lock geometry, to render camera underlays, and to resolve anchors and gaze targets so that hand and eye targets reference the real object rather than a per-camera tuned value."
+  },
+
+  "room": {
+    "size": { "x": 6400, "y": 4800, "z": 3000 },
+    "walls": {
+      "north": { "plane": "y=4800", "zone": "E", "role": "window wall and city" },
+      "west":  { "plane": "x=0",    "zone": "D", "role": "bookshelf / discipline wall, mounted chart panels" },
+      "east":  { "plane": "x=6400", "zone": "C", "role": "coffee / reset zone, door" },
+      "south": { "plane": "y=0",    "zone": "-", "role": "camera side; dark acoustic felt, almost never in frame" }
+    },
+    "floor":   { "material": "wide dark oak, matte, long low sheen", "colour": "#0c0e12" },
+    "ceiling": { "material": "flat dark plaster", "colour": "#07080a" }
+  },
+
+  "character": {
+    "id": "TF_TRADER_01",
+    "seated_position": { "x": 3200, "y": 3000, "z": 0 },
+    "facing": { "x": 0, "y": -1, "z": 0 },
+    "facing_label": "south",
+    "derived": {
+      "right_hand_side": "west (-X)",
+      "left_hand_side": "east (+X)",
+      "watch_wrist": "left, therefore reads from the east — the reason CAM_2 is an east-side camera"
+    },
+    "key_heights": {
+      "seat_pan": 460,
+      "thigh_top": 625,
+      "elbow": 700,
+      "shoulder": 1080,
+      "chin": 1215,
+      "eye": 1295,
+      "crown": 1455
+    },
+    "standing_height": 1830,
+    "head_unit": 240,
+    "head_units": 7.6,
+    "posture": { "forward_lean_degrees": [4, 6], "pivot": "thoracic spine" }
+  },
+
+  "desk": {
+    "extent": { "x": [1400, 5000], "y": [2200, 3000] },
+    "surface_z": 735,
+    "apron_mm": 40,
+    "material": "black ash veneer, matte",
+    "colour": "#0c0e12",
+    "edge_colour": "#1b202b",
+    "legs": "blackened steel, inset 200",
+    "mat": { "extent": { "x": [2600, 3650], "y": [2500, 2900] }, "material": "black felt" },
+    "clearance_note": "Elbow at 700 sits 35 below the 735 surface, so forearms rest on the desk from mid-forearm forward with a slight rise to the wrists. If a rig places the elbow above the surface, every typing and mouse motion reads as hovering."
+  },
+
+  "reserved_volumes": [
+    {
+      "id": "HAND_WORKING_ENVELOPE",
+      "extent": { "x": [2600, 3650], "y": [2500, 2900], "z": [735, 1000] },
+      "rule": "Nothing may be placed here except the keyboard, mouse, desk mat and the mug landing ring. Enforced as a reserved volume rather than left to taste, because clutter here makes desk motions impossible."
+    }
+  ],
+
+  "chair": {
+    "centre": { "x": 3200, "y": 3250 },
+    "seat_pan_z": 460,
+    "type": "black mesh task chair",
+    "back_top_z": 1180
+  },
+
+  "monitors": {
+    "crossbar": { "y": 2350, "z_range": [735, 1000], "material": "black steel", "under_clearance_z": [735, 962] },
+    "common": { "centre_z": 1130, "tilt_degrees": -8, "faces": "north, toward (3200, 3000)" },
+    "derived": {
+      "top_bezel_z": 1298,
+      "bottom_bezel_z": 962,
+      "eye_z": 1295,
+      "note": "Top bezel is level with the eye line within 3 mm. This is correct ergonomics (top of screen at eye level, 13 degrees down to centre) AND the constraint that forces every south-side camera to be elevated. At a conventional 1250 centre the bezel would sit at 1418, above his chin at 1215, and every front camera would have his face hidden behind a monitor."
+    },
+    "panels": [
+      { "id": "MON_1", "role": "active market chart (primary)",            "size_in": 27, "panel": { "w": 598, "h": 336 }, "centre": { "x": 3200, "y": 2350, "z": 1130 }, "yaw_degrees": 0,   "live": true },
+      { "id": "MON_2", "role": "secondary timeframe, same symbol",         "size_in": 27, "panel": { "w": 598, "h": 336 }, "centre": { "x": 2500, "y": 2350, "z": 1130 }, "yaw_degrees": 0,   "live": true },
+      { "id": "MON_3", "role": "watchlist and market statistics",          "size_in": 27, "panel": { "w": 598, "h": 336 }, "centre": { "x": 3900, "y": 2350, "z": 1130 }, "yaw_degrees": 0,   "live": true },
+      { "id": "MON_4", "role": "Trade Fix Radio system / stream activity", "size_in": 24, "panel": { "w": 531, "h": 299 }, "centre": { "x": 4560, "y": 2350, "z": 1130 }, "yaw_degrees": 22,  "live": true },
+      { "id": "MON_5", "role": "news and session information (optional)",  "size_in": 24, "panel": { "w": 531, "h": 299 }, "centre": { "x": 1840, "y": 2350, "z": 1130 }, "yaw_degrees": -22, "live": true, "optional": true },
+      { "id": "PANEL_W1", "role": "long-horizon chart",            "size_in": 32, "panel": { "w": 708, "h": 398 }, "centre": { "x": 60, "y": 1900, "z": 1700 }, "mounted": "west wall", "live": true },
+      { "id": "PANEL_W2", "role": "session / correlation board",   "size_in": 32, "panel": { "w": 708, "h": 398 }, "centre": { "x": 60, "y": 2600, "z": 1700 }, "mounted": "west wall", "live": true, "note": "y=2600 rather than further north, so it sits forward of the shoulder line. At y=3300 it was BEHIND him (he faces -Y from y=3000) and would have needed a 95 degree turn to read." }
+    ],
+    "array_span_x": [1594, 4806],
+    "content_rules": "See docs/visual/STATE_BRIDGE.md section 8. Every screen is live. MON_1 and MON_2 follow the active symbol. No fabricated market activity in any state. Charts stop advancing when the feed is not trustworthy. Simulated state carries a SIMULATED badge. Green and red only in chart marks."
+  },
+
+  "desk_objects": [
+    { "id": "DESK_LAMP",    "position": { "x": 1600, "y": 2880, "z": 735 }, "head_z": 1180, "role": "primary warm key", "aim": "west and down, into the notebook" },
+    { "id": "NOTEBOOK",     "position": { "x": 2480, "y": 2810, "z": 735 }, "size": { "x": 148, "y": 210 }, "state": "open, grid, visible pen marks, one dog-eared corner" },
+    { "id": "PEN",          "position": { "x": 2480, "y": 2890, "z": 742 }, "state": "resting on the notebook's near gutter" },
+    { "id": "BOOKS_DESK",   "position": { "x": 1550, "y": 2350, "z": 735 }, "count": 2, "state": "stacked, spines dark, edges worn, titles illegible by design", "reachable": false, "note": "decor; beyond seated reach by design, under MON_5" },
+    { "id": "MOUSE",        "position": { "x": 2720, "y": 2560, "z": 735 }, "hand": "right" },
+    { "id": "KEYBOARD",     "position": { "x": 3200, "y": 2740, "z": 735 }, "size": { "x": 320, "y": 120 }, "layout": "75%", "backlight": "none or faint white" },
+    { "id": "MUG",          "position": { "x": 3760, "y": 2620, "z": 735 }, "height": 110, "hand": "left", "marks": "gold Trade Fix mark" },
+    { "id": "PHONE",        "position": { "x": 4050, "y": 2420, "z": 735 }, "state": "face down", "reachable": false, "note": "decor; face down is a discipline signal, and he is not meant to pick it up" },
+    { "id": "STREAM_PAD",   "position": { "x": 3900, "y": 2860, "z": 735 }, "keys": 6, "backlight": "dim white icons, NO RGB" },
+    { "id": "LAPTOP",       "position": { "x": 4760, "y": 2500, "z": 735 }, "state": "closed, pushed back beside the MON_4 stand", "reachable": false },
+    { "id": "MIC_BOOM",     "position": { "x": 4620, "y": 2950, "z": 735 }, "capsule_z": 1120, "arm_enters_from": "east", "reachable": false, "note": "no hand anchor; he never adjusts it on air" },
+    { "id": "ON_AIR_LED",   "position": { "x": 4620, "y": 2900, "z": 1140 }, "size_mm": 4, "driven_by": "station state, not market state" }
+  ],
+
+  "zones": {
+    "C_coffee": {
+      "extent": { "x": [5600, 6400] },
+      "objects": [
+        { "id": "CABINET_LOW",     "extent": { "x": [5700, 6350], "y": [2600, 3100] }, "top_z": 900 },
+        { "id": "ESPRESSO",        "position": { "x": 6000, "y": 2850, "z": 900 }, "led": "one small warm power LED, slow breathe 4.3 s" },
+        { "id": "MUG_SHELF",       "position": { "x": 6220, "y": 3000, "z": 1320 }, "spares": 2, "note": "both plain black; only the desk mug carries the gold mark" },
+        { "id": "PRACTICAL_EAST",  "position": { "x": 6100, "y": 2950, "z": 1300 }, "role": "secondary amber source" },
+        { "id": "PLANT_ZZ",        "position": { "x": 6150, "y": 1500, "z": 0 }, "height": 1400, "species": "Zamioculcas", "sway": { "period_s": [11, 17], "amplitude_deg": 1.5 } },
+        { "id": "DOOR",            "extent": { "x": 6400, "y": [600, 1500] }, "state": "closed, flush, dark" }
+      ]
+    },
+    "D_bookshelf": {
+      "extent": { "x": [0, 400], "y": [900, 4200] },
+      "shelf_z": [500, 900, 1300, 1700, 2100],
+      "objects": [
+        { "id": "BOX_FILES",      "shelf_z": 500,  "count": 3 },
+        { "id": "BOOKS_SHELF",    "shelf_z": 900,  "count": [14, 18], "state": "upright, spines dark and worn, no legible titles" },
+        { "id": "PRACTICAL_WEST", "shelf_z": 1300, "y": 2400, "role": "third amber source, washes down over the books" },
+        { "id": "PLANT_TRAILING", "shelf_z": 1300, "y": 3600, "species": "Epipremnum", "sway": { "period_s": [19, 26], "amplitude_deg": 1.0 } },
+        { "id": "CLOCK_SHELF",    "shelf_z": 1700, "y": 3900, "note": "small, black, moving second hand" }
+      ],
+      "note": "Shelf 2100 deliberately mostly empty. A wall packed to every edge reads as decoration."
+    },
+    "E_window": {
+      "glazing": { "x": [800, 5600], "sill_z": 400, "head_z": 2700, "plane": "y=4800" },
+      "mullions_x": [2400, 4000],
+      "mullion_note": "The mullions break the city into panels, give parallax something to read against, and stop the backdrop becoming a flat glowing rectangle behind his head.",
+      "depth_planes": [
+        { "id": "NEAR", "distance_m": [15, 40],  "content": "two building masses, mostly dark, warm and cool window grids; some windows dark, a few amber", "change_s": [40, 400] },
+        { "id": "MID",  "distance_m": [80, 250], "content": "tower silhouettes, lit crowns, scattered occupied floors, one aircraft warning light pulsing at 2.0 s" },
+        { "id": "FAR",  "distance_m": [400, null], "content": "low haze band #232935 to #4a7fc2, city glow against sky, slow cloud drift 180-400 s to cross" }
+      ],
+      "traffic": { "plane": "NEAR", "content": "elevated road; slow warm and cool points of light, never resolved into vehicles", "traverse_s": [8, 20] },
+      "time_of_day": "night, always. Never a sunrise, never a sunset, never daylight.",
+      "luminance_rule": "Combined window luminance stays below the screens and below the amber pools. No single exterior light brighter than the desk lamp."
+    }
+  },
+
+  "branding": [
+    { "id": "TF_GOLD_STATEMENT", "text": "DISCIPLINE · EXECUTION · FREEDOM", "wall": "west", "position": { "x": 60, "y": [2100, 3400], "z": 2400 }, "cap_height": 90, "treatment": "brushed gold, flush-mounted, lit only by falloff from the z1300 practical" },
+    { "id": "TF_MARK_SOUTH",     "text": null, "wall": "south", "position": { "x": 3200, "y": 0, "z": 1900 }, "size": 180, "treatment": "mark only, dark on dark, #1b202b on #07080a", "visible_in": ["CAM_3"] }
+  ],
+
+  "lighting": [
+    { "id": "WARM_KEY",      "temp_k": 2700, "sources": ["DESK_LAMP", "PRACTICAL_WEST", "PRACTICAL_EAST"], "direction": "west and above, falling", "role": "strongest single source; the pools that make floor and desk read as material" },
+    { "id": "COOL_FILL",     "temp_k": 7500, "sources": ["E_window"], "direction": "north, behind the character, broad", "role": "rim on shoulders, hair and jaw edge; wraps to both shoulder edges" },
+    { "id": "MONITOR_SPILL", "temp_k": 6500, "sources": ["MON_1", "MON_2", "MON_3", "MON_4", "MON_5", "PANEL_W1", "PANEL_W2"], "direction": "south, below eye line, upward", "role": "fills jaw, cheekbones, underside of brow" },
+    { "id": "GOLD_ACCENT",   "temp_k": 2400, "sources": ["TF_GOLD_STATEMENT", "MUG", "TF-HP-01", "WATCH"], "role": "specular glints only; never illuminates anything" }
+  ],
+
+  "anchors": [
+    { "id": "ANCHOR_MOUSE",             "position": { "x": 2720, "y": 2560, "z": 760 }, "hand": "R", "approach": { "x": 0, "y": 0, "z": -1 }, "settle_mm": 25 },
+    { "id": "ANCHOR_KEYBOARD_HOME_L",   "position": { "x": 3080, "y": 2740, "z": 757 }, "hand": "L", "approach": { "x": 0, "y": 0, "z": -1 }, "settle_mm": 18 },
+    { "id": "ANCHOR_KEYBOARD_HOME_R",   "position": { "x": 3320, "y": 2740, "z": 757 }, "hand": "R", "approach": { "x": 0, "y": 0, "z": -1 }, "settle_mm": 18 },
+    { "id": "ANCHOR_MUG_BODY",          "position": { "x": 3760, "y": 2620, "z": 790 }, "hand": "L", "approach": { "x": -0.7, "y": -0.7, "z": 0 } },
+    { "id": "ANCHOR_MUG_RING",          "position": { "x": 3760, "y": 2620, "z": 735 }, "hand": null, "tolerance_mm": 6, "role": "the landing ring; the mug returns here every time and never ends a sequence elsewhere" },
+    { "id": "ANCHOR_MUG_LIP",           "position": { "x": 3760, "y": 2620, "z": 845 }, "hand": null, "role": "rim height for the sip pose" },
+    { "id": "ANCHOR_NOTEBOOK",          "position": { "x": 2480, "y": 2810, "z": 742 }, "hand": "R", "approach": { "x": 0, "y": 0, "z": -1 } },
+    { "id": "ANCHOR_PEN",               "position": { "x": 2480, "y": 2890, "z": 745 }, "hand": "R", "approach": { "x": 0, "y": 0, "z": -1 }, "grip": "pinch" },
+    { "id": "ANCHOR_HP_CUP_L",          "position": { "x": 3340, "y": 2985, "z": 1330 }, "hand": "L", "approach": { "x": 0.5, "y": 0, "z": -0.87 } },
+    { "id": "ANCHOR_HP_CUP_R",          "position": { "x": 3060, "y": 2985, "z": 1330 }, "hand": "R", "approach": { "x": -0.5, "y": 0, "z": -0.87 } },
+    { "id": "ANCHOR_HP_BAND",           "position": { "x": 3200, "y": 2990, "z": 1455 }, "hand": "L+R", "approach": { "x": 0, "y": 0, "z": -1 } },
+    { "id": "ANCHOR_STREAM_PAD",        "position": { "x": 3900, "y": 2860, "z": 758 }, "hand": "L", "approach": { "x": 0, "y": 0, "z": -1 } }
+  ],
+  "anchor_rules": {
+    "contact_tolerance_mm": 4,
+    "seated_reach_mm": 830,
+    "reach_derivation": "upper_arm 365 + forearm 270 + hand 195, from the seated shoulder at (3200, 3000, 1080)",
+    "reach_rule": "EVERY anchor must lie within seated_reach_mm of the seated shoulder. This is a hard constraint and it is the reason the notebook, pen, mouse and stream pad sit where they do rather than spread across a 3600 mm desk: a seated man's functional reach is about 830 mm, so the desk's outer thirds can hold decor and monitors but nothing he touches. Objects beyond it are marked reachable:false and carry no anchor.",
+    "solver": "two-bone analytic solve in the active camera's 2D projection, shoulder -> elbow -> wrist; wrist orientation from the anchor's approach vector",
+    "note": "Not general IK. Adequate because every target is a known seated reach to a fixed object whose position is declared here."
+  },
+
+  "gaze_targets": [
+    { "id": "GAZE_MON_1",            "position": { "x": 3200, "y": 2350, "z": 1130 }, "base_share": 0.420, "screen": true, "participation": "eyes" },
+    { "id": "GAZE_MON_2",            "position": { "x": 2500, "y": 2350, "z": 1130 }, "base_share": 0.160, "screen": true, "participation": "shoulders" },
+    { "id": "GAZE_MON_3",            "position": { "x": 3900, "y": 2350, "z": 1130 }, "base_share": 0.140, "screen": true, "participation": "shoulders" },
+    { "id": "GAZE_MON_4",            "position": { "x": 4560, "y": 2350, "z": 1130 }, "base_share": 0.060, "screen": true, "participation": "shoulders" },
+    { "id": "GAZE_MON_5",            "position": { "x": 1840, "y": 2350, "z": 1130 }, "base_share": 0.030, "screen": true, "participation": "shoulders" },
+    { "id": "GAZE_PANEL_W1",         "position": { "x": 60,   "y": 1900, "z": 1700 }, "base_share": 0.045, "screen": true, "participation": "torso" },
+    { "id": "GAZE_PANEL_W2",         "position": { "x": 60,   "y": 2600, "z": 1700 }, "base_share": 0.035, "screen": true, "participation": "torso" },
+    { "id": "GAZE_NOTEBOOK",         "position": { "x": 2480, "y": 2810, "z": 742 },  "base_share": 0.045, "participation": "torso" },
+    { "id": "GAZE_MOUSE",            "position": { "x": 2720, "y": 2560, "z": 760 },  "base_share": 0.025, "participation": "shoulders" },
+    { "id": "GAZE_MUG",              "position": { "x": 3760, "y": 2620, "z": 845 },  "base_share": 0.012, "participation": "shoulders" },
+    { "id": "GAZE_MIDDLE_DISTANCE",  "position": { "x": 3200, "y": 1200, "z": 1280 }, "base_share": 0.010, "participation": "eyes", "note": "unfocused, past the screens" },
+    { "id": "GAZE_KEYBOARD",         "position": { "x": 3200, "y": 2680, "z": 757 },  "base_share": 0.008, "participation": "head_pitch_strong", "note": "The far edge of the keyboard, not its centre. Even so this is a 59-degree downward look, because the keyboard is 320 mm in front of the eye and 538 mm below it - which is what looking at your own keyboard actually is. He is a touch typist, so the share is small and it is used for a hotkey hunt, not for typing." },
+    { "id": "GAZE_CAMERA",           "position": "resolves to the active camera position", "base_share": 0.006, "participation": "eyes", "cap": "at most once per 12 min, 0.5-1.2 s, only from CAM_4 or CAM_7 during IDLE_FOCUS or WAITING" },
+    { "id": "GAZE_WINDOW",           "position": { "x": 2600, "y": 4800, "z": 1600 }, "base_share": 0.004, "participation": "chair_swivel", "note": "The window is entirely BEHIND him - that is what makes it his backdrop in every front camera. Reaching it needs a chair swivel and a torso turn, so it is rationed rather than routine: it belongs to look_away_from_monitors and brief_head_down recovery, never to ordinary scanning." }
+  ],
+  "gaze_rules": {
+    "screen_share_target": 0.89,
+    "default_pitch_degrees": -14.2,
+    "default_pitch_derivation": "eye z1295 to MON_1 centre z1130 is -165 mm over 650 mm horizontal (y3000 to y2350): atan(165/650) = 14.24 degrees down. Within the 15-20 degree ergonomic band for screen centre.",
+    "participation_model": {
+      "note": "Replaces the flat yaw/pitch limits used in the first draft. A blunt limit rejected three targets a real trader plainly looks at - his notebook, his keyboard, out of the window - because the angle is large. The angle is not the problem; an angle reached with the wrong body parts is. So every target declares the participation its angle requires, and the validator checks the DECLARATION against the geometry rather than rejecting the geometry.",
+      "tiers": [
+        { "id": "eyes",              "max_abs_yaw": 10,  "max_abs_pitch": 20, "moves": "eyes only" },
+        { "id": "head",              "max_abs_yaw": 45,  "max_abs_pitch": 25, "moves": "eyes lead, head follows 25-60% of the remaining angle" },
+        { "id": "shoulders",         "max_abs_yaw": 70,  "max_abs_pitch": 42, "moves": "head carries most of it, shoulders participate" },
+        { "id": "head_pitch_strong", "max_abs_yaw": 20,  "max_abs_pitch": 65, "moves": "pronounced head pitch, little yaw" },
+        { "id": "torso",             "max_abs_yaw": 100, "max_abs_pitch": 45, "moves": "torso rotates with the head" },
+        { "id": "chair_swivel",      "max_abs_yaw": 180, "max_abs_pitch": 45, "moves": "chair swivels; a deliberate turn away from the desk" }
+      ]
+    },
+    "min_transit_ms": 180,
+    "forced_blink_above_degrees": 12
+  },
+
+  "cameras": [
+    {
+      "id": "CAM_1", "name": "Hero front",
+      "position": { "x": 3200, "y": 900, "z": 1620 },
+      "target":   { "x": 3200, "y": 3000, "z": 1330 },
+      "focal_mm_35eq": 50, "hfov_degrees": 39.6, "vfov_degrees": 23.5,
+      "distance_mm": 2120,
+      "frame_at_subject": { "w": 1528, "h": 859, "z_range": [900, 1760] },
+      "down_angle_degrees": 7.9,
+      "bezel_clearance_mm": 122,
+      "composition": "Monitor ledge at 30% of frame height, shoulders 21%, eye line 46%, crown 65%. Cyan glow rising from the ledge into his face; window and city behind his head.",
+      "move": "slow push-in up to 4%"
+    },
+    {
+      "id": "CAM_2", "name": "Side profile",
+      "position": { "x": 5950, "y": 2750, "z": 1340 },
+      "target":   { "x": 3300, "y": 3000, "z": 1290 },
+      "focal_mm_35eq": 50, "hfov_degrees": 39.6, "vfov_degrees": 23.5,
+      "distance_mm": 2662,
+      "frame_at_subject": { "w": 1917, "h": 1078, "z_range": [751, 1829] },
+      "bezel_clearance_mm": null,
+      "bezel_note": "east of the monitor array; no front occlusion",
+      "composition": "Profile from the east. Desk depth runs away west; window wall fills the right of frame with the city behind. The only camera where the ear, the full headphone band profile and the watch on his left wrist all read.",
+      "move": "slow pull-out up to 3%"
+    },
+    {
+      "id": "CAM_3", "name": "Over-shoulder",
+      "position": { "x": 2780, "y": 4080, "z": 1600 },
+      "target":   { "x": 3350, "y": 2400, "z": 1150 },
+      "focal_mm_35eq": 40, "hfov_degrees": 48.5, "vfov_degrees": 29.3,
+      "distance_mm": 1830,
+      "bezel_clearance_mm": null,
+      "bezel_note": "north of the array, looking south over his shoulder",
+      "composition": "Over his right shoulder. Head and shoulder dark in the lower-left foreground; the lit chart array fills centre and right; TF_MARK_SOUTH catches amber falloff above. The only composition with no city in it — a deliberate contrast beat.",
+      "move": "drift only"
+    },
+    {
+      "id": "CAM_4", "name": "Face close-up",
+      "position": { "x": 3340, "y": 1750, "z": 1500 },
+      "target":   { "x": 3215, "y": 2995, "z": 1330 },
+      "focal_mm_35eq": 85, "hfov_degrees": 23.9, "vfov_degrees": 13.8,
+      "distance_mm": 1263,
+      "frame_at_subject": { "w": 535, "h": 301, "z_range": [1180, 1480] },
+      "bezel_clearance_mm": 120,
+      "composition": "Slightly off-axis from his left-front, because a symmetrical close-up reads as a portrait and an off-axis one reads as observation. Chin 1215 and crown 1455 both inside frame with 26 mm headroom. Shallowest depth of field; the monitor specular in the iris is the brightest thing in frame.",
+      "move": "slow push-in up to 4%",
+      "overlay": "none permitted anywhere in frame"
+    },
+    {
+      "id": "CAM_5", "name": "Wide office",
+      "position": { "x": 5400, "y": 700, "z": 2250 },
+      "target":   { "x": 2900, "y": 3100, "z": 1150 },
+      "focal_mm_35eq": 24, "hfov_degrees": 73.7, "vfov_degrees": 46.8,
+      "distance_mm": 3636,
+      "frame_at_subject": { "w": 5450, "h": 3066 },
+      "bezel_clearance_mm": null,
+      "bezel_note": "clears by elevation",
+      "composition": "South-east, high. All six zones in one frame: desk and character centre, window and city behind, bookshelf and gold statement west, coffee zone and plant east, door south-east. THE SPATIAL COHERENCE CHECK — if any other plate disagrees with this one, that plate is wrong.",
+      "move": "slow pull-out up to 3%"
+    },
+    {
+      "id": "CAM_6", "name": "Hands / desk",
+      "position": { "x": 4068, "y": 1634, "z": 1288 },
+      "target":   { "x": 3190, "y": 2700, "z": 760 },
+      "focal_mm_35eq": 35, "hfov_degrees": 54.4, "vfov_degrees": 33.1,
+      "distance_mm": 1479,
+      "frame_at_subject": { "w": 1520, "h": 855, "x_range": [2430, 3950] },
+      "bezel_clearance_mm": null,
+      "bezel_note": "desk surface only; exempt from the face-clearance rule",
+      "composition": "Low and close from the south-east, looking down across the desk. Pulled back to 1479 mm at 35 mm so the frame spans x 2430..3950 and holds EVERY anchored desk object: pen and notebook (2480), mouse (2720), keyboard (3200), mug (3760) and stream pad (3900). The shot's job is to prove hand-to-object contact, so a frame that excludes any anchor leaves that anchor's contact unverifiable from the one camera close enough to judge it.",
+      "move": "drift only — a push-in amplifies exactly the contact errors this shot is most exposed to",
+      "risk": "HIGHEST. Where clipping, a floating mug and a mug drifted off its ring all become obvious. Director rule: only during an already-locked interaction sequence, never as a cut into idle hands."
+    },
+    {
+      "id": "CAM_7", "name": "Three-quarter cinematic",
+      "position": { "x": 4550, "y": 1180, "z": 1690 },
+      "target":   { "x": 3250, "y": 2980, "z": 1340 },
+      "focal_mm_35eq": 40, "hfov_degrees": 48.5, "vfov_degrees": 29.3,
+      "distance_mm": 2248,
+      "frame_at_subject": { "w": 2025, "h": 1139, "z_range": [770, 1910] },
+      "down_angle_degrees": 4.5,
+      "bezel_clearance_mm": 164,
+      "composition": "PRIMARY STREAM CAMERA and the default. Three-quarter of his face toward screen-left, body angled, window and city behind, MON_4 near camera on the right as a soft out-of-focus foreground glow. The watch reads on his left wrist. This is what should be on screen when someone arrives on the stream for the first time.",
+      "move": "slow push-in up to 4%",
+      "hour_share_cap": 0.35
+    }
+  ],
+
+  "validation": {
+    "bezel_plane": { "y": 2350, "z": 1298 },
+    "rules": [
+      "Every camera on the south side (y < 2200) that frames the character's FACE must have a sight line from its position to the eye at (3200, 3000, 1295) passing above z=1298 at y=2350. Negative clearance means the shot does not exist. CAM_6 is exempt: it is a desk-surface shot whose target is below the bezel plane by design.",
+      "Every anchor must be reachable from the seated shoulder at (3200, 3000, 1080) within upper_arm + forearm + hand = 365 + 270 + 195 = 830 mm. Objects beyond it carry reachable:false and no anchor.",
+      "Every gaze target must declare a participation tier whose yaw and pitch envelope contains its actual angle from the eye. The check is on the DECLARATION, not on the angle: a large angle is fine when the right body parts are declared to reach it.",
+      "No desk object may intrude into HAND_WORKING_ENVELOPE except keyboard, mouse, mat and the mug landing ring.",
+      "No two desk monitor panels may overlap in their yaw-foreshortened x extents, and the array must fit inside the desk extent.",
+      "All camera positions must lie inside the room volume and outside every solid object.",
+      "Gaze base_share must sum to 1.0, and the screen subset must equal screen_share_target."
+    ],
+    "computed_clearances_mm": {
+      "CAM_1": 98,
+      "CAM_4": 104,
+      "CAM_7": 138,
+      "CAM_5": 267,
+      "CAM_6": "exempt - desk surface shot"
+    },
+    "verified": "2026-10-03 by scripted check of all seven rules. See VISUAL_IMPLEMENTATION_PLAN.md milestone 1.8."
+  },
+
+  "references": {
+    "office_bible": "docs/visual/OFFICE_BIBLE.md",
+    "character_bible": "docs/visual/CHARACTER_BIBLE.md",
+    "camera_plan": "docs/visual/CAMERA_PLAN.md",
+    "motion_library": "docs/visual/MOTION_LIBRARY.md",
+    "state_bridge": "docs/visual/STATE_BRIDGE.md",
+    "adr": "docs/visual/ADR_VISUAL_RUNTIME.md",
+    "plan": "docs/visual/VISUAL_IMPLEMENTATION_PLAN.md"
+  }
+}

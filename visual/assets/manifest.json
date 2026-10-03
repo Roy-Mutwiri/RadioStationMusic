@@ -1,0 +1,1308 @@
+{
+  "$contract_version": "1.0.0",
+  "generated_from": "tradefix_radio/visual/assets.py",
+  "authority": "This file is GENERATED. Edit assets.py and re-run `tradefix visual manifest --write`. Hand edits will be overwritten.",
+  "blockout": "TRADE_FIX_OFFICE_01",
+  "output": {
+    "canonical": {
+      "width": 1920,
+      "height": 1080
+    },
+    "alternate": {
+      "width": 2560,
+      "height": 1440
+    },
+    "plate_oversample": 1.5,
+    "target_fps": 30,
+    "fps_note": "30 fps default, configurable. The frame-rate decision is deferred to a measurement, not assumed: a stable 30 may beat an unstable 60."
+  },
+  "parallax": {
+    "rule": "Every layer's parallax is DERIVED from its blockout depth via parallax_from_depth(). Eyeballed parallax is the most common way a 2.5D scene reads as a stack of cards rather than as a room.",
+    "reference_plane_mm": 2248.0,
+    "camera_amplitudes": {
+      "CAM_1": 0.008,
+      "CAM_2": 0.006,
+      "CAM_3": 0.004,
+      "CAM_4": 0.003,
+      "CAM_5": 0.01,
+      "CAM_6": 0.002,
+      "CAM_7": 0.007
+    }
+  },
+  "masks": {
+    "character": [
+      "eyes",
+      "eyelids",
+      "brows",
+      "mouth_jaw",
+      "hand_left",
+      "hand_right",
+      "forearm_left",
+      "forearm_right",
+      "upper_arm_left",
+      "upper_arm_right",
+      "torso",
+      "neck",
+      "head",
+      "hair_front",
+      "hair_rear",
+      "headphones_band",
+      "headphones_cup_left",
+      "headphones_cup_right",
+      "pendant"
+    ],
+    "environment": [
+      "mug_occlusion",
+      "keyboard_occlusion",
+      "monitor_foreground",
+      "desk_foreground",
+      "chair_occlusion",
+      "plant_foreground"
+    ],
+    "rule": "Specified BEFORE painting. A flattened image cannot animate, and discovering that after nine plates is expensive and avoidable."
+  },
+  "lighting": {
+    "layers": [
+      "warm_key",
+      "cool_fill",
+      "monitor_spill",
+      "gold_accent",
+      "occlusion_ao"
+    ],
+    "baked": false,
+    "rule": "Delivered unbaked. The runtime composites and modulates them; baking makes OFFICE_BIBLE.md \u00a75's response unimplementable."
+  },
+  "painting_order": {
+    "rule": "char_ref_01_front_portrait is painted and accepted FIRST and becomes the identity reference for the other eight. If a later view cannot be made to match it, view 1 is NOT re-opened \u2014 the later view is repainted. That is the whole mechanism by which one man appears in nine drawings.",
+    "sequence": [
+      "char_ref_01_front_portrait",
+      "char_ref_02_three_quarter_left",
+      "char_ref_03_three_quarter_right",
+      "char_ref_04_profile_left",
+      "char_ref_05_profile_right",
+      "char_ref_06_full_body_front",
+      "char_ref_08_seated_trading",
+      "char_ref_07_full_body_back",
+      "char_ref_09_seated_side",
+      "TF_TRADER_01_master",
+      "env_plate_01_hero_front",
+      "env_plate_04_wide_office"
+    ]
+  },
+  "character_layers": [
+    {
+      "layer_id": "hair_rear",
+      "order": 0,
+      "description": "hair behind the head silhouette",
+      "deformable": true,
+      "masks": []
+    },
+    {
+      "layer_id": "torso",
+      "order": 1,
+      "description": "chest, shoulders, overshirt",
+      "deformable": true,
+      "masks": []
+    },
+    {
+      "layer_id": "upper_arm_left",
+      "order": 2,
+      "description": "left upper arm",
+      "deformable": true,
+      "masks": []
+    },
+    {
+      "layer_id": "forearm_left",
+      "order": 3,
+      "description": "left forearm",
+      "deformable": true,
+      "masks": []
+    },
+    {
+      "layer_id": "hand_left",
+      "order": 4,
+      "description": "left hand and fingers",
+      "deformable": true,
+      "masks": [
+        "hand_left"
+      ]
+    },
+    {
+      "layer_id": "upper_arm_right",
+      "order": 5,
+      "description": "right upper arm",
+      "deformable": true,
+      "masks": []
+    },
+    {
+      "layer_id": "forearm_right",
+      "order": 6,
+      "description": "right forearm",
+      "deformable": true,
+      "masks": []
+    },
+    {
+      "layer_id": "hand_right",
+      "order": 7,
+      "description": "right hand and fingers",
+      "deformable": true,
+      "masks": [
+        "hand_right"
+      ]
+    },
+    {
+      "layer_id": "neck",
+      "order": 8,
+      "description": "neck and collar",
+      "deformable": true,
+      "masks": []
+    },
+    {
+      "layer_id": "head",
+      "order": 9,
+      "description": "skull, face base, ears",
+      "deformable": true,
+      "masks": [
+        "head"
+      ]
+    },
+    {
+      "layer_id": "brows",
+      "order": 10,
+      "description": "both brows, independently movable",
+      "deformable": true,
+      "masks": [
+        "brows"
+      ]
+    },
+    {
+      "layer_id": "eyes",
+      "order": 11,
+      "description": "sclera, iris, pupil, specular",
+      "deformable": true,
+      "masks": [
+        "eyes"
+      ]
+    },
+    {
+      "layer_id": "eyelids",
+      "order": 12,
+      "description": "upper and lower lids",
+      "deformable": true,
+      "masks": [
+        "eyelids"
+      ]
+    },
+    {
+      "layer_id": "mouth_jaw",
+      "order": 13,
+      "description": "lips, inner mouth, jaw line",
+      "deformable": true,
+      "masks": [
+        "mouth_jaw"
+      ]
+    },
+    {
+      "layer_id": "hair_front",
+      "order": 14,
+      "description": "fringe and the stray strands",
+      "deformable": true,
+      "masks": []
+    },
+    {
+      "layer_id": "headphones",
+      "order": 15,
+      "description": "band and both cups",
+      "deformable": true,
+      "masks": [
+        "headphones_band",
+        "headphones_cup_left",
+        "headphones_cup_right"
+      ]
+    },
+    {
+      "layer_id": "pendant",
+      "order": 16,
+      "description": "chain and bar, visible on a forward lean",
+      "deformable": true,
+      "masks": [
+        "pendant"
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "asset_id": "TF_TRADER_01_master",
+      "asset_type": "character_model",
+      "description": "The single master layered model. Per-camera work is a projected view of the SAME layer tree \u2014 never a new face.",
+      "canonical_dimensions": {
+        "width": 4096,
+        "height": 4096
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.92
+      },
+      "cameras": [
+        "CAM_1",
+        "CAM_2",
+        "CAM_3",
+        "CAM_4",
+        "CAM_5",
+        "CAM_6",
+        "CAM_7"
+      ],
+      "character_pose": "seated_working",
+      "layer_order": [
+        {
+          "layer_id": "hair_rear",
+          "order": 0,
+          "description": "hair behind the head silhouette",
+          "depth_mm": 2300.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "torso",
+          "order": 1,
+          "description": "chest, shoulders, overshirt",
+          "depth_mm": 2250.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "upper_arm_left",
+          "order": 2,
+          "description": "left upper arm",
+          "depth_mm": 2240.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "forearm_left",
+          "order": 3,
+          "description": "left forearm",
+          "depth_mm": 2200.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "hand_left",
+          "order": 4,
+          "description": "left hand and fingers",
+          "depth_mm": 2170.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": [
+            "hand_left"
+          ]
+        },
+        {
+          "layer_id": "upper_arm_right",
+          "order": 5,
+          "description": "right upper arm",
+          "depth_mm": 2240.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "forearm_right",
+          "order": 6,
+          "description": "right forearm",
+          "depth_mm": 2200.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "hand_right",
+          "order": 7,
+          "description": "right hand and fingers",
+          "depth_mm": 2170.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": [
+            "hand_right"
+          ]
+        },
+        {
+          "layer_id": "neck",
+          "order": 8,
+          "description": "neck and collar",
+          "depth_mm": 2240.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "head",
+          "order": 9,
+          "description": "skull, face base, ears",
+          "depth_mm": 2230.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": [
+            "head"
+          ]
+        },
+        {
+          "layer_id": "brows",
+          "order": 10,
+          "description": "both brows, independently movable",
+          "depth_mm": 2228.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": [
+            "brows"
+          ]
+        },
+        {
+          "layer_id": "eyes",
+          "order": 11,
+          "description": "sclera, iris, pupil, specular",
+          "depth_mm": 2228.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": [
+            "eyes"
+          ]
+        },
+        {
+          "layer_id": "eyelids",
+          "order": 12,
+          "description": "upper and lower lids",
+          "depth_mm": 2227.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": [
+            "eyelids"
+          ]
+        },
+        {
+          "layer_id": "mouth_jaw",
+          "order": 13,
+          "description": "lips, inner mouth, jaw line",
+          "depth_mm": 2228.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": [
+            "mouth_jaw"
+          ]
+        },
+        {
+          "layer_id": "hair_front",
+          "order": 14,
+          "description": "fringe and the stray strands",
+          "depth_mm": 2220.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "headphones",
+          "order": 15,
+          "description": "band and both cups",
+          "depth_mm": 2215.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": [
+            "headphones_band",
+            "headphones_cup_left",
+            "headphones_cup_right"
+          ]
+        },
+        {
+          "layer_id": "pendant",
+          "order": 16,
+          "description": "chain and bar, visible on a forward lean",
+          "depth_mm": 2210.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": [
+            "pendant"
+          ]
+        }
+      ],
+      "required_masks": [
+        "eyes",
+        "eyelids",
+        "brows",
+        "mouth_jaw",
+        "hand_left",
+        "hand_right",
+        "forearm_left",
+        "forearm_right",
+        "upper_arm_left",
+        "upper_arm_right",
+        "torso",
+        "neck",
+        "head",
+        "hair_front",
+        "hair_rear",
+        "headphones_band",
+        "headphones_cup_left",
+        "headphones_cup_right",
+        "pendant"
+      ],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "CHARACTER_BIBLE.md \u00a74 layer taxonomy, \u00a78 rig",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "Layer names match CHARACTER_BIBLE.md \u00a74 exactly \u2014 the exporter fails the build on a mismatch. Seated geometry must agree with the blockout: elbow z700, eye z1295, forearms in contact with a z735 surface."
+    },
+    {
+      "asset_id": "char_ref_01_front_portrait",
+      "asset_type": "character_reference",
+      "description": "Front portrait, head and shoulders, eye level, neutral focus",
+      "canonical_dimensions": {
+        "width": 2048,
+        "height": 2048
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_1",
+        "CAM_4"
+      ],
+      "character_pose": "seated_neutral",
+      "layer_order": [],
+      "required_masks": [
+        "eyes",
+        "eyelids",
+        "brows",
+        "mouth_jaw",
+        "hand_left",
+        "hand_right",
+        "forearm_left",
+        "forearm_right",
+        "upper_arm_left",
+        "upper_arm_right",
+        "torso",
+        "neck",
+        "head",
+        "hair_front",
+        "hair_rear",
+        "headphones_band",
+        "headphones_cup_left",
+        "headphones_cup_right",
+        "pendant"
+      ],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "CHARACTER_BIBLE.md \u00a79 view 1",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "CHARACTER_BIBLE.md \u00a75 in full \u2014 any single failure rejects the plate. This is the IDENTITY MASTER: nothing else may be painted until it passes."
+    },
+    {
+      "asset_id": "char_ref_02_three_quarter_left",
+      "asset_type": "character_reference",
+      "description": "Three-quarter turned 35 degrees to his left",
+      "canonical_dimensions": {
+        "width": 2048,
+        "height": 2048
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_7"
+      ],
+      "character_pose": "seated_neutral",
+      "layer_order": [],
+      "required_masks": [],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "CHARACTER_BIBLE.md \u00a79 view 2",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "CHARACTER_BIBLE.md \u00a75 in full \u2014 any single failure rejects the plate. Judged against view 1, not against the spec in isolation: the question is 'is this the same man', not 'is this a good face'."
+    },
+    {
+      "asset_id": "char_ref_03_three_quarter_right",
+      "asset_type": "character_reference",
+      "description": "Three-quarter turned 35 degrees to his right",
+      "canonical_dimensions": {
+        "width": 2048,
+        "height": 2048
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_1"
+      ],
+      "character_pose": "seated_neutral",
+      "layer_order": [],
+      "required_masks": [],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "CHARACTER_BIBLE.md \u00a79 view 3",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "CHARACTER_BIBLE.md \u00a75 in full \u2014 any single failure rejects the plate. Judged against view 1, not against the spec in isolation: the question is 'is this the same man', not 'is this a good face'."
+    },
+    {
+      "asset_id": "char_ref_04_profile_left",
+      "asset_type": "character_reference",
+      "description": "True left profile at 90 degrees; ear and full headphone band visible",
+      "canonical_dimensions": {
+        "width": 2048,
+        "height": 2048
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_2"
+      ],
+      "character_pose": "seated_neutral",
+      "layer_order": [],
+      "required_masks": [],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "CHARACTER_BIBLE.md \u00a79 view 4",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "CHARACTER_BIBLE.md \u00a75 in full \u2014 any single failure rejects the plate. Judged against view 1, not against the spec in isolation: the question is 'is this the same man', not 'is this a good face'."
+    },
+    {
+      "asset_id": "char_ref_05_profile_right",
+      "asset_type": "character_reference",
+      "description": "True right profile at 90 degrees; braided cable behind the shoulder",
+      "canonical_dimensions": {
+        "width": 2048,
+        "height": 2048
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [],
+      "character_pose": "seated_neutral",
+      "layer_order": [],
+      "required_masks": [],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "CHARACTER_BIBLE.md \u00a79 view 5",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "CHARACTER_BIBLE.md \u00a75 in full \u2014 any single failure rejects the plate. Judged against view 1, not against the spec in isolation: the question is 'is this the same man', not 'is this a good face'."
+    },
+    {
+      "asset_id": "char_ref_06_full_body_front",
+      "asset_type": "character_reference",
+      "description": "Standing full body, relaxed A-pose, full outfit including footwear",
+      "canonical_dimensions": {
+        "width": 2048,
+        "height": 3072
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_5"
+      ],
+      "character_pose": "standing_a_pose",
+      "layer_order": [],
+      "required_masks": [],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "CHARACTER_BIBLE.md \u00a79 view 6",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "CHARACTER_BIBLE.md \u00a75 in full \u2014 any single failure rejects the plate. Judged against view 1, not against the spec in isolation: the question is 'is this the same man', not 'is this a good face'."
+    },
+    {
+      "asset_id": "char_ref_07_full_body_back",
+      "asset_type": "character_reference",
+      "description": "Standing full body from behind; overshirt back, nape, rear of the band",
+      "canonical_dimensions": {
+        "width": 2048,
+        "height": 3072
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_3"
+      ],
+      "character_pose": "standing_a_pose",
+      "layer_order": [],
+      "required_masks": [],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "CHARACTER_BIBLE.md \u00a79 view 7",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "CHARACTER_BIBLE.md \u00a75 in full \u2014 any single failure rejects the plate. Judged against view 1, not against the spec in isolation: the question is 'is this the same man', not 'is this a good face'."
+    },
+    {
+      "asset_id": "char_ref_08_seated_trading",
+      "asset_type": "character_reference",
+      "description": "Seated at the desk, three-quarter front, forearms on the surface",
+      "canonical_dimensions": {
+        "width": 2048,
+        "height": 2048
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_1",
+        "CAM_7"
+      ],
+      "character_pose": "seated_working",
+      "layer_order": [],
+      "required_masks": [],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "CHARACTER_BIBLE.md \u00a79 view 8",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "CHARACTER_BIBLE.md \u00a75 in full \u2014 any single failure rejects the plate. Judged against view 1, not against the spec in isolation: the question is 'is this the same man', not 'is this a good face'."
+    },
+    {
+      "asset_id": "char_ref_09_seated_side",
+      "asset_type": "character_reference",
+      "description": "Seated side / three-quarter; the rig target for desk geometry",
+      "canonical_dimensions": {
+        "width": 2048,
+        "height": 2048
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_2",
+        "CAM_6"
+      ],
+      "character_pose": "seated_working",
+      "layer_order": [],
+      "required_masks": [],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "CHARACTER_BIBLE.md \u00a79 view 9",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "CHARACTER_BIBLE.md \u00a75 in full \u2014 any single failure rejects the plate. Judged against view 1, not against the spec in isolation: the question is 'is this the same man', not 'is this a good face'."
+    },
+    {
+      "asset_id": "env_plate_01_hero_front",
+      "asset_type": "environment_plate",
+      "description": "Hero front: monitor ledge at 30 % of frame, character centred, city behind",
+      "canonical_dimensions": {
+        "width": 2880,
+        "height": 1620
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_1"
+      ],
+      "character_pose": null,
+      "layer_order": [
+        {
+          "layer_id": "L00_far_city",
+          "order": 0,
+          "description": "far city haze and sky",
+          "depth_mm": 400000.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "L01_mid_city",
+          "order": 1,
+          "description": "tower silhouettes, lit crowns, aircraft light",
+          "depth_mm": 150000.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "L02_near_city",
+          "order": 2,
+          "description": "near building masses, window grids, traffic",
+          "depth_mm": 25000.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "L03_window_glass",
+          "order": 3,
+          "description": "glazing, reflections, mullions",
+          "depth_mm": 3900.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "L04_rear_wall",
+          "order": 4,
+          "description": "north wall returns beside the glazing",
+          "depth_mm": 3900.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "L05_shelves",
+          "order": 5,
+          "description": "west shelving and books, seen at frame edge",
+          "depth_mm": 1700.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "L06_plants_rear",
+          "order": 6,
+          "description": "east plant",
+          "depth_mm": 600.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "L07_chair_rear",
+          "order": 7,
+          "description": "chair back behind the figure",
+          "depth_mm": 2350.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": [
+            "chair_occlusion"
+          ]
+        },
+        {
+          "layer_id": "L08_character",
+          "order": 8,
+          "description": "the TF_TRADER_01 layer group",
+          "depth_mm": 2100.0,
+          "deformable": true,
+          "runtime_composite": false,
+          "masks": [
+            "eyes",
+            "eyelids",
+            "brows",
+            "mouth_jaw",
+            "hand_left",
+            "hand_right",
+            "forearm_left",
+            "forearm_right",
+            "upper_arm_left",
+            "upper_arm_right",
+            "torso",
+            "neck",
+            "head",
+            "hair_front",
+            "hair_rear",
+            "headphones_band",
+            "headphones_cup_left",
+            "headphones_cup_right",
+            "pendant"
+          ]
+        },
+        {
+          "layer_id": "L09_monitor_screens",
+          "order": 9,
+          "description": "live screen surfaces",
+          "depth_mm": 1450.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "L10_monitor_bodies",
+          "order": 10,
+          "description": "bezels, arms, crossbar",
+          "depth_mm": 1450.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": [
+            "monitor_foreground"
+          ]
+        },
+        {
+          "layer_id": "L11_desk_props",
+          "order": 11,
+          "description": "notebook, pen, phone, laptop, mic",
+          "depth_mm": 1800.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": []
+        },
+        {
+          "layer_id": "L12_keyboard_mouse",
+          "order": 12,
+          "description": "keyboard, mouse, mat",
+          "depth_mm": 1840.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": [
+            "keyboard_occlusion"
+          ]
+        },
+        {
+          "layer_id": "L13_mug",
+          "order": 13,
+          "description": "the mug, in front of the hand",
+          "depth_mm": 1720.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": [
+            "mug_occlusion"
+          ]
+        },
+        {
+          "layer_id": "L14_desk_front",
+          "order": 14,
+          "description": "near desk edge and apron",
+          "depth_mm": 1300.0,
+          "deformable": false,
+          "runtime_composite": false,
+          "masks": [
+            "desk_foreground"
+          ]
+        },
+        {
+          "layer_id": "L15_coffee_steam",
+          "order": 15,
+          "description": "steam, driven by mug temperature",
+          "depth_mm": 1700.0,
+          "deformable": false,
+          "runtime_composite": true,
+          "masks": []
+        },
+        {
+          "layer_id": "L16_atmosphere",
+          "order": 16,
+          "description": "dust motes in the amber pools, bloom",
+          "depth_mm": 1500.0,
+          "deformable": false,
+          "runtime_composite": true,
+          "masks": []
+        }
+      ],
+      "required_masks": [
+        "mug_occlusion",
+        "keyboard_occlusion",
+        "monitor_foreground",
+        "desk_foreground",
+        "chair_occlusion",
+        "plant_foreground"
+      ],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "OFFICE_BIBLE.md \u00a79, CAMERA_PLAN.md \u00a73 CAM_1",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "The reference plate for colour and value. Every other plate is graded against it.  Plus OFFICE_BIBLE.md \u00a710 in full."
+    },
+    {
+      "asset_id": "env_plate_02_side_desk",
+      "asset_type": "environment_plate",
+      "description": "Side profile from the east: desk depth, window right, watch on the left wrist",
+      "canonical_dimensions": {
+        "width": 2880,
+        "height": 1620
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_2"
+      ],
+      "character_pose": null,
+      "layer_order": [],
+      "required_masks": [
+        "mug_occlusion",
+        "keyboard_occlusion",
+        "monitor_foreground",
+        "desk_foreground",
+        "chair_occlusion",
+        "plant_foreground"
+      ],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "OFFICE_BIBLE.md \u00a79, CAMERA_PLAN.md \u00a73 CAM_2",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "The plate TF-HP-01 is judged on \u2014 the only view with the full band profile.  Plus OFFICE_BIBLE.md \u00a710 in full."
+    },
+    {
+      "asset_id": "env_plate_03_over_shoulder",
+      "asset_type": "environment_plate",
+      "description": "Over his right shoulder: chart array lit, TF_MARK_SOUTH above, no city",
+      "canonical_dimensions": {
+        "width": 2880,
+        "height": 1620
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_3"
+      ],
+      "character_pose": null,
+      "layer_order": [],
+      "required_masks": [
+        "mug_occlusion",
+        "keyboard_occlusion",
+        "monitor_foreground",
+        "desk_foreground",
+        "chair_occlusion",
+        "plant_foreground"
+      ],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "OFFICE_BIBLE.md \u00a79, CAMERA_PLAN.md \u00a73 CAM_3",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "The only composition with readable chart content.  Plus OFFICE_BIBLE.md \u00a710 in full."
+    },
+    {
+      "asset_id": "env_plate_04_wide_office",
+      "asset_type": "environment_plate",
+      "description": "Wide office from the south-east, high: all six zones in one frame",
+      "canonical_dimensions": {
+        "width": 2880,
+        "height": 1620
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_5"
+      ],
+      "character_pose": null,
+      "layer_order": [],
+      "required_masks": [
+        "mug_occlusion",
+        "keyboard_occlusion",
+        "monitor_foreground",
+        "desk_foreground",
+        "chair_occlusion",
+        "plant_foreground"
+      ],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "OFFICE_BIBLE.md \u00a79, CAMERA_PLAN.md \u00a73 CAM_5",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "THE SPATIAL COHERENCE CHECK. If another plate disagrees with this one, that plate is wrong.  Plus OFFICE_BIBLE.md \u00a710 in full."
+    },
+    {
+      "asset_id": "env_plate_05_desk_detail",
+      "asset_type": "environment_plate",
+      "description": "Hands and desk: pen, notebook, mouse, keyboard, mug, stream pad",
+      "canonical_dimensions": {
+        "width": 2880,
+        "height": 1620
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_6"
+      ],
+      "character_pose": null,
+      "layer_order": [],
+      "required_masks": [
+        "mug_occlusion",
+        "keyboard_occlusion",
+        "monitor_foreground",
+        "desk_foreground",
+        "chair_occlusion",
+        "plant_foreground"
+      ],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "OFFICE_BIBLE.md \u00a79, CAMERA_PLAN.md \u00a73 CAM_6",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "The anchor-accuracy plate. Must contain all five interactive props.  Plus OFFICE_BIBLE.md \u00a710 in full."
+    },
+    {
+      "asset_id": "env_plate_06_coffee_zone",
+      "asset_type": "environment_plate",
+      "description": "Zone C as a destination: machine, mug shelf, practical, plant",
+      "canonical_dimensions": {
+        "width": 2880,
+        "height": 1620
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_5"
+      ],
+      "character_pose": null,
+      "layer_order": [],
+      "required_masks": [
+        "mug_occlusion",
+        "keyboard_occlusion",
+        "monitor_foreground",
+        "desk_foreground",
+        "chair_occlusion",
+        "plant_foreground"
+      ],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "OFFICE_BIBLE.md \u00a79, CAMERA_PLAN.md \u00a73 CAM_5",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "Must agree with the wide plate on every shared object.  Plus OFFICE_BIBLE.md \u00a710 in full."
+    },
+    {
+      "asset_id": "env_plate_07_window_city",
+      "asset_type": "environment_plate",
+      "description": "Window and city: three depth planes, mullion division, traffic road",
+      "canonical_dimensions": {
+        "width": 2880,
+        "height": 1620
+      },
+      "anchor": null,
+      "pivot": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "cameras": [
+        "CAM_2"
+      ],
+      "character_pose": null,
+      "layer_order": [],
+      "required_masks": [
+        "mug_occlusion",
+        "keyboard_occlusion",
+        "monitor_foreground",
+        "desk_foreground",
+        "chair_occlusion",
+        "plant_foreground"
+      ],
+      "lighting_state": {
+        "baked": false,
+        "layers": [
+          "warm_key",
+          "cool_fill",
+          "monitor_spill",
+          "gold_accent",
+          "occlusion_ao"
+        ],
+        "rule": "delivered unbaked; the runtime composites and modulates them"
+      },
+      "source_reference": "OFFICE_BIBLE.md \u00a79, CAMERA_PLAN.md \u00a73 CAM_2",
+      "version": "0.0.0",
+      "delivered": false,
+      "acceptance": "Night only. Window luminance below screen and amber-pool luminance.  Plus OFFICE_BIBLE.md \u00a710 in full."
+    }
+  ],
+  "outstanding": [
+    "TF_TRADER_01_master",
+    "char_ref_01_front_portrait",
+    "char_ref_02_three_quarter_left",
+    "char_ref_03_three_quarter_right",
+    "char_ref_04_profile_left",
+    "char_ref_05_profile_right",
+    "char_ref_06_full_body_front",
+    "char_ref_07_full_body_back",
+    "char_ref_08_seated_trading",
+    "char_ref_09_seated_side",
+    "env_plate_01_hero_front",
+    "env_plate_02_side_desk",
+    "env_plate_03_over_shoulder",
+    "env_plate_04_wide_office",
+    "env_plate_05_desk_detail",
+    "env_plate_06_coffee_zone",
+    "env_plate_07_window_city"
+  ],
+  "summary": {
+    "total": 17,
+    "delivered": 0,
+    "outstanding": 17
+  }
+}

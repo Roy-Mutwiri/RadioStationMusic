@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3800 3000" width="3800" height="3000" role="img">
+  <title>TF_TRADER_01 — proportions, seated geometry and face construction</title>
+  <rect width="3800" height="3000" fill="#07080a"/>
+  <text x="140.0" y="150.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="86" font-weight="600" letter-spacing="3" fill="#e6e8ec" text-anchor="start" opacity="1.0">TF_TRADER_01</text>
+  <text x="140.0" y="225.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="34" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">Construction sheet · proportions, seated geometry, face landmarks · millimetres</text>
+  <text x="140.0" y="283.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="28" font-weight="400" letter-spacing="1" fill="#8a6f1c" text-anchor="start" opacity="1.0">GENERATED — figures from TRADE_FIX_OFFICE_01.blockout.json and CHARACTER_BIBLE.md</text>
+  <text x="420.0" y="400.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="38" font-weight="600" letter-spacing="2" fill="#c9a227" text-anchor="start" opacity="1.0">A · STANDING</text>
+  <text x="420.0" y="448.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">1830 mm · 7.6 head units of 240 mm</text>
+  <line x1="120.0" y1="2560.0" x2="960.0" y2="2560.0" stroke="#444d5d" stroke-width="4" stroke-linecap="butt"/>
+  <text x="120.0" y="2604.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#444d5d" text-anchor="start" opacity="1.0">floor  z0</text>
+  <line x1="160.0" y1="730.0" x2="220.0" y2="730.0" stroke="#232935" stroke-width="2" stroke-linecap="butt"/>
+  <text x="148.0" y="739.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="end" opacity="1.0">0</text>
+  <line x1="160.0" y1="970.0" x2="220.0" y2="970.0" stroke="#232935" stroke-width="2" stroke-linecap="butt"/>
+  <text x="148.0" y="979.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="end" opacity="1.0">1</text>
+  <line x1="160.0" y1="1210.0" x2="220.0" y2="1210.0" stroke="#232935" stroke-width="2" stroke-linecap="butt"/>
+  <text x="148.0" y="1219.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="end" opacity="1.0">2</text>
+  <line x1="160.0" y1="1450.0" x2="220.0" y2="1450.0" stroke="#232935" stroke-width="2" stroke-linecap="butt"/>
+  <text x="148.0" y="1459.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="end" opacity="1.0">3</text>
+  <line x1="160.0" y1="1690.0" x2="220.0" y2="1690.0" stroke="#232935" stroke-width="2" stroke-linecap="butt"/>
+  <text x="148.0" y="1699.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="end" opacity="1.0">4</text>
+  <line x1="160.0" y1="1930.0" x2="220.0" y2="1930.0" stroke="#232935" stroke-width="2" stroke-linecap="butt"/>
+  <text x="148.0" y="1939.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="end" opacity="1.0">5</text>
+  <line x1="160.0" y1="2170.0" x2="220.0" y2="2170.0" stroke="#232935" stroke-width="2" stroke-linecap="butt"/>
+  <text x="148.0" y="2179.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="end" opacity="1.0">6</text>
+  <line x1="160.0" y1="2410.0" x2="220.0" y2="2410.0" stroke="#232935" stroke-width="2" stroke-linecap="butt"/>
+  <text x="148.0" y="2419.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="end" opacity="1.0">7</text>
+  <line x1="190.0" y1="730.0" x2="190.0" y2="2560.0" stroke="#232935" stroke-width="2" stroke-linecap="butt" stroke-dasharray="8 8"/>
+  <text x="90.0" y="1645.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="24" font-weight="400" letter-spacing="0.0" fill="#2f3744" text-anchor="middle" opacity="1.0" transform="rotate(-90 90.0 1645.0)">head units</text>
+  <circle cx="570.0" cy="850.0" r="120.0" fill="#151922" stroke="#e7cd74" stroke-width="3"/>
+  <line x1="570.0" y1="970.0" x2="570.0" y2="1710.0" stroke="#444d5d" stroke-width="14" stroke-linecap="butt"/>
+  <line x1="370.0" y1="1060.0" x2="770.0" y2="1060.0" stroke="#444d5d" stroke-width="10" stroke-linecap="butt"/>
+  <line x1="370.0" y1="1060.0" x2="355.0" y2="1420.0" stroke="#444d5d" stroke-width="8" stroke-linecap="butt"/>
+  <line x1="355.0" y1="1420.0" x2="370.0" y2="1680.0" stroke="#444d5d" stroke-width="8" stroke-linecap="butt"/>
+  <line x1="770.0" y1="1060.0" x2="785.0" y2="1420.0" stroke="#444d5d" stroke-width="8" stroke-linecap="butt"/>
+  <line x1="785.0" y1="1420.0" x2="770.0" y2="1680.0" stroke="#444d5d" stroke-width="8" stroke-linecap="butt"/>
+  <line x1="570.0" y1="1710.0" x2="485.0" y2="2560.0" stroke="#444d5d" stroke-width="10" stroke-linecap="butt"/>
+  <line x1="570.0" y1="1710.0" x2="655.0" y2="2560.0" stroke="#444d5d" stroke-width="10" stroke-linecap="butt"/>
+  <line x1="240.0" y1="730.0" x2="900.0" y2="730.0" stroke="#e7cd74" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.5"/>
+  <text x="912.0" y="739.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="start" opacity="1.0">crown 1830</text>
+  <line x1="240.0" y1="850.0" x2="900.0" y2="850.0" stroke="#c9a227" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.5"/>
+  <text x="912.0" y="859.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#c9a227" text-anchor="start" opacity="1.0">eye 1710</text>
+  <line x1="240.0" y1="1060.0" x2="900.0" y2="1060.0" stroke="#9aa1ad" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.5"/>
+  <text x="912.0" y="1069.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="start" opacity="1.0">shoulder 1500</text>
+  <line x1="240.0" y1="1420.0" x2="900.0" y2="1420.0" stroke="#9aa1ad" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.5"/>
+  <text x="912.0" y="1429.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="start" opacity="1.0">elbow 1140</text>
+  <line x1="240.0" y1="1680.0" x2="900.0" y2="1680.0" stroke="#9aa1ad" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.5"/>
+  <text x="912.0" y="1689.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="start" opacity="1.0">wrist 880</text>
+  <text x="1360.0" y="400.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="38" font-weight="600" letter-spacing="2" fill="#c9a227" text-anchor="start" opacity="1.0">B · SEATED — THE RIG TARGET</text>
+  <text x="1360.0" y="448.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">verified against TRADE_FIX_OFFICE_01 · elbow sits 35 mm below the desk</text>
+  <line x1="1240.0" y1="2560.0" x2="2860.0" y2="2560.0" stroke="#444d5d" stroke-width="4" stroke-linecap="butt"/>
+  <rect x="1480.0" y="1825.0" width="820.0" height="40.0" rx="0" fill="#151922" stroke="#6b7383" stroke-width="3"/>
+  <text x="1490.0" y="1807.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="start" opacity="1.0">desk surface z735</text>
+  <rect x="2060.0" y="1262.0" width="44.0" height="336.0" rx="0" fill="#4a7fc2" stroke="#e6e8ec" stroke-width="2" opacity="0.45"/>
+  <text x="2126.0" y="1278.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="start" opacity="1.0">top bezel z1298</text>
+  <text x="2126.0" y="1592.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="start" opacity="1.0">bottom z962</text>
+  <text x="2126.0" y="1440.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="start" opacity="1.0">centre z1130</text>
+  <rect x="1380.0" y="2100.0" width="380.0" height="36.0" rx="0" fill="#151922" stroke="#444d5d" stroke-width="3"/>
+  <rect x="1380.0" y="1380.0" width="36.0" height="720.0" rx="0" fill="#151922" stroke="#444d5d" stroke-width="3"/>
+  <line x1="1640.0" y1="2040.0" x2="1684.0" y2="1480.0" stroke="#444d5d" stroke-width="16" stroke-linecap="butt"/>
+  <circle cx="1708.0" cy="1225.0" r="120.0" fill="#151922" stroke="#e7cd74" stroke-width="3"/>
+  <line x1="1684.0" y1="1480.0" x2="1830.0" y2="1860.0" stroke="#444d5d" stroke-width="10" stroke-linecap="butt"/>
+  <line x1="1830.0" y1="1860.0" x2="2100.0" y2="1803.0" stroke="#444d5d" stroke-width="9" stroke-linecap="butt"/>
+  <line x1="2100.0" y1="1803.0" x2="2220.0" y2="1795.0" stroke="#9aa1ad" stroke-width="8" stroke-linecap="butt"/>
+  <line x1="1640.0" y1="2060.0" x2="1990.0" y2="1975.0" stroke="#444d5d" stroke-width="12" stroke-linecap="butt"/>
+  <line x1="1990.0" y1="1975.0" x2="2020.0" y2="2560.0" stroke="#444d5d" stroke-width="10" stroke-linecap="butt"/>
+  <line x1="1260.0" y1="1105.0" x2="2840.0" y2="1105.0" stroke="#e7cd74" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.4"/>
+  <text x="1248.0" y="1114.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="25" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="end" opacity="1.0">crown 1455</text>
+  <line x1="1260.0" y1="1265.0" x2="2840.0" y2="1265.0" stroke="#c9a227" stroke-width="2.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.75"/>
+  <text x="1248.0" y="1274.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="27" font-weight="600" letter-spacing="0.0" fill="#c9a227" text-anchor="end" opacity="1.0">EYE 1295</text>
+  <line x1="1260.0" y1="1345.0" x2="2840.0" y2="1345.0" stroke="#9aa1ad" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.4"/>
+  <text x="1248.0" y="1354.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="25" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="end" opacity="1.0">chin 1215</text>
+  <line x1="1260.0" y1="1480.0" x2="2840.0" y2="1480.0" stroke="#9aa1ad" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.4"/>
+  <text x="1248.0" y="1489.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="25" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="end" opacity="1.0">shoulder 1080</text>
+  <line x1="1260.0" y1="1825.0" x2="2840.0" y2="1825.0" stroke="#9aa1ad" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.4"/>
+  <text x="1248.0" y="1834.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="25" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="end" opacity="1.0">desk 735</text>
+  <line x1="1260.0" y1="1860.0" x2="2840.0" y2="1860.0" stroke="#c9a227" stroke-width="2.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.75"/>
+  <text x="1248.0" y="1869.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="27" font-weight="600" letter-spacing="0.0" fill="#c9a227" text-anchor="end" opacity="1.0">ELBOW 700</text>
+  <line x1="1260.0" y1="1935.0" x2="2840.0" y2="1935.0" stroke="#6b7383" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.4"/>
+  <text x="1248.0" y="1944.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="25" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="end" opacity="1.0">thigh top 625</text>
+  <line x1="1260.0" y1="2100.0" x2="2840.0" y2="2100.0" stroke="#6b7383" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.4"/>
+  <text x="1248.0" y="2109.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="25" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="end" opacity="1.0">seat pan 460</text>
+  <line x1="2760.0" y1="1265.0" x2="2760.0" y2="1262.0" stroke="#c9a227" stroke-width="3" stroke-linecap="butt"/>
+  <text x="2776.0" y="1272.5" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#c9a227" text-anchor="start" opacity="1.0">eye − bezel = -3 mm</text>
+  <line x1="2630.0" y1="1860.0" x2="2630.0" y2="1825.0" stroke="#c9a227" stroke-width="3" stroke-linecap="butt"/>
+  <text x="2646.0" y="1851.5" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#c9a227" text-anchor="start" opacity="1.0">desk − elbow = +35 mm</text>
+  <text x="1360.0" y="2760.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="start" opacity="1.0">Default gaze pitch -14.2° — eye z1295 to screen centre z1130 over 650 mm.</text>
+  <text x="1360.0" y="2808.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">Forearms rest on the surface from mid-forearm forward. An elbow above the desk makes every typing</text>
+  <text x="1360.0" y="2852.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">and mouse motion read as hovering — the first thing to check when a desk motion looks wrong.</text>
+  <text x="2560.0" y="400.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="38" font-weight="600" letter-spacing="2" fill="#c9a227" text-anchor="start" opacity="1.0">C · FACE CONSTRUCTION</text>
+  <text x="2560.0" y="448.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">head 240 mm tall · drawn 3.4× · tolerances in CHARACTER_BIBLE §3</text>
+  <rect x="2696.5" y="620.0" width="527.0" height="816.0" rx="0" fill="#0c0e12" stroke="#2f3744" stroke-width="3"/>
+  <line x1="2960.0" y1="620.0" x2="2960.0" y2="1436.0" stroke="#232935" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8"/>
+  <line x1="2626.5" y1="1003.5" x2="3293.5" y2="1003.5" stroke="#c9a227" stroke-width="2.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.8"/>
+  <text x="3305.5" y="1012.5" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="25" font-weight="400" letter-spacing="0.0" fill="#c9a227" text-anchor="start" opacity="1.0">eye line  0.470 HU</text>
+  <line x1="2626.5" y1="1158.6" x2="3293.5" y2="1158.6" stroke="#9aa1ad" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.45"/>
+  <text x="3305.5" y="1167.6" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="25" font-weight="400" letter-spacing="0.0" fill="#9aa1ad" text-anchor="start" opacity="1.0">nose base  0.660 HU</text>
+  <line x1="2626.5" y1="1252.4" x2="3293.5" y2="1252.4" stroke="#c9a227" stroke-width="2.5" stroke-linecap="butt" stroke-dasharray="10 8" opacity="0.8"/>
+  <text x="3305.5" y="1261.4" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="25" font-weight="400" letter-spacing="0.0" fill="#c9a227" text-anchor="start" opacity="1.0">mouth line  0.775 HU</text>
+  <ellipse cx="2798.8" cy="1003.5" rx="75.5" ry="25.7" fill="#151922" stroke="#c9a227" stroke-width="3"/>
+  <circle cx="2798.8" cy="1003.5" r="23.6" fill="none" stroke="#6b7383" stroke-width="2"/>
+  <line x1="2715.8" y1="941.0" x2="2881.9" y2="929.0" stroke="#9aa1ad" stroke-width="5" stroke-linecap="butt"/>
+  <ellipse cx="3121.2" cy="1003.5" rx="75.5" ry="25.7" fill="#151922" stroke="#c9a227" stroke-width="3"/>
+  <circle cx="3121.2" cy="1003.5" r="23.6" fill="none" stroke="#6b7383" stroke-width="2"/>
+  <line x1="3038.1" y1="941.0" x2="3204.2" y2="929.0" stroke="#9aa1ad" stroke-width="5" stroke-linecap="butt"/>
+  <line x1="2874.3" y1="1003.5" x2="3045.7" y2="1003.5" stroke="#e7cd74" stroke-width="3" stroke-linecap="butt"/>
+  <text x="2960.0" y="977.5" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="23" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="middle" opacity="1.0">0.210 HU</text>
+  <line x1="2696.5" y1="1028.0" x2="3223.5" y2="1028.0" stroke="#4a7fc2" stroke-width="3" stroke-linecap="butt" opacity="0.7"/>
+  <line x1="2738.7" y1="1321.8" x2="3181.3" y2="1321.8" stroke="#4a7fc2" stroke-width="3" stroke-linecap="butt" opacity="0.7"/>
+  <text x="2680.5" y="1037.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="end" opacity="1.0">bizygomatic 1.00</text>
+  <text x="2722.7" y="1330.8" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="24" font-weight="400" letter-spacing="0.0" fill="#4a7fc2" text-anchor="end" opacity="1.0">bigonial 0.84</text>
+  <line x1="2872.3" y1="1252.4" x2="3047.7" y2="1252.4" stroke="#9aa1ad" stroke-width="5" stroke-linecap="butt"/>
+  <line x1="2892.7" y1="1158.6" x2="3027.3" y2="1158.6" stroke="#6b7383" stroke-width="4" stroke-linecap="butt"/>
+  <text x="2696.5" y="1526.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="30" font-weight="600" letter-spacing="2" fill="#c9a227" text-anchor="start" opacity="1.0">THE IDENTITY LOCK</text>
+  <text x="2696.5" y="1584.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#e7cd74" text-anchor="start" opacity="1.0">eye aperture height ÷ width = 0.34 ± 0.02</text>
+  <text x="2696.5" y="1628.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">above ~0.42 he stops reading as 37 years old,</text>
+  <text x="2696.5" y="1672.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">no matter what the rest of the face does.</text>
+  <text x="2696.5" y="1716.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0"></text>
+  <text x="2696.5" y="1760.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">inner canthus separation  0.210 ± 0.008 HU</text>
+  <text x="2696.5" y="1804.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">bizygomatic : bigonial    1.00 : 0.84 ± 0.02</text>
+  <text x="2696.5" y="1848.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">brow above upper lid      0.055 ± 0.006 HU</text>
+  <text x="2696.5" y="1892.0" font-family="'JetBrains Mono', Consolas, ui-monospace, monospace" font-size="26" font-weight="400" letter-spacing="0.0" fill="#6b7383" text-anchor="start" opacity="1.0">outer canthal tilt        2–4° downward</text>
+  <line x1="1180.0" y1="360.0" x2="1180.0" y2="2820.0" stroke="#151922" stroke-width="2" stroke-linecap="butt"/>
+  <line x1="2500.0" y1="360.0" x2="2500.0" y2="2820.0" stroke="#151922" stroke-width="2" stroke-linecap="butt"/>
+  <text x="140.0" y="2910.0" font-family="Inter, 'Segoe UI', system-ui, sans-serif" font-size="27" font-weight="400" letter-spacing="0.0" fill="#444d5d" text-anchor="start" opacity="1.0">Head is 1/7.6 of standing height. Seated figures must agree with the blockout; scripts/visual/validate_blockout.py checks it.</text>
+</svg>

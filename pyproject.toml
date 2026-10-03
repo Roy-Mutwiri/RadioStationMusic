@@ -134,7 +134,12 @@ ignore = [
 # Benchmark harnesses, run by hand and read by a human. They catch broad exceptions
 # because a failed generation must still be recorded in the report rather than ending
 # the run, and they do blocking I/O in async context because nothing else is waiting.
-"scripts/**" = ["S", "TD", "FIX", "PLC0415", "C408", "BLE001", "ASYNC240", "B007", "B023", "E501"]
+#   N806  - the visual reference generators work in geometry, where W/H/CX/CY/HU/SC are
+#           the conventional names for dimensions and scale factors. Lower-casing them
+#           makes the arithmetic harder to check against the drawings it produces.
+"scripts/**" = [
+    "S", "TD", "FIX", "PLC0415", "C408", "BLE001", "ASYNC240", "B007", "B023", "E501", "N806",
+]
 "tradefix_radio/persistence/migrations/**" = ["ARG", "N", "TD", "FIX", "PLC0415"]
 # SQLAlchemy's TypeDecorator hooks are called with `dialect` whether or not an
 # implementation needs it; the parameter is part of the contract, not dead code.
