@@ -11,6 +11,12 @@ method Phase 4 already shipped and tested:
             as outranking positional locks.
 ``unlock``  → the same, returning a slot to the positional lock the queue computes for it.
 
+The simulator's market-closure control is a fourth, available only where §72 already allows
+scenario switching. It overrides the *calendar*, never the feed: a symbol forced closed
+reports CLOSED with a reason naming the override, so nobody reading the Market page can
+mistake a test for a real closure, and the "closed market" and "broken feed" paths stay as
+distinguishable under simulation as they are in production.
+
 Everything else an operator might want — regenerate, remove, move, preview — is **not here**,
 because the runtime has no safe path for it yet. A button that silently did nothing would be
 worse than its absence, and the UI renders those actions as unavailable with a reason.
@@ -28,6 +34,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from tradefix_radio.api.capabilities import Capability
 from tradefix_radio.api.deps import get_view
 from tradefix_radio.api.dto import (
+    ActiveMarketV1,
     BufferV1,
     EmergencyV1,
     LiveStateV1,
@@ -45,6 +52,7 @@ from tradefix_radio.api.snapshot import (
     market_to_dto,
     now_playing_to_dto,
     queue_to_dtos,
+    routing_to_dto,
     status_to_dto,
 )
 from tradefix_radio.contracts.queue import QueueLockLevel
@@ -398,3 +406,80 @@ async def post_simulation_regime(
         message=f"The simulator is now running the {scenario.value!r} scenario.",
         available=[s.value for s in Scenario],
     )
+
+
+# ------------------------------------------------------------- market routing
+
+
+class MarketClosureRequestV1(BaseModel):
+    """Simulator control: force a symbol closed, or release it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str = Field(min_length=1, max_length=32)
+    closed: bool = True
+
+
+def _require_routing(view: RuntimeView) -> object:
+    routing = view.routing
+    if routing is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Market routing is not attached to this API process.",
+        )
+    return routing
+
+
+@router.get("/markets", response_model=ActiveMarketV1)
+async def get_markets(view: ViewDep) -> ActiveMarketV1:
+    """Which market is on air, and how every configured market is doing."""
+    _require_routing(view)
+    dto = routing_to_dto(view)
+    if dto is None:  # pragma: no cover - _require_routing already raised
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Market routing is not attached to this API process.",
+        )
+    return dto
+
+
+@router.post("/simulation/market-closure", response_model=ActiveMarketV1)
+async def post_market_closure(
+    request: MarketClosureRequestV1, view: ViewDep
+) -> ActiveMarketV1:
+    """Force a symbol closed, or reopen it, so the switch path can be exercised.
+
+    Gated on the same capability as the scenario control, for the same reason: in
+    production the market calendar is not ours to invent, and an endpoint that could tell
+    the station gold was shut would be a way to make the dashboard lie about the market.
+
+    The response is the routing state *after* the override is applied and re-evaluated —
+    which will usually still show the old active symbol, because the confirmation window
+    has not elapsed. That is the honest answer, and showing it is how the hysteresis
+    becomes visible rather than looking like the control did nothing.
+    """
+    report = view.capabilities.get(Capability.SIMULATION)
+    if report is None or not report.is_ready:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                report.detail
+                if report
+                else "Simulation controls are not available in this run mode."
+            ),
+        )
+    routing = _require_routing(view)
+    symbol = request.symbol.upper()
+    known = {name.upper() for name in routing.services}  # type: ignore[attr-defined]
+    if symbol not in known:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{symbol!r} is not a configured market. Configured: {sorted(known)}.",
+        )
+
+    routing.force_closed(symbol, closed=request.closed)  # type: ignore[attr-defined]
+    await routing.evaluate()  # type: ignore[attr-defined]
+    _log.info("api.market_closure", symbol=symbol, closed=request.closed)
+    dto = routing_to_dto(view)
+    assert dto is not None
+    return dto

@@ -11,7 +11,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import { AlertRail, GenerationStrip, HealthPanel } from './HealthPanel'
-import { MarketPanel } from './MarketPanel'
+import { MarketPanel, MarketRoutingPanel } from './MarketPanel'
 import { NowPlayingPanel } from './NowPlaying'
 import { BufferPanel, EmergencyBanner, QueuePanel } from './QueuePanel'
 import { AwaitingPhase, Metric, StatusChip } from './primitives'
@@ -22,7 +22,10 @@ import {
   healthFixture,
   marketFixture,
   nowPlayingFixture,
+  bitcoinAvailabilityFixture,
+  goldAvailabilityFixture,
   queueFixture,
+  routingFixture,
 } from '../test/fixtures'
 
 describe('status primitives', () => {
@@ -249,5 +252,88 @@ describe('health', () => {
     )
     const strip = screen.getByTestId('generation-strip')
     expect(within(strip).getAllByText('—')).toHaveLength(2)
+  })
+})
+
+
+describe('market routing', () => {
+  it('keeps a closed market and a broken feed visually distinct', () => {
+    // The single most important thing this panel does. Both symbols are silent; only one
+    // of them is a problem, and an operator has to be able to tell which at a glance.
+    render(
+      <MarketRoutingPanel
+        routing={{
+          ...routingFixture,
+          symbols: [
+            {
+              ...goldAvailabilityFixture,
+              state: 'stale',
+              reason: 'no tick for 412s while the calendar says trading',
+              feed_degraded: true,
+            },
+            {
+              ...bitcoinAvailabilityFixture,
+              state: 'closed',
+              reason: 'the feed reports the market closed',
+              feed_degraded: false,
+            },
+          ],
+        }}
+      />,
+    )
+    const gold = screen.getByTestId('market-row-XAUUSD')
+    const bitcoin = screen.getByTestId('market-row-BTCUSD')
+    expect(within(gold).getByText('STALE')).toBeInTheDocument()
+    expect(within(gold).getByText(/feed degraded/i)).toBeInTheDocument()
+    expect(within(bitcoin).getByText('CLOSED')).toBeInTheDocument()
+    expect(within(bitcoin).queryByText(/feed degraded/i)).not.toBeInTheDocument()
+  })
+
+  it('says the station is still broadcasting when no market is open', () => {
+    render(
+      <MarketRoutingPanel
+        routing={{
+          ...routingFixture,
+          active_symbol: 'NO_ACTIVE_MARKET',
+          has_active_market: false,
+          is_primary: false,
+        }}
+      />,
+    )
+    expect(screen.getByText(/still broadcasting from its buffer/i)).toBeInTheDocument()
+  })
+
+  it('shows a confirmation window in progress rather than appearing stuck', () => {
+    render(
+      <MarketRoutingPanel
+        routing={{ ...routingFixture, pending_symbol: 'BTCUSD', pending_seconds_remaining: 74 }}
+      />,
+    )
+    const pending = screen.getByTestId('routing-pending')
+    expect(pending).toHaveTextContent('BTCUSD')
+    expect(pending).toHaveTextContent('74s')
+  })
+
+  it('offers no closure override when the run mode forbids simulation', () => {
+    // §72: a production dashboard must have no way to tell the station gold is shut.
+    render(<MarketRoutingPanel routing={routingFixture} canSimulate={false} />)
+    expect(screen.queryByTestId('market-closure-XAUUSD')).not.toBeInTheDocument()
+  })
+
+  it('renders an unmeasured tick age as absent rather than as zero seconds', () => {
+    render(
+      <MarketRoutingPanel
+        routing={{
+          ...routingFixture,
+          symbols: [
+            { ...goldAvailabilityFixture, data_age_seconds: null, last_price: null },
+            bitcoinAvailabilityFixture,
+          ],
+        }}
+      />,
+    )
+    const tick = screen.getByTestId('market-tick-XAUUSD')
+    expect(tick).toHaveTextContent('—')
+    expect(tick).not.toHaveTextContent('0s ago')
   })
 })

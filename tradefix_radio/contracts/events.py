@@ -54,6 +54,46 @@ class MarketStateChanged(BaseEvent):
     previous_regime: str | None = None
 
 
+class ActiveSymbolChanged(BaseEvent):
+    """The station moved to a different market.
+
+    Carries both states, not only the symbols, because "we left XAUUSD" and "we left XAUUSD
+    *because it closed*" prompt different operator responses — and a subscriber that had to
+    infer the reason from the symbol pair would get it wrong the first time a third market
+    was configured.
+    """
+
+    TOPIC: ClassVar[str] = "market.active_symbol_changed"
+
+    #: ``None`` on the first selection, when there was nothing to leave.
+    previous_symbol: str | None = Field(default=None, max_length=32)
+    new_symbol: str = Field(min_length=1, max_length=32)
+    #: A `SwitchReason` value: primary_market_closed, primary_market_reopened, ...
+    reason: str = Field(min_length=1, max_length=48)
+    previous_state: str | None = Field(default=None, max_length=24)
+    new_state: str = Field(min_length=1, max_length=24)
+
+
+class MarketAvailabilityChanged(BaseEvent):
+    """One symbol's availability changed, whether or not the station moved.
+
+    Separate from `ActiveSymbolChanged` because the inactive market's health still matters:
+    an operator needs to see the gold feed degrade *before* it becomes the reason for a
+    switch, and a Bitcoin outage while gold is fine should be visible without anything
+    changing on air.
+    """
+
+    TOPIC: ClassVar[str] = "market.availability_changed"
+
+    symbol: str = Field(min_length=1, max_length=32)
+    previous_state: str | None = Field(default=None, max_length=24)
+    new_state: str = Field(min_length=1, max_length=24)
+    reason: str = Field(default="", max_length=240)
+    #: True when the market should be trading but data is not arriving. The distinction
+    #: between "closed" and "feed broken", carried on the wire.
+    feed_degraded: bool = False
+
+
 class MarketRegimeChanged(BaseEvent):
     """The regime specifically changed (§5, §28).
 
@@ -364,6 +404,7 @@ class AlertCleared(BaseEvent):
 
 
 __all__ = [
+    "ActiveSymbolChanged",
     "AlertCleared",
     "AlertRaised",
     "BaseEvent",
@@ -374,6 +415,7 @@ __all__ = [
     "GeneratorFailed",
     "GeneratorRecovered",
     "HealthChanged",
+    "MarketAvailabilityChanged",
     "MarketEnergyChanged",
     "MarketFeedStatusChanged",
     "MarketRegimeChanged",

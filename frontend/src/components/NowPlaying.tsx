@@ -289,7 +289,17 @@ export function NowPlayingPanel({ track }: { track: NowPlayingData | null }) {
           <div className="grid grid-cols-3 gap-x-4 border-t hairline pt-2">
             <div>
               <div className="label">Planned regime</div>
-              <div className="text-xs text-ink-200">{titleCase(track.planned_regime)}</div>
+              <div className="text-xs text-ink-200">
+                {titleCase(track.planned_regime)}
+                {track.planned_symbol && (
+                  // The market this track was planned against, beside the regime rather
+                  // than in the header: after a switch the track on air may still be the
+                  // previous market's, and the header would say otherwise.
+                  <span className="ml-1.5 font-mono text-2xs text-ink-500">
+                    {track.planned_symbol}
+                  </span>
+                )}
+              </div>
             </div>
             <div>
               <div className="label">Planned energy</div>

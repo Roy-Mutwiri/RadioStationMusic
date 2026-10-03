@@ -127,6 +127,8 @@ class Scheduler:
         self._last_replan_monotonic: float | None = None
         self._last_regime: MarketRegime | None = None
         self._last_energy: float | None = None
+        #: Which symbol the last planning cycle ran against, for market-switch replanning.
+        self._last_symbol: str | None = None
         self._tracks_since_station_id = 0
         self._sequence = 0
 
@@ -294,43 +296,60 @@ class Scheduler:
         regime = state.regime
         energy = state.energy
         previous_regime, previous_energy = self._last_regime, self._last_energy
+        previous_symbol = self._last_symbol
         self._last_regime, self._last_energy = regime, energy
+        self._last_symbol = state.symbol
 
         if previous_regime is None or previous_energy is None:
             return False, None, "first cycle: nothing to compare against"
-        if regime is previous_regime:
-            return False, None, "regime unchanged"
 
-        delta = abs(energy - previous_energy)
-        if delta < MAJOR_SHIFT_ENERGY_DELTA:
-            return (
-                False,
-                None,
-                f"regime moved {previous_regime.value}->{regime.value} but energy only "
-                f"{delta:.0f} points",
-            )
+        # A market switch is its own replan trigger, independent of the energy test.
+        #
+        # The energy gate asks "did this market move enough to matter". After a switch the
+        # question is different: the flexible slots were planned against a market the
+        # station is no longer on, and they would stay that way however quiet Bitcoin
+        # happens to be at the moment gold closes. Two points still hold — the buffer gate
+        # below, because survival outranks fit here as everywhere, and the position gate,
+        # because anything already generated and imminent is protected. The replan cooldown
+        # is skipped: the router's own hysteresis is minutes long and far outlasts it, so
+        # applying both would only mean a switch sometimes failed to replan at all.
+        symbol_changed = previous_symbol is not None and previous_symbol != state.symbol
+        if not symbol_changed:
+            if regime is previous_regime:
+                return False, None, "regime unchanged"
 
-        now = self._clock.monotonic()
-        if (
-            self._last_replan_monotonic is not None
-            and now - self._last_replan_monotonic < REPLAN_COOLDOWN_SECONDS
-        ):
-            self._stats.replans_suppressed += 1
-            return (
-                False,
-                None,
-                f"replan suppressed: last one {now - self._last_replan_monotonic:.0f}s ago",
-            )
+            delta = abs(energy - previous_energy)
+            if delta < MAJOR_SHIFT_ENERGY_DELTA:
+                return (
+                    False,
+                    None,
+                    f"regime moved {previous_regime.value}->{regime.value} but energy only "
+                    f"{delta:.0f} points",
+                )
+
+            if (
+                self._last_replan_monotonic is not None
+                and self._clock.monotonic() - self._last_replan_monotonic
+                < REPLAN_COOLDOWN_SECONDS
+            ):
+                self._stats.replans_suppressed += 1
+                elapsed = self._clock.monotonic() - self._last_replan_monotonic
+                return False, None, f"replan suppressed: last one {elapsed:.0f}s ago"
 
         # A starving station does not replan. Replacing flexible slots discards audio that
         # already exists or is already being generated, and when the buffer is the problem,
         # throwing programming away makes it worse — however badly the queue now fits the
         # market. Fit is worth less than not being silent.
+        trigger = (
+            f"active market {previous_symbol}->{state.symbol}"
+            if symbol_changed
+            else f"regime {previous_regime.value}->{regime.value}"
+        )
         if assessment.level.is_urgent:
             return (
                 False,
                 None,
-                f"regime shift ignored: buffer is {assessment.level.value}, "
+                f"{trigger} ignored: buffer is {assessment.level.value}, "
                 "survival outranks fit",
             )
 
@@ -345,18 +364,19 @@ class Scheduler:
             return (
                 False,
                 None,
-                f"regime {previous_regime.value}->{regime.value} ignored: no replaceable "
-                "slot (every queued track is locked or the queue is empty)",
+                f"{trigger} ignored: no replaceable slot (every queued track is locked or "
+                "the queue is empty)",
             )
 
-        self._last_replan_monotonic = now
+        self._last_replan_monotonic = self._clock.monotonic()
         self._stats.replans += 1
-        return (
-            True,
-            position,
-            f"regime {previous_regime.value}->{regime.value} with {delta:.0f}-point energy "
-            f"shift; replacing from position {position}",
+        detail = (
+            "the queue was planned against a market the station has left"
+            if symbol_changed
+            else f"{abs(energy - previous_energy):.0f}-point energy shift"
         )
+        return True, position, f"{trigger} with {detail}; replacing from position {position}"
+
 
     def _first_replaceable_position(self) -> int | None:
         """Position of the first slot a replan may touch, or ``None`` if there is none.

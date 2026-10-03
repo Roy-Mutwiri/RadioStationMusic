@@ -65,9 +65,10 @@ def state(
     session: TradingSession = TradingSession.LONDON,
     velocity: float = 0.0,
     now: datetime = MOMENT,
+    symbol: str = "XAUUSD",
 ) -> MarketStateV1:
     return MarketStateV1(
-        symbol="XAUUSD",
+        symbol=symbol,
         timestamp=now,
         regime=regime,
         direction=direction,
@@ -654,3 +655,84 @@ def test_last_decision_is_exposed_for_the_api(library: ContentLibrary) -> None:
     )
     assert engine.last_decision is not None
     assert engine.last_decision.blueprint.track_id == "TF-1"
+
+
+# ------------------------------------------------- market scoping (routing V1)
+#
+# The requirement these cover: "Do NOT allow a BTCUSD song to describe itself as a live
+# Gold market track." Scoping is enforced as a filter rather than a weight, so these are
+# bulk tests — a weighting bug would still pass a single-decision check now and then, and
+# "now and then" is precisely the failure mode.
+
+
+def _topics(decisions: list[DirectorDecision]) -> set[str]:
+    return {
+        decision.blueprint.lyrics.primary_topic
+        for decision in decisions
+        if decision.blueprint.lyrics.primary_topic
+    }
+
+
+def test_bitcoin_tracks_never_reach_a_gold_scoped_topic(
+    library: ContentLibrary,
+) -> None:
+    gold_only = {
+        key
+        for key, topic in library.topics.items()
+        if topic.markets and not topic.suits_market("BTCUSD")
+    }
+    assert gold_only, "the fixture library has no market-scoped topics to exclude"
+
+    engine = director(library)
+    decisions = run(engine, 80, market=state(symbol="BTCUSD"))
+    leaked = _topics(decisions) & gold_only
+    assert not leaked, f"gold-scoped topics surfaced over Bitcoin: {sorted(leaked)}"
+
+
+def test_gold_tracks_never_reach_a_bitcoin_scoped_topic(
+    library: ContentLibrary,
+) -> None:
+    btc_only = {
+        key
+        for key, topic in library.topics.items()
+        if topic.markets and not topic.suits_market("XAUUSD")
+    }
+    assert btc_only, "the fixture library has no Bitcoin-scoped topics to exclude"
+
+    engine = director(library)
+    decisions = run(engine, 80, market=state(symbol="XAUUSD"))
+    leaked = _topics(decisions) & btc_only
+    assert not leaked, f"Bitcoin-scoped topics surfaced over gold: {sorted(leaked)}"
+
+
+def test_bitcoin_tracks_do_reach_the_bitcoin_topics(library: ContentLibrary) -> None:
+    """The filter must not merely exclude — the BTC catalogue has to be reachable.
+
+    A filter that removed the gold topics but never selected a Bitcoin one would pass the
+    exclusion tests above while leaving the station with nothing market-specific to say.
+    """
+    btc_only = {
+        key
+        for key, topic in library.topics.items()
+        if topic.markets and not topic.suits_market("XAUUSD")
+    }
+    engine = director(library)
+    decisions = run(engine, 80, market=state(symbol="BTCUSD"))
+    assert _topics(decisions) & btc_only, "no Bitcoin-scoped topic was ever selected"
+
+
+def test_the_blueprint_records_the_market_it_was_planned_against(
+    library: ContentLibrary,
+) -> None:
+    """A queued track keeps its own symbol after the station has moved on."""
+    engine = director(library)
+    gold = engine.create_blueprint(
+        track_id="TF-G", state=state(symbol="XAUUSD"), history=ProgrammingHistory([]),
+        buffer=buffer(), now=MOMENT,
+    ).blueprint
+    bitcoin = engine.create_blueprint(
+        track_id="TF-B", state=state(symbol="BTCUSD"), history=ProgrammingHistory([]),
+        buffer=buffer(), now=MOMENT,
+    ).blueprint
+    assert gold.market.symbol == "XAUUSD"
+    assert bitcoin.market.symbol == "BTCUSD"

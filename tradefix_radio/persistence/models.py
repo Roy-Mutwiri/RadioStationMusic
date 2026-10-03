@@ -93,6 +93,18 @@ class Track(Base):
     primary_topic: Mapped[str | None] = mapped_column(String(96), index=True, default=None)
     secondary_topic: Mapped[str | None] = mapped_column(String(96), default=None)
 
+    #: Which market the director planned this track against (routing V1).
+    #:
+    #: Denormalised from the blueprint for the same reason genre and BPM are: the §46
+    #: library filters on it, and "all gold tracks" would otherwise mean parsing every
+    #: stored blueprint. Indexed because filtering by market is the common case once the
+    #: station has run across a weekend.
+    #:
+    #: Defaulted to XAUUSD rather than left nullable: every row written before routing
+    #: existed was planned against gold, and that is a fact about them, not an unknown.
+    symbol_at_generation: Mapped[str] = mapped_column(
+        String(32), index=True, default="XAUUSD", server_default=text("'XAUUSD'")
+    )
     regime_at_generation: Mapped[str] = mapped_column(String(48), index=True)
     #: **Market** energy on 0-100 that prompted the track.
     energy_at_generation: Mapped[float] = mapped_column(Float)
@@ -633,6 +645,10 @@ class PlayEvent(Base):
     #: Regime at airing time, which may differ from regime at generation — useful
     #: for judging whether programming actually tracked the market.
     regime_at_play: Mapped[str | None] = mapped_column(String(48), default=None)
+    #: Active market at airing time. Nullable, unlike the track's own symbol: there may
+    #: genuinely be no active market when a track airs — the station keeps broadcasting
+    #: from its buffer — and recording "XAUUSD" then would be an invention.
+    symbol_at_play: Mapped[str | None] = mapped_column(String(32), index=True, default=None)
 
 
 # ============================================================ content libraries

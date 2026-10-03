@@ -12,6 +12,7 @@
  */
 
 import clsx from 'clsx'
+import { useState } from 'react'
 import {
   Area,
   AreaChart,
@@ -24,9 +25,17 @@ import {
   YAxis,
 } from 'recharts'
 
-import { ABSENT, clockTime, decimal, price, signed, titleCase } from '../lib/format'
-import type { MarketHistory, MarketState } from '../lib/types'
-import { EmptyState, Panel } from './primitives'
+import { ABSENT, clockTime, decimal, integer, price, signed, titleCase } from '../lib/format'
+import type {
+  ActiveMarket,
+  HealthState,
+  MarketAvailability,
+  MarketHistory,
+  MarketState,
+} from '../lib/types'
+import { api } from '../lib/api'
+
+import { Button, EmptyState, Panel, StatusChip } from './primitives'
 
 /**
  * How a regime is shown. Energetic regimes lean gold, quiet ones stay neutral.
@@ -346,6 +355,171 @@ export function EnergyTimeline({
           </div>
         </div>
       )}
+    </Panel>
+  )
+}
+
+/**
+ * Market routing: which symbol is on air, and how each configured market is doing.
+ *
+ * The two facts this panel exists to keep apart are `state` and `feed_degraded`. A closed
+ * market and a dead feed look identical from a price chart — no ticks either way — and the
+ * station treats them completely differently: one moves the programming to Bitcoin, the
+ * other leaves it on gold and raises an alert. Collapsing them into one badge would hide
+ * exactly the distinction the operator needs.
+ */
+const AVAILABILITY_TONE: Record<string, HealthState> = {
+  open: 'healthy',
+  closed: 'offline',
+  stale: 'degraded',
+  unavailable: 'critical',
+  unknown: 'degraded',
+}
+
+function MarketRow({
+  entry,
+  routing,
+  canSimulate,
+}: {
+  entry: MarketAvailability
+  routing: ActiveMarket
+  canSimulate: boolean
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const isClosed = entry.state === 'closed'
+
+  async function toggle() {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.setMarketClosed(entry.symbol, !isClosed)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The override could not be applied.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div
+      className={clsx('border-l-2 py-2 pl-3', entry.is_active ? 'border-gold-500' : 'border-ink-800')}
+      data-testid={'market-row-' + entry.symbol}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-sm text-ink-100">{entry.symbol}</span>
+        {entry.is_active && (
+          <span className="chip border-gold-500/40 bg-gold-500/10 text-gold-300">On air</span>
+        )}
+        {entry.symbol === routing.primary_symbol && (
+          <span className="chip border-ink-700 text-ink-400">Primary</span>
+        )}
+        <StatusChip
+          state={AVAILABILITY_TONE[entry.state] ?? 'degraded'}
+          label={entry.state.toUpperCase()}
+        />
+        {entry.feed_degraded && (
+          // Deliberately *in addition to* the state chip, never instead of it. A silent
+          // gold feed on a trading day is "STALE + feed degraded"; a closed gold market is
+          // "CLOSED" with no degradation at all, and nothing needs fixing.
+          <span
+            className="chip border-status-critical/45 bg-status-critical/10 text-status-critical"
+            title="The data path looks broken. This is not the market being closed."
+          >
+            Feed degraded
+          </span>
+        )}
+        {canSimulate && (
+          <Button
+            className="ml-auto"
+            onClick={() => void toggle()}
+            disabled={busy}
+            data-testid={'market-closure-' + entry.symbol}
+          >
+            {isClosed ? 'Reopen ' + entry.symbol : 'Simulate ' + entry.symbol + ' closed'}
+          </Button>
+        )}
+      </div>
+      <p className="mt-1 text-2xs leading-relaxed text-ink-500">{entry.reason}</p>
+      <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 font-mono text-2xs text-ink-400">
+        <span data-testid={'market-tick-' + entry.symbol}>
+          last tick{' '}
+          {entry.data_age_seconds === null ? ABSENT : decimal(entry.data_age_seconds, 0) + 's ago'}
+        </span>
+        <span>price {price(entry.last_price)}</span>
+        <span>{integer(entry.bars_processed)} bars</span>
+        <span>{entry.feed_status}</span>
+      </div>
+      {error && (
+        <p className="mt-1 text-2xs text-status-critical" role="status">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+export function MarketRoutingPanel({
+  routing,
+  canSimulate = false,
+}: {
+  routing: ActiveMarket | null
+  canSimulate?: boolean
+}) {
+  if (!routing) {
+    return (
+      <Panel title="Market routing" data-testid="market-routing">
+        <EmptyState
+          title="Routing unavailable"
+          detail="This process has no market-routing service attached, so there is nothing to report."
+        />
+      </Panel>
+    )
+  }
+
+  return (
+    <Panel
+      title="Market routing"
+      data-testid="market-routing"
+      action={
+        <span className="font-mono text-2xs text-ink-400">
+          {integer(routing.switch_count)} switch{routing.switch_count === 1 ? '' : 'es'}
+        </span>
+      }
+    >
+      {!routing.has_active_market && (
+        <p className="mb-3 border border-status-degraded/30 bg-status-degraded/5 px-3 py-2 text-2xs leading-relaxed text-status-degraded">
+          No market is open. The station is still broadcasting from its buffer; it is not
+          planning new programming against live data, and no market conditions are being
+          invented in the meantime.
+        </p>
+      )}
+      {routing.pending_symbol && (
+        // The hysteresis, made visible. Without this a confirmed closure looks like the
+        // station ignoring it for five minutes.
+        <p className="mb-3 text-2xs leading-relaxed text-ink-400" data-testid="routing-pending">
+          Confirming a move to{' '}
+          <span className="font-mono text-ink-200">{routing.pending_symbol}</span>
+          {routing.pending_seconds_remaining !== null && (
+            <> — {decimal(routing.pending_seconds_remaining, 0)}s of the confirmation window left.</>
+          )}
+        </p>
+      )}
+      <div className="space-y-1">
+        {routing.symbols.map((entry) => (
+          <MarketRow
+            key={entry.symbol}
+            entry={entry}
+            routing={routing}
+            canSimulate={canSimulate}
+          />
+        ))}
+      </div>
+      <p className="mt-3 border-t hairline pt-2 text-2xs leading-relaxed text-ink-600">
+        The station moves to a fallback only when the primary market is confirmed{' '}
+        <em>closed</em>. A feed outage leaves it where it is — a broken data path is not
+        evidence that the market has shut.
+      </p>
     </Panel>
   )
 }

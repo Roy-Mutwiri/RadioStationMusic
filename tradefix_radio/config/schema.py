@@ -710,6 +710,97 @@ class GenerationSettings(Section):
 # ============================================================ audio
 
 
+class MarketSymbolSettings(Section):
+    """Per-symbol availability thresholds.
+
+    Separate from `MarketSettings` because gold and Bitcoin have genuinely different
+    tolerances: a 90-second gap in gold during the London session is a fault, while a
+    90-second gap in a thin crypto pair at 4 a.m. is a quiet market.
+    """
+
+    #: Data older than this is STALE — late, not closed. The station keeps using it.
+    stale_after_seconds: float = Field(default=90.0, gt=0.0, le=3_600.0)
+    #: Data older than this is UNAVAILABLE: the feed is presumed broken.
+    #:
+    #: Note what this is *not*: it is never promoted to CLOSED. A market that the calendar
+    #: says is trading cannot be declared shut because our data stopped — that inference is
+    #: exactly the bug the routing subsystem is built to avoid.
+    unavailable_after_seconds: float = Field(default=300.0, gt=0.0, le=86_400.0)
+
+    #: Broker spellings to try when discovering this symbol, in order.
+    #:
+    #: Empty means "no routed aliases configured". For the symbol named by
+    #: ``market.symbol`` the feed factory then falls back to ``market.symbol_aliases``,
+    #: which is where a single-market deployment has always put them; for any other routed
+    #: symbol it tries the symbol itself and nothing else, rather than offering a broker
+    #: gold's spellings while asking for Bitcoin.
+    aliases: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _ordered(self) -> MarketSymbolSettings:
+        if self.unavailable_after_seconds <= self.stale_after_seconds:
+            raise ValueError(
+                "unavailable_after_seconds must exceed stale_after_seconds "
+                f"({self.unavailable_after_seconds} <= {self.stale_after_seconds})"
+            )
+        return self
+
+
+class MarketRoutingSettings(Section):
+    """Which market the station programmes against, and when it may change.
+
+    V1 policy: XAUUSD whenever it is confirmed available, BTCUSD when XAUUSD is confirmed
+    **closed**. A list rather than a single fallback so a third market needs configuration
+    rather than code.
+    """
+
+    primary: str = "XAUUSD"
+    fallback: tuple[str, ...] = ("BTCUSD",)
+
+    #: How long a closure must persist before the station moves off a market.
+    #:
+    #: 120 s. Long enough to absorb the straggling ticks either side of a session boundary,
+    #: short enough that a genuine Friday close does not leave the director planning against
+    #: a dead market for long.
+    switch_confirmation_seconds: float = Field(default=120.0, ge=0.0, le=3_600.0)
+    #: How long a reopening must persist before the station moves back.
+    #:
+    #: 300 s, deliberately longer than the close window. The asymmetry is the anti-flap
+    #: measure: leaving a closed market early costs nothing, while returning early on one
+    #: premature tick means crossing back and forth, which a listener hears as the station
+    #: changing its mind.
+    reopen_confirmation_seconds: float = Field(default=300.0, ge=0.0, le=7_200.0)
+    #: A market that just became active cannot be replaced for at least this long.
+    minimum_active_market_seconds: float = Field(default=180.0, ge=0.0, le=7_200.0)
+
+    #: Availability thresholds, per symbol. Missing symbols use the defaults.
+    symbols: dict[str, MarketSymbolSettings] = Field(default_factory=dict)
+
+    @property
+    def symbols_in_order(self) -> tuple[str, ...]:
+        """Every configured symbol, primary first.
+
+        Order matters to the caller that builds the feeds: index 0 is the market the
+        station prefers, and the simulator varies the others off it.
+        """
+        return (self.primary, *self.fallback)
+
+    def for_symbol(self, symbol: str) -> MarketSymbolSettings:
+        return self.symbols.get(symbol.upper(), MarketSymbolSettings())
+
+    @model_validator(mode="after")
+    def _check(self) -> MarketRoutingSettings:
+        if not self.primary.strip():
+            raise ValueError("markets.primary must be a symbol")
+        if self.primary in self.fallback:
+            raise ValueError(
+                f"markets.primary {self.primary!r} must not also appear in markets.fallback"
+            )
+        if len(set(self.fallback)) != len(self.fallback):
+            raise ValueError("markets.fallback contains duplicates")
+        return self
+
+
 class AudioSettings(Section):
     """§ADR-06 playout output."""
 
@@ -939,6 +1030,8 @@ class AppSettings(Section):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
     market: MarketSettings = Field(default_factory=MarketSettings)
+    #: Which symbol the station programmes against, and when it may change.
+    markets: MarketRoutingSettings = Field(default_factory=MarketRoutingSettings)
     energy: EnergySettings = Field(default_factory=EnergySettings)
     regime: RegimeSettings = Field(default_factory=RegimeSettings)
 

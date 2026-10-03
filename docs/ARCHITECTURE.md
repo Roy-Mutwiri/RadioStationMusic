@@ -42,7 +42,8 @@ keep it that way.
   runtime/             coordinator: typed event bus + supervised tasks
   generation/          manager (leases, retries, timeouts) · capacity · provider · mock
   director/            music_director · lyrics · diversity · energy_curve · library
-  market/              service · feeds · features · regimes · simulation
+  market/              router · availability · active · service · feeds ·
+                       features · regimes · simulation
   ─────────────────────────────────────────────────────────────────────────
   persistence/         database · models · repositories · migrations
   audio/               pcm · mixer · synthesis · io · sinks · format
@@ -59,6 +60,13 @@ Two boundary rules earned their place by being broken first:
 the repository import `QueueEntry`, which produced an import cycle
 `persistence → radio → generation → persistence`. The cycle was the symptom; the cause was a
 storage layer reaching up into a domain layer.
+
+**A closed market is not a broken feed.** `market/availability.py` models the two as
+separate states and `MarketAvailability.authorises_fallback` is true for exactly one of
+them. Without that separation the obvious implementation — "no ticks, so the market must be
+shut" — makes a Tuesday-afternoon feed outage look like a weekend, and the station spends
+the London session playing Bitcoin music about a market that is trading normally. See
+[MARKET_ROUTING.md](MARKET_ROUTING.md).
 
 **The playout format is the sink's format.** `audio/format.py` declares the canonical
 48 kHz stereo float32 default and a single `conform()` that converts at the *input* boundary.
@@ -299,6 +307,8 @@ Recorded in code at the point of compromise, repeated here so the list is in one
 | Question | File |
 | --- | --- |
 | How does a market state become a track? | `director/music_director.py` |
+| Which market is the station on, and why? | `market/router.py`, [MARKET_ROUTING.md](MARKET_ROUTING.md) |
+| Is gold shut, or is its feed broken? | `market/availability.py::assess_availability` |
 | Why did the station play *that*? | the blueprint's `rationale`, built as it decides |
 | How does it survive a dead generator? | `radio/emergency.py`, `radio/playout.py` |
 | How does it survive a crash? | `radio/station.py::recover` |

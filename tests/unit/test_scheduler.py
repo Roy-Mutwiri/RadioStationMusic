@@ -90,9 +90,10 @@ def market(
     regime: MarketRegime = MarketRegime.NORMAL_RANGE,
     energy: float = 50.0,
     direction: MarketDirection = MarketDirection.NEUTRAL,
+    symbol: str = "XAUUSD",
 ) -> MarketStateV1:
     return MarketStateV1(
-        symbol="XAUUSD",
+        symbol=symbol,
         timestamp=FIXED_NOW,
         regime=regime,
         direction=direction,
@@ -783,3 +784,73 @@ def test_z9_history_timestamps_use_the_injected_clock(
     runs depend on every timestamp coming from the injected clock."""
     clock.advance_sync(3600.0)
     assert clock.now() == FIXED_NOW + timedelta(hours=1)
+
+
+# ------------------------------------------------- market switching (routing V1)
+
+
+def test_a_market_switch_replans_even_without_an_energy_shift(
+    scheduler: Scheduler, settings: AppSettings, queue: RadioQueue
+) -> None:
+    """The queue was planned for a market the station has left.
+
+    Deliberately holds the regime *and* the energy constant across the switch, which is the
+    case the energy gate would reject. Fit to the old market is not a reason to keep
+    programming for it.
+    """
+    fill_queue(queue, 6)
+    healthy = assessment(settings=settings)
+    scheduler.decide(
+        assessment=healthy,
+        state=market(regime=MarketRegime.NORMAL_RANGE, energy=50.0, symbol="XAUUSD"),
+        capacity=capacity(),
+    )
+    decision = scheduler.decide(
+        assessment=healthy,
+        state=market(regime=MarketRegime.NORMAL_RANGE, energy=50.0, symbol="BTCUSD"),
+        capacity=capacity(),
+    )
+    assert decision.replan
+    assert decision.replan_from_position is not None
+    assert "XAUUSD->BTCUSD" in decision.reason
+
+
+def test_a_market_switch_does_not_replan_a_starving_station(
+    scheduler: Scheduler, settings: AppSettings, queue: RadioQueue
+) -> None:
+    """Survival outranks fit here too.
+
+    Discarding flexible slots throws away audio that already exists. When the buffer is the
+    emergency, a queue that fits the wrong market still beats silence.
+    """
+    fill_queue(queue, 6)
+    scheduler.decide(
+        assessment=assessment(settings=settings),
+        state=market(symbol="XAUUSD"),
+        capacity=capacity(),
+    )
+    decision = scheduler.decide(
+        assessment=assessment(settings=settings, level=BufferLevel.CRITICAL, ready_minutes=0.5),
+        state=market(symbol="BTCUSD"),
+        capacity=capacity(),
+    )
+    assert not decision.replan
+    assert decision.replan_from_position is None
+
+
+def test_a_market_switch_never_replaces_the_locked_head(
+    scheduler: Scheduler, settings: AppSettings, queue: RadioQueue
+) -> None:
+    """"Do not flush the entire queue" — the track on air keeps playing."""
+    fill_queue(queue, 8)
+    healthy = assessment(settings=settings)
+    scheduler.decide(
+        assessment=healthy, state=market(symbol="XAUUSD"), capacity=capacity()
+    )
+    decision = scheduler.decide(
+        assessment=healthy, state=market(symbol="BTCUSD"), capacity=capacity()
+    )
+    assert decision.replan_from_position is not None
+    assert decision.replan_from_position > 0, (
+        "a market switch started the replan at the head of the queue"
+    )

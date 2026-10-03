@@ -13,9 +13,11 @@ reach a terminal state in the database, and must leave behind the evidence that 
 from __future__ import annotations
 
 import random
+from datetime import datetime
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 
 from tests.audio_fixtures import musical, silence
 from tests.conftest import make_blueprint
@@ -588,3 +590,66 @@ async def test_an_exact_hash_lookup_spans_the_whole_table(
         # Even with the comparison window closed to nothing.
         assert await repository.load_library(limit=0) == []
         assert await repository.canonical_hash_owner(digest) == "TF-OLD"
+
+
+async def test_the_originality_library_is_station_wide_not_per_market(
+    settings: AppSettings, tmp_path: Path, database: Database
+) -> None:
+    """One library, both markets — "do not create separate originality libraries".
+
+    The point is not that it would be inconvenient to keep two. It is that §11's "never
+    repeat the same blueprint" is a promise to the *listener*, and the listener hears one
+    station. Two libraries would let the same track air on Saturday and again on Monday and
+    both halves would be individually correct.
+
+    Guarded here, at the query, because that is where a well-meaning "filter to the active
+    market" would be added: `load_library` has no symbol parameter, and this test fails the
+    moment one appears and is used.
+    """
+    from tradefix_radio.audio.analysis import extract_features
+    from tradefix_radio.audio.fingerprint import canonical_sha256, default_provider
+    from tradefix_radio.audio.io import read_audio
+
+    now = datetime(2026, 10, 3, 10, 0, tzinfo=UTC)
+    provider = default_provider()
+    planted = {"TF-GOLD": "XAUUSD", "TF-BTC": "BTCUSD"}
+
+    for index, (track_id, symbol) in enumerate(planted.items()):
+        blueprint = make_blueprint(
+            track_id, symbol=symbol, duration_seconds=50, genre="deep_house", bpm=124
+        )
+        source = _source(tmp_path, musical(seconds=50.0, seed=30 + index), f"{track_id}.wav")
+        buffer = read_audio(source)
+        features = extract_features(buffer)
+        async with database.session() as session:
+            await TrackRepository(session).create(
+                blueprint, now=now, provider="mock", model_identifier="mock-1"
+            )
+            await OriginalityRepository(session).record_fingerprint(
+                track_id,
+                features=features,
+                canonical_hash=canonical_sha256(buffer),
+                file_sha256=f"feed{index:04d}",
+                fingerprint=provider.compute(source, buffer, features),
+                blueprint_signature=blueprint.signature(),
+                lyric_hash=None,
+                embedding_version=2,
+                computed_at=now,
+            )
+
+    async with database.session() as session:
+        library = await OriginalityRepository(session).load_library()
+
+    assert {entry.track_id for entry in library} == set(planted), (
+        "the comparison corpus is not both markets' tracks"
+    )
+
+    # And the recorded symbol survives, so analytics can slice by market even though
+    # originality does not.
+    async with database.read_session() as session:
+        rows = (
+            await session.execute(
+                select(Track.track_id, Track.symbol_at_generation).order_by(Track.track_id)
+            )
+        ).all()
+    assert dict(rows) == {"TF-BTC": "BTCUSD", "TF-GOLD": "XAUUSD"}

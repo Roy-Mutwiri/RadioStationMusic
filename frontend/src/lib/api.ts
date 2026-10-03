@@ -15,6 +15,7 @@
  */
 
 import type {
+  ActiveMarket,
   Alert,
   BufferState,
   Capability,
@@ -129,6 +130,13 @@ export const api = {
       method: 'POST',
     }),
 
+  markets: () => request<ActiveMarket>('/markets'),
+  setMarketClosed: (symbol: string, closed: boolean) =>
+    request<ActiveMarket>('/simulation/market-closure', {
+      method: 'POST',
+      body: JSON.stringify({ symbol, closed }),
+    }),
+
   scenarios: () => request<ScenarioList>('/simulation/scenarios'),
   setScenario: (scenario: string) =>
     request<ScenarioList>('/simulation/regime', {
@@ -152,6 +160,7 @@ export const api = {
     if (params.search) query.set('search', params.search)
     if (params.genre) query.set('genre', params.genre)
     if (params.regime) query.set('regime', params.regime)
+    if (params.symbol) query.set('symbol', params.symbol)
     if (params.state) query.set('state', params.state)
     query.set('offset', String(params.offset ?? 0))
     query.set('limit', String(params.limit ?? 50))
@@ -160,7 +169,11 @@ export const api = {
   libraryTrack: (trackId: string) =>
     request<TrackDetail>(`/library/tracks/${encodeURIComponent(trackId)}`),
 
-  analytics: (window: string) => request<Analytics>(`/analytics?window=${window}`),
+  analytics: (window: string, symbol?: string) => {
+    const query = new URLSearchParams({ window })
+    if (symbol) query.set('symbol', symbol)
+    return request<Analytics>(`/analytics?${query}`)
+  },
 
   originality: () => request<OriginalitySummary>('/originality/summary'),
   originalityRecent: (limit = 50) =>
@@ -196,6 +209,8 @@ export interface LibraryQuery {
   search?: string
   genre?: string
   regime?: string
+  /** Omit for every market — there is no 'ALL' sentinel. */
+  symbol?: string
   state?: string
   offset?: number
   limit?: number

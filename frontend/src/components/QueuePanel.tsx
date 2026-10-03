@@ -313,7 +313,14 @@ export function QueuePanel({
                   <td className="px-2 py-1.5 text-right font-mono tnum text-ink-300">
                     {decimal(item.energy, 0)}
                   </td>
-                  <td className="px-2 py-1.5 text-ink-400">{titleCase(item.planned_regime)}</td>
+                  <td className="px-2 py-1.5 text-ink-400">
+                    {titleCase(item.planned_regime)}
+                    {item.planned_symbol && (
+                      <span className="ml-1.5 font-mono text-2xs text-ink-600">
+                        {item.planned_symbol}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-2 py-1.5">{readinessChip(item)}</td>
                   <td className="px-2 py-1.5 text-right font-mono tnum text-ink-400">
                     {duration(item.duration_seconds)}

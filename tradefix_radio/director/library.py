@@ -136,10 +136,30 @@ class TopicDefinition(LibraryItem):
     educational: bool = True
     regime_affinity: dict[MarketRegime, float] = Field(default_factory=dict)
     session_affinity: dict[TradingSession, float] = Field(default_factory=dict)
+    #: Symbols this topic is appropriate for. Empty means "any market".
+    #:
+    #: A topic about London gold liquidity is wrong over Bitcoin, and one about weekend
+    #: crypto volatility is wrong over gold — not merely off-theme, but *false*, which §14
+    #: does not allow. Most topics are market-neutral (discipline, position sizing) and
+    #: leave this empty, so scoping is opt-in rather than a field every entry must fill.
+    markets: tuple[str, ...] = ()
     teaching_points: tuple[str, ...] = ()
     phrases: tuple[str, ...] = ()
     forbidden: tuple[str, ...] = ()
     pairs_with: tuple[str, ...] = ()
+
+    def suits_market(self, symbol: str | None) -> bool:
+        """Whether this topic may be used while ``symbol`` is the active market.
+
+        An unscoped topic suits every market. An unknown or absent symbol — the
+        NO_ACTIVE_MARKET case — admits only unscoped topics, because a market-specific
+        claim with no market behind it is exactly the fabricated context §14 forbids.
+        """
+        if not self.markets:
+            return True
+        if not symbol:
+            return False
+        return symbol.upper() in {market.upper() for market in self.markets}
 
     @model_validator(mode="after")
     def _check(self) -> TopicDefinition:

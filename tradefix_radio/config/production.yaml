@@ -17,6 +17,44 @@ market:
   feed: metatrader5
   poll_interval_seconds: 1.0
 
+# Which market the station programmes against, and when it may change.
+#
+# XAUUSD is the station's subject. It is also shut for roughly 49 hours a week, and a radio
+# station cannot take the weekend off, so BTCUSD — which never closes — carries those hours.
+markets:
+  primary: XAUUSD
+  fallback: [BTCUSD]
+
+  # Hysteresis. These are the numbers that decide whether a session boundary sounds like a
+  # deliberate change of programming or like the station panicking.
+  #
+  # Reopening is held five times longer than closing, deliberately. Leaving a closed market
+  # two minutes late costs nothing — the data has genuinely stopped. Returning two minutes
+  # early, on a straggling pre-open tick, means crossing back and forth over the boundary,
+  # which a listener hears as the station changing its mind.
+  switch_confirmation_seconds: 120
+  reopen_confirmation_seconds: 300
+  minimum_active_market_seconds: 180
+
+  symbols:
+    XAUUSD:
+      # Gold ticks continuously while it trades, so 90 seconds of silence is already
+      # abnormal. Note what STALE does *not* do: it never authorises the move to Bitcoin.
+      # Only a confirmed closure does that — a silent feed on a trading day is a fault to
+      # be fixed, not a market that has shut.
+      stale_after_seconds: 90
+      unavailable_after_seconds: 300
+    BTCUSD:
+      # Crypto venues are noisier than a broker feed and a thin minute is ordinary rather
+      # than alarming, so the thresholds are looser. They are also less consequential:
+      # BTCUSD is only ever on air because gold is already shut.
+      stale_after_seconds: 180
+      unavailable_after_seconds: 600
+      # Broker spellings, in the order discovery should try them. Required for any routed
+      # symbol on a real feed: without it the station asks for "BTCUSD" and nothing else,
+      # and most MT5 brokers do not call it that.
+      aliases: [BTCUSD, BTCUSD.m, BTCUSDm, BTCUSD_, BITCOIN]
+
 generation:
   provider: ace_step
 

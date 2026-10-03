@@ -367,6 +367,7 @@ async def get_library(
     search: Annotated[str | None, Query(max_length=120)] = None,
     genre: Annotated[str | None, Query(max_length=64)] = None,
     regime: Annotated[str | None, Query(max_length=64)] = None,
+    symbol: Annotated[str | None, Query(max_length=32)] = None,
     state: Annotated[str | None, Query(max_length=32)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -387,6 +388,10 @@ async def get_library(
             query = query.where(Track.genre == genre)
         if regime:
             query = query.where(Track.regime_at_generation == regime)
+        if symbol:
+            # Absent means every market, which is the default a reader expects from a
+            # library page. There is no "ALL" sentinel to get wrong.
+            query = query.where(Track.symbol_at_generation == symbol.upper())
         if state:
             query = query.where(Track.state == state)
 
@@ -415,6 +420,7 @@ def _track_summary(track: object, blueprint: object | None) -> TrackSummaryV1:
         is_instrumental=getattr(track, "is_instrumental", None),
         state=str(getattr(track, "state", "unknown")),
         planned_regime=getattr(track, "regime_at_generation", None),
+        planned_symbol=getattr(track, "symbol_at_generation", None),
         planned_energy=getattr(track, "energy_at_generation", None),
         # The real column, which Phase 6 populates. It is NULL for every track generated
         # before the originality engine exists, and the DTO carries that through as absent
@@ -497,6 +503,7 @@ _ANALYTICS_WINDOWS: dict[str, timedelta | None] = {
 async def get_analytics(
     view: ViewDep,
     window: Annotated[Literal["24h", "7d", "30d", "all"], Query()] = "24h",
+    symbol: Annotated[str | None, Query(max_length=32)] = None,
 ) -> AnalyticsV1:
     """Aggregates over the tracks table. Counted, never estimated.
 
@@ -511,8 +518,20 @@ async def get_analytics(
     async with database.read_session() as session:  # type: ignore[attr-defined]
 
         def scoped(query: Select[Any]) -> Select[Any]:
-            """Apply the time window, when there is one."""
-            return query.where(Track.created_at >= since) if since else query
+            """Apply the time window and the market filter, when there are any.
+
+            The market filter goes here rather than at each call site so that every figure
+            on the page is scoped the same way. A page where the genre distribution was
+            per-market and the track count was not would invite exactly the comparison it
+            cannot support.
+
+            An absent symbol means every market. There is no "ALL" sentinel to mistype.
+            """
+            if since:
+                query = query.where(Track.created_at >= since)
+            if symbol:
+                query = query.where(Track.symbol_at_generation == symbol.upper())
+            return query
 
         generated = int(
             await session.scalar(scoped(select(func.count()).select_from(Track))) or 0
@@ -543,6 +562,10 @@ async def get_analytics(
         bpms = await session.execute(
             scoped(select(Track.bpm, func.count()).group_by(Track.bpm).order_by(Track.bpm))
         )
+        # Not scoped by market, and deliberately not: a generation job that failed may
+        # never have produced a track to attach a symbol to, so filtering here would
+        # silently drop the failures that matter most. It is also not scoped by window,
+        # which predates this and is noted in the DTO.
         failures = int(
             await session.scalar(
                 select(func.count())

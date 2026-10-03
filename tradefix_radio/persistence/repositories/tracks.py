@@ -92,6 +92,7 @@ class TrackRepository(Repository):
             vocal_style=blueprint.vocal.style.value,
             primary_topic=blueprint.lyrics.primary_topic,
             secondary_topic=blueprint.lyrics.secondary_topic,
+            symbol_at_generation=blueprint.market.symbol,
             regime_at_generation=blueprint.market.regime.value,
             energy_at_generation=blueprint.market.energy,
             composition_energy=blueprint.composition.energy,

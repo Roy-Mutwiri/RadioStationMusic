@@ -32,6 +32,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
+    "ActiveMarketV1",
     "AlertV1",
     "AudioFeaturesV1",
     "BufferV1",
@@ -43,6 +44,7 @@ __all__ = [
     "HealthComponentV1",
     "LiveStateV1",
     "LyricFingerprintV1",
+    "MarketAvailabilityV1",
     "MarketPointV1",
     "MarketV1",
     "MasteringV1",
@@ -127,6 +129,64 @@ class MarketV1(_Dto):
     is_simulated: bool
 
 
+class MarketAvailabilityV1(_Dto):
+    """One configured symbol's availability, as the Market page renders it.
+
+    ``state`` and ``feed_degraded`` are deliberately separate fields rather than one
+    combined status. The requirement they serve is that an operator can tell a closed
+    market from a broken feed at a glance; collapsing them into a single badge is exactly
+    the confusion the routing subsystem exists to prevent — the station treats the two
+    differently, so the UI must show them differently.
+    """
+
+    symbol: str
+    #: ``open`` | ``closed`` | ``stale`` | ``unavailable`` | ``unknown``.
+    state: str
+    #: A sentence naming *why*, e.g. "no tick for 412s" or "feed reports the market closed".
+    reason: str
+    #: True when the data path looks broken rather than the market being shut. A closed
+    #: market is not degraded; a silent feed on a trading day is.
+    feed_degraded: bool
+    #: ``None`` before the first tick — never zero, which would read as "fresh".
+    data_age_seconds: float | None = None
+    feed_status: str
+    #: What the calendar says, independently of what the feed is doing. ``None`` when no
+    #: calendar applies (a 24/7 instrument).
+    calendar_open: bool | None = None
+    is_active: bool
+    bars_processed: int = Field(ge=0)
+    #: Subject to the same §21 rule as ``MarketV1.price``: absent rather than stale.
+    last_price: float | None = None
+    assessed_at: datetime
+
+
+class ActiveMarketV1(_Dto):
+    """Which market the station is planning against, and why.
+
+    Present on every live frame because the answer changes the meaning of everything beside
+    it: an energy reading of 80 is a different statement about gold than about Bitcoin.
+    """
+
+    #: The live symbol, or ``NO_ACTIVE_MARKET`` when neither is usable. The sentinel is
+    #: surfaced rather than translated to ``None`` so the UI can say so explicitly instead
+    #: of rendering a blank where a symbol belongs.
+    active_symbol: str
+    primary_symbol: str
+    is_primary: bool
+    #: False when ``active_symbol`` is the sentinel. The station keeps broadcasting from its
+    #: buffer; only live-data planning stops.
+    has_active_market: bool
+    active_since: datetime | None = None
+    #: Why the station is on this symbol, e.g. ``primary_market_closed``.
+    switch_reason: str | None = None
+    switch_count: int = Field(ge=0)
+    #: A switch that is being *confirmed* but has not happened yet — the hysteresis window.
+    #: Shown so an operator watching a closure does not think the station is stuck.
+    pending_symbol: str | None = None
+    pending_seconds_remaining: float | None = None
+    symbols: tuple[MarketAvailabilityV1, ...] = ()
+
+
 class MarketPointV1(_Dto):
     """One sample on the energy timeline."""
 
@@ -188,6 +248,12 @@ class NowPlayingV1(_Dto):
     progress: float = Field(ge=0.0, le=1.0)
 
     planned_regime: str | None = None
+    #: Which market this track was planned against.
+    #:
+    #: Carried per-track rather than read off the header, because after a switch the two
+    #: disagree for as long as the queue still holds programming from the previous market —
+    #: and that gap is the thing an operator most needs to see, not the thing to paper over.
+    planned_symbol: str | None = None
     planned_energy: float | None = None
     novelty_target: float | None = None
     transition_in: str | None = None
@@ -215,6 +281,8 @@ class QueueItemV1(_Dto):
     #: 0–100, normalised from the blueprint's 0–1 intensity so the UI has one energy scale.
     energy: float | None = Field(default=None, ge=0.0, le=100.0)
     planned_regime: str | None = None
+    #: Which market this slot was planned against. See ``NowPlayingV1.planned_symbol``.
+    planned_symbol: str | None = None
 
     lock: LockName
     lock_label: Literal["HARD", "SOFT", "FLEXIBLE", "PINNED"]
@@ -413,6 +481,8 @@ class TrackSummaryV1(_Dto):
     is_instrumental: bool | None = None
     state: str
     planned_regime: str | None = None
+    #: Market the track was planned against, from ``tracks.symbol_at_generation``.
+    planned_symbol: str | None = None
     planned_energy: float | None = None
     novelty_score: float | None = None
     play_count: int = Field(ge=0)
@@ -432,6 +502,9 @@ class LiveStateV1(_Dto):
 
     status: StationStatusV1
     market: MarketV1 | None = None
+    #: Which symbol ``market`` describes, and the other symbols' health. ``None`` only when
+    #: no routing subsystem is attached (a bare view in tests).
+    routing: ActiveMarketV1 | None = None
     now_playing: NowPlayingV1 | None = None
     queue: tuple[QueueItemV1, ...] = ()
     buffer: BufferV1 | None = None

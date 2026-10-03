@@ -107,6 +107,7 @@ class LyricsDirector:
         persona: PersonaDefinition | None,
         vocal_style: VocalStyle,
         instrumental: bool,
+        symbol: str | None = None,
         temperature: float = 1.0,
         divergence_strength: float = 0.0,
     ) -> LyricPlan:
@@ -145,12 +146,13 @@ class LyricsDirector:
             persona=persona,
             temperature=temperature,
             divergence_strength=divergence_strength,
+            symbol=symbol,
         )
         rationale.append(f"topic {primary.key!r} ({primary.certainty})")
 
         secondary = self._choose_secondary(
             primary=primary, history=history, regime=regime, session=session,
-            temperature=temperature,
+            temperature=temperature, symbol=symbol,
         )
         if secondary is not None:
             rationale.append(f"secondary topic {secondary.key!r}")
@@ -259,6 +261,7 @@ class LyricsDirector:
         persona: PersonaDefinition | None,
         temperature: float,
         divergence_strength: float,
+        symbol: str | None = None,
     ) -> TopicDefinition:
         """Choose the primary subject, honouring §12's long repetition horizon.
 
@@ -269,6 +272,15 @@ class LyricsDirector:
         """
         candidates: list[Candidate[str]] = []
         for topic in self._library.topics.values():
+            # Market scoping is a *filter*, not a weight.
+            #
+            # "The London open brings a step up in volume" is not merely a poor fit over
+            # Bitcoin — it is false, and §14 forbids presenting an uncertain or wrong
+            # market relationship as fact. A low weight would still let it through
+            # occasionally, which is the one outcome that is unacceptable, so it is
+            # excluded outright.
+            if not topic.suits_market(symbol):
+                continue
             candidate = Candidate(value=topic.key, weight=topic.weight)
             candidate.multiply("regime", topic.affinity_for(regime))
             candidate.multiply("session", topic.session_bias(session))
@@ -297,15 +309,20 @@ class LyricsDirector:
         regime: MarketRegime,
         session: TradingSession,
         temperature: float,
+        symbol: str | None = None,
     ) -> TopicDefinition | None:
         """Optionally add a second subject, never repeating a pair (§11)."""
         if self._selector.rng.random() > SECONDARY_TOPIC_PROBABILITY:
             return None
 
+        # `pairs_with` crosses markets freely — a gold topic pairs with neutral ones and
+        # the BTC topics pair with the shared risk vocabulary — so the same filter applies
+        # here. Without it the secondary slot is a hole the primary filter does not cover.
         pool = [
             self._library.topic(key)
             for key in primary.pairs_with
             if key in self._library.topics
+            and self._library.topic(key).suits_market(symbol)
         ]
         if not pool:
             # No declared pairing: fall back to the same category, which is more coherent

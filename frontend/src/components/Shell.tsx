@@ -116,8 +116,16 @@ function TopBar() {
   const { state, isStale } = useLive()
   const time = useWallClock()
   const market = state?.market
+  const routing = state?.routing ?? null
   const alerts = state?.alerts ?? []
   const critical = alerts.filter((alert) => alert.severity === 'critical')
+
+  // The symbol comes from the market state, not from the routing summary: the price and
+  // session beside it are that state's, and labelling them with a symbol read from
+  // somewhere else would mislabel them for the moment between a switch and the next tick.
+  const symbol = market?.symbol ?? routing?.active_symbol ?? null
+  const onFallback = routing !== null && routing.has_active_market && !routing.is_primary
+  const noMarket = routing !== null && !routing.has_active_market
 
   const change = market?.price_change ?? null
   const changeTone =
@@ -134,7 +142,17 @@ function TopBar() {
 
       <div className="flex items-center gap-5 border-l border-ink-800 pl-5">
         <div className="flex items-baseline gap-2" data-testid="topbar-price">
-          <span className="label">XAUUSD</span>
+          <span
+            className={clsx('label', onFallback && 'text-gold-300')}
+            data-testid="topbar-symbol"
+            title={
+              onFallback
+                ? `${routing?.primary_symbol} is unavailable; the station is programming against ${symbol}.`
+                : undefined
+            }
+          >
+            {symbol ?? ABSENT}
+          </span>
           <span className="font-mono text-sm tnum text-ink-100">{price(market?.price)}</span>
           <span className={clsx('font-mono text-2xs tnum', changeTone)}>
             {change === null ? '' : signed(change)}
@@ -149,6 +167,26 @@ function TopBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-4">
+        {noMarket && (
+          // Both markets are shut. Said plainly, because the station is still playing and
+          // the obvious reading of a frozen price panel is "the dashboard has hung".
+          <span
+            className="chip border-status-degraded/40 bg-status-degraded/10 text-status-degraded"
+            data-testid="no-market-chip"
+            title="No market is currently open. The station keeps broadcasting from its buffer; it is not planning against live data."
+          >
+            No active market
+          </span>
+        )}
+        {onFallback && (
+          <span
+            className="chip border-gold-500/40 bg-gold-500/10 text-gold-300"
+            data-testid="fallback-chip"
+            title={`${routing?.primary_symbol} is closed. ${routing?.active_symbol} is on air.`}
+          >
+            Fallback market
+          </span>
+        )}
         {market?.is_simulated && (
           // §72: simulation must never be mistaken for live. Persistent, in the chrome, on
           // every page — not a badge tucked into one panel.

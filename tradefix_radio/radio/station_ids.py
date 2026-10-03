@@ -46,6 +46,14 @@ class StationIdCategory(str, enum.Enum):
     SESSION_TRANSITION = "session_transition"
     """London opened, New York closed (§97)."""
 
+    MARKET_SWITCH = "market_switch"
+    """The station moved between XAUUSD and BTCUSD.
+
+    Distinct from ``MARKET_TRANSITION``, which is about a regime change *within* one market.
+    This one tells the listener the subject has changed — the next songs are about a
+    different instrument — and the branding does not: it is still Trade Fix Radio.
+    """
+
     ENERGY_CHANGE = "energy_change"
     """The station's energy moved materially — §98's sharp change, made explicit."""
 
@@ -363,6 +371,31 @@ def default_library(station_id_dir: Path) -> list[StationIdRecord]:
             duration_seconds=5.0,
             minimum_recurrence_tracks=25,
             text="The tape is settling. Easing back down with it.",
+        ),
+        # Market-switch identifiers.
+        #
+        # Shipped without audio in V1. The library skips any record whose file is missing,
+        # so these cost nothing until someone records them — and they document the exact
+        # wording the category is for, which §31 asks the code not to assume.
+        #
+        # Note what they do *not* say: no claim that gold will reopen at a particular time,
+        # and no suggestion that either market is the better one to trade. §14 applies to a
+        # four-second clip as much as to a verse.
+        StationIdRecord(
+            key="market_switch_to_bitcoin",
+            category=StationIdCategory.MARKET_SWITCH,
+            audio_path=station_id_dir / "market_switch_to_bitcoin.flac",
+            duration_seconds=5.0,
+            minimum_recurrence_tracks=25,
+            text="Gold's closed for now. We're following Bitcoin. Trade Fix Radio.",
+        ),
+        StationIdRecord(
+            key="market_switch_to_gold",
+            category=StationIdCategory.MARKET_SWITCH,
+            audio_path=station_id_dir / "market_switch_to_gold.flac",
+            duration_seconds=5.0,
+            minimum_recurrence_tracks=25,
+            text="Gold is back open. Back on XAUUSD. Trade Fix Radio.",
         ),
         StationIdRecord(
             key="session_london",

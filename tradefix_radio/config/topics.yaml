@@ -647,6 +647,7 @@ topics:
 
   gold_volatility:
     category: gold
+    markets: [XAUUSD]
     label: Gold Volatility
     certainty: contextual
     weight: 1.2
@@ -662,6 +663,7 @@ topics:
 
   london_session:
     category: gold
+    markets: [XAUUSD]
     label: London Session
     certainty: contextual
     weight: 1.0
@@ -677,6 +679,7 @@ topics:
 
   new_york_session:
     category: gold
+    markets: [XAUUSD]
     label: New York Session
     certainty: contextual
     weight: 1.0
@@ -692,6 +695,7 @@ topics:
 
   asian_session:
     category: gold
+    markets: [XAUUSD]
     label: Asian Session
     certainty: contextual
     weight: 1.0
@@ -707,6 +711,7 @@ topics:
 
   session_overlap:
     category: gold
+    markets: [XAUUSD]
     label: Session Overlap
     certainty: contextual
     weight: 1.0
@@ -721,6 +726,7 @@ topics:
 
   dxy_relationship:
     category: gold
+    markets: [XAUUSD]
     label: Dollar Relationship
     certainty: speculative
     weight: 0.7
@@ -739,6 +745,7 @@ topics:
 
   treasury_yields:
     category: gold
+    markets: [XAUUSD]
     label: Treasury Yields
     certainty: speculative
     weight: 0.6
@@ -760,6 +767,7 @@ topics:
 
   economic_events:
     category: gold
+    markets: [XAUUSD]
     label: Economic Events
     certainty: contextual
     weight: 1.0
@@ -777,6 +785,7 @@ topics:
 
   risk_sentiment:
     category: gold
+    markets: [XAUUSD]
     label: Risk Sentiment
     certainty: speculative
     weight: 0.7
@@ -794,6 +803,7 @@ topics:
 
   gold_liquidity:
     category: gold
+    markets: [XAUUSD]
     label: Gold Liquidity
     certainty: contextual
     weight: 0.9
@@ -805,3 +815,139 @@ topics:
       - "open all hours, not all depths"
       - "thin hour, wider slip"
     pairs_with: [liquidity, session_overlap, stop_losses]
+
+  # ====================================================== BITCOIN / BTCUSD
+  #
+  # Reached when XAUUSD is closed and the router moves the station to BTCUSD. Scoped with
+  # `markets: [BTCUSD]` so a Bitcoin claim can never surface over a gold track — these are
+  # statements about a 24/7, higher-volatility, liquidation-driven market, and most of them
+  # are plainly false about gold.
+  #
+  # Certainty is set as carefully here as anywhere else. Crypto attracts overclaiming, and
+  # §14 applies identically: nothing below promises a direction, and the `forbidden` lists
+  # name the specific overclaims this subject attracts rather than relying on the
+  # station-wide guaranteed-outcome patterns alone.
+
+  btc_volatility:
+    category: bitcoin
+    markets: [BTCUSD]
+    label: Bitcoin Volatility
+    certainty: contextual
+    weight: 1.3
+    regime_affinity: {extreme_volatility: 1.7, high_volatility_range: 1.5}
+    teaching_points:
+      - "Bitcoin's daily range is frequently wider than most traditional instruments, which changes what a sensible position size looks like."
+      - "A larger range is not a larger edge; it raises the cost of being wrong at the same size."
+    phrases:
+      - "the range is wide so the size comes down"
+      - "big candles don't mean big edge"
+    forbidden: ["bitcoin always recovers", "guaranteed pump", "can't go lower", "always goes up"]
+    pairs_with: [position_sizing, volatility, risk_per_trade]
+
+  btc_market_structure:
+    category: bitcoin
+    markets: [BTCUSD]
+    label: Bitcoin Market Structure
+    certainty: established
+    weight: 1.2
+    teaching_points:
+      - "Structure is read the same way on Bitcoin as anywhere else: higher highs and higher lows, until they stop."
+      - "A level matters because participants act around it, not because of the number itself."
+    phrases:
+      - "same structure, different clock"
+      - "the level is where people act, not where the number is round"
+    forbidden: ["structure guarantees continuation", "the level always holds"]
+    pairs_with: [market_structure, support, resistance, trend]
+
+  btc_weekend_liquidity:
+    category: bitcoin
+    markets: [BTCUSD]
+    label: Weekend Liquidity
+    certainty: contextual
+    weight: 1.4
+    teaching_points:
+      - "Crypto keeps trading at the weekend while most other desks are shut, and participation is often thinner."
+      - "Thinner books tend to mean a given order moves price further; that cuts in both directions."
+    phrases:
+      - "weekend book is thinner and the moves stretch"
+      - "fewer hands on the tape, same size moves further"
+    forbidden: ["weekends always pump", "guaranteed weekend move", "weekend always dumps"]
+    pairs_with: [liquidity, btc_volatility, position_sizing]
+
+  btc_always_open:
+    category: bitcoin
+    markets: [BTCUSD]
+    label: The 24/7 Market
+    certainty: established
+    weight: 1.2
+    teaching_points:
+      - "There is no closing bell in crypto, so there is no point at which the market decides for you to stop."
+      - "A market that never closes makes the decision to step away yours alone."
+    phrases:
+      - "no closing bell, so you set your own"
+      - "it runs all night whether or not you do"
+    forbidden: ["you must always be in", "missing out is losing"]
+    pairs_with: [discipline, patience, overtrading]
+
+  btc_breakout:
+    category: bitcoin
+    markets: [BTCUSD]
+    label: Bitcoin Breakouts
+    certainty: contextual
+    weight: 1.2
+    regime_affinity: {bullish_breakout: 1.6, bearish_breakout: 1.6, breakout_buildup: 1.4}
+    teaching_points:
+      - "Breaks out of a crypto range can extend quickly, and they can also fail just as quickly."
+      - "The break itself is information; the follow-through is what is still unknown."
+    phrases:
+      - "it broke — that's information, not a promise"
+      - "the move is fast either way"
+    forbidden: ["breakouts always run", "guaranteed continuation"]
+    pairs_with: [breakout, fakeout, btc_volatility]
+
+  btc_consolidation:
+    category: bitcoin
+    markets: [BTCUSD]
+    label: Bitcoin Consolidation
+    certainty: contextual
+    weight: 1.0
+    regime_affinity: {compression: 1.6, quiet: 1.4, low_volatility_range: 1.4}
+    teaching_points:
+      - "Quiet stretches happen in crypto too, and they can last longer than they feel like they should."
+      - "A tightening range says participants disagree less right now; it does not say which way they will resolve it."
+    phrases:
+      - "the range is tightening and nobody's arguing"
+      - "quiet now says nothing about later"
+    forbidden: ["compression guarantees a breakout", "it must break soon"]
+    pairs_with: [consolidation, range, patience]
+
+  btc_leverage_risk:
+    category: bitcoin
+    markets: [BTCUSD]
+    label: Leverage in Crypto
+    certainty: established
+    weight: 1.5
+    teaching_points:
+      - "High leverage shortens the distance between a normal move and a closed position."
+      - "The exchange will close the position for you at a level you chose by sizing, whether or not you meant to choose it."
+    phrases:
+      - "leverage shortens the distance to gone"
+      - "the size picked the exit before I did"
+    forbidden: ["leverage multiplies profits", "guaranteed with leverage", "free money"]
+    pairs_with: [leverage, risk_per_trade, position_sizing, capital_preservation]
+
+  btc_liquidations:
+    category: bitcoin
+    markets: [BTCUSD]
+    label: Liquidation-Driven Moves
+    certainty: contextual
+    weight: 1.3
+    regime_affinity: {extreme_volatility: 1.7, reversal: 1.4}
+    teaching_points:
+      - "Forced closes can extend a move beyond what the original flow would have produced on its own."
+      - "A cascade is a mechanical effect, not a signal about value."
+    phrases:
+      - "the cascade isn't an opinion, it's forced selling"
+      - "positions closing other positions"
+    forbidden: ["liquidations predict direction", "guaranteed bounce after liquidations"]
+    pairs_with: [btc_leverage_risk, btc_volatility, liquidity_sweep]

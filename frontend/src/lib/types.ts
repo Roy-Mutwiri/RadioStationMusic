@@ -59,6 +59,46 @@ export interface MarketState {
   is_simulated: boolean
 }
 
+/** One configured market's availability (routing V1). */
+export interface MarketAvailability {
+  symbol: string
+  /** `open` | `closed` | `stale` | `unavailable` | `unknown`. */
+  state: string
+  /** A sentence naming why, e.g. "no tick for 412s". */
+  reason: string
+  /**
+   * True when the data path looks broken rather than the market being shut.
+   *
+   * Rendered separately from `state` on purpose: a closed market needs no action and a
+   * silent feed on a trading day does, and one combined badge would hide the difference
+   * the whole routing subsystem exists to preserve.
+   */
+  feed_degraded: boolean
+  data_age_seconds: number | null
+  feed_status: string
+  calendar_open: boolean | null
+  is_active: boolean
+  bars_processed: number
+  last_price: number | null
+  assessed_at: string
+}
+
+/** Which market the station is planning against, and why. */
+export interface ActiveMarket {
+  /** The live symbol, or `NO_ACTIVE_MARKET` when neither is usable. */
+  active_symbol: string
+  primary_symbol: string
+  is_primary: boolean
+  has_active_market: boolean
+  active_since: string | null
+  switch_reason: string | null
+  switch_count: number
+  /** A switch being confirmed but not yet made — the hysteresis window. */
+  pending_symbol: string | null
+  pending_seconds_remaining: number | null
+  symbols: MarketAvailability[]
+}
+
 export interface MarketPoint {
   at: string
   market_energy: number
@@ -100,6 +140,8 @@ export interface NowPlaying {
   remaining_seconds: number
   progress: number
   planned_regime: string | null
+  /** Which market this was planned against. Null for items planned before routing. */
+  planned_symbol: string | null
   planned_energy: number | null
   novelty_target: number | null
   transition_in: string | null
@@ -118,6 +160,8 @@ export interface QueueItem {
   bpm: number | null
   energy: number | null
   planned_regime: string | null
+  /** Which market this was planned against. Null for items planned before routing. */
+  planned_symbol: string | null
   lock: LockName
   lock_label: LockLabel
   lock_reason: string | null
@@ -261,6 +305,8 @@ export interface TrackSummary {
   is_instrumental: boolean | null
   state: string
   planned_regime: string | null
+  /** Which market this was planned against. Null for items planned before routing. */
+  planned_symbol: string | null
   planned_energy: number | null
   /** Phase 6 populates this. Null for every track generated before the originality engine. */
   novelty_score: number | null
@@ -272,6 +318,8 @@ export interface TrackSummary {
 export interface LiveState {
   status: StationStatus
   market: MarketState | null
+  /** Null only when no routing subsystem is attached. */
+  routing: ActiveMarket | null
   now_playing: NowPlaying | null
   queue: QueueItem[]
   buffer: BufferState | null

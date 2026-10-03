@@ -302,6 +302,8 @@ class RadioStation:
         self._clock = clock or SystemClock()
         self._audio_dir = audio_dir or settings.paths.generated_dir
         self._station_ids = station_ids
+        #: Set when the active symbol changes, cleared when the identifier is queued.
+        self._pending_market_switch: tuple[str, str] | None = None
         # Optional so the proven Phase 4 and Phase 5 configurations are untouched. When it is
         # absent the station behaves exactly as it did when those phases were accepted; when
         # it is present, §6.14's rule applies and nothing reaches READY without passing it.
@@ -383,8 +385,22 @@ class RadioStation:
     def market(self) -> MarketStateV1 | None:
         return self._market
 
+    @property
+    def pending_market_switch(self) -> tuple[str, str] | None:
+        """A market change noticed but not yet announced, as (previous, current)."""
+        return self._pending_market_switch
+
     def set_market(self, state: MarketStateV1) -> None:
-        """Feed the station a market state. The only input it takes from outside."""
+        """Feed the station a market state. The only input it takes from outside.
+
+        A change of *symbol* is noted here rather than subscribed to as an event. The
+        station takes one market input and the symbol arrives on it; reaching for a routing
+        event would give it a second source for the same fact, and the two could disagree
+        about which market the state in hand describes.
+        """
+        previous = self._market
+        if previous is not None and previous.symbol != state.symbol:
+            self._pending_market_switch = (previous.symbol, state.symbol)
         self._market = state
 
     def assess_buffer(self) -> BufferAssessment:
@@ -1246,6 +1262,33 @@ class RadioStation:
                     reason=reason,
                 )
     async def _maybe_request_station_id(self) -> None:
+        # A market switch gets an identifier of its own, ahead of the rotation and
+        # regardless of how long it has been since the last one. The listener has just had
+        # the subject of the songs changed underneath them; saying so is the one case where
+        # an identifier carries information rather than branding.
+        #
+        # Cleared whether or not a clip was found, so an unrecorded library does not leave
+        # the station trying again on every cycle until the next switch.
+        if self._pending_market_switch is not None:
+            previous, current = self._pending_market_switch
+            self._pending_market_switch = None
+            record = self._station_ids.select(
+                category=StationIdCategory.MARKET_SWITCH,
+                regime=None if self._market is None else self._market.regime,
+                session=None if self._market is None else self._market.session,
+            )
+            if record is not None and record.category is StationIdCategory.MARKET_SWITCH:
+                await self._coordinator.publish(
+                    StationIdRequested(
+                        at=self._clock.now(),
+                        category=record.category.value,
+                        reason=f"active market changed {previous} -> {current}",
+                        tracks_since_last=self._scheduler.tracks_since_station_id,
+                    )
+                )
+                self._playout.queue_station_id(record)
+                return
+
         assessment = self.assess_buffer()
         if not self._scheduler.wants_station_id(assessment=assessment):
             return

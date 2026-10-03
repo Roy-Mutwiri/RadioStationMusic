@@ -7,6 +7,8 @@
  */
 
 import type {
+  ActiveMarket,
+  MarketAvailability,
   BufferState,
   EmergencyState,
   GenerationHealth,
@@ -59,6 +61,7 @@ export const nowPlayingFixture: NowPlaying = {
   remaining_seconds: 151,
   progress: 64 / 215,
   planned_regime: 'bullish_breakout',
+  planned_symbol: 'XAUUSD',
   planned_energy: 86,
   novelty_target: 0.82,
   transition_in: 'crossfade',
@@ -92,6 +95,7 @@ export function queueFixture(): QueueItem[] {
       bpm: 174,
       energy: 88,
       planned_regime: 'bullish_breakout',
+      planned_symbol: 'XAUUSD',
       lock: 'locked',
       lock_label: 'HARD',
       lock_reason: 'next on air',
@@ -111,6 +115,7 @@ export function queueFixture(): QueueItem[] {
       bpm: 122,
       energy: 54,
       planned_regime: 'normal_range',
+      planned_symbol: 'XAUUSD',
       lock: 'semi_locked',
       lock_label: 'SOFT',
       lock_reason: null,
@@ -130,6 +135,7 @@ export function queueFixture(): QueueItem[] {
       bpm: 84,
       energy: 28,
       planned_regime: 'quiet',
+      planned_symbol: 'XAUUSD',
       lock: 'replaceable',
       lock_label: 'FLEXIBLE',
       lock_reason: null,
@@ -235,10 +241,59 @@ export const statusFixture: StationStatus = {
   audio_coverage: 1,
 }
 
+/**
+ * Routing with gold on air and Bitcoin healthy in reserve — the ordinary weekday state.
+ *
+ * `feed_degraded` is false on both. The fixture for the interesting case (a silent feed on
+ * a trading day) is built per-test with an override, because the thing worth asserting
+ * there is that it renders differently from a closure.
+ */
+export const goldAvailabilityFixture: MarketAvailability = {
+  symbol: 'XAUUSD',
+  state: 'open',
+  reason: 'trading; last tick 1s ago',
+  feed_degraded: false,
+  data_age_seconds: 1,
+  feed_status: 'simulated',
+  calendar_open: true,
+  is_active: true,
+  bars_processed: 240,
+  last_price: 4012.5,
+  assessed_at: '2026-10-02T12:00:00Z',
+}
+
+export const bitcoinAvailabilityFixture: MarketAvailability = {
+  symbol: 'BTCUSD',
+  state: 'open',
+  reason: 'trading; last tick 1s ago',
+  feed_degraded: false,
+  data_age_seconds: 1,
+  feed_status: 'simulated',
+  calendar_open: null,
+  is_active: false,
+  bars_processed: 240,
+  last_price: 103_400,
+  assessed_at: '2026-10-02T12:00:00Z',
+}
+
+export const routingFixture: ActiveMarket = {
+  active_symbol: 'XAUUSD',
+  primary_symbol: 'XAUUSD',
+  is_primary: true,
+  has_active_market: true,
+  active_since: '2026-10-02T10:00:00Z',
+  switch_reason: 'initial_selection',
+  switch_count: 0,
+  pending_symbol: null,
+  pending_seconds_remaining: null,
+  symbols: [goldAvailabilityFixture, bitcoinAvailabilityFixture],
+}
+
 export function liveStateFixture(overrides: Partial<LiveState> = {}): LiveState {
   return {
     status: statusFixture,
     market: marketFixture,
+    routing: routingFixture,
     now_playing: nowPlayingFixture,
     queue: queueFixture(),
     buffer: bufferFixture,

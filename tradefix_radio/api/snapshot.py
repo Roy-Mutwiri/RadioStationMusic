@@ -23,11 +23,12 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, cast
 
 from tradefix_radio import __version__ as package_version
 from tradefix_radio.api.capabilities import Capability, CapabilityReport
 from tradefix_radio.api.dto import (
+    ActiveMarketV1,
     AlertV1,
     BufferV1,
     CapabilityV1,
@@ -36,6 +37,7 @@ from tradefix_radio.api.dto import (
     GenerationJobV1,
     HealthComponentV1,
     LiveStateV1,
+    MarketAvailabilityV1,
     MarketV1,
     NowPlayingV1,
     ProgrammingReasonV1,
@@ -49,11 +51,12 @@ from tradefix_radio.core.clock import UTC
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from tradefix_radio.contracts.market import MarketStateV1
     from tradefix_radio.contracts.music import MusicBlueprintV1
+    from tradefix_radio.market.active import ActiveMarketService
     from tradefix_radio.persistence.repositories.jobs import JobRecord
     from tradefix_radio.radio.buffer import BufferAssessment
     from tradefix_radio.radio.queue import QueueEntry
 
-__all__ = ["RuntimeView", "build_live_state", "job_to_dto"]
+__all__ = ["RuntimeView", "build_live_state", "job_to_dto", "routing_to_dto"]
 
 #: Seconds of silence from the feed after which a price must not be shown (§21).
 #:
@@ -105,6 +108,13 @@ class RuntimeView:
     settings: object
     station: object | None = None
     market_service: object | None = None
+    #: The `ActiveMarketService` when market routing is wired, which is every real run.
+    #:
+    #: Held separately from ``market_service`` even though the runner currently passes the
+    #: same object for both: ``market_service`` is "whatever supplies the active state" and
+    #: predates routing, while this one answers "which markets exist and how are they".
+    #: Keeping them distinct means a deployment with a single hard-wired feed still works.
+    routing: object | None = None
     generation: object | None = None
     health: object | None = None
     database: object | None = None
@@ -264,6 +274,7 @@ def now_playing_to_dto(station: object) -> NowPlayingV1 | None:
         remaining_seconds=max(0.0, duration - elapsed),
         progress=min(1.0, elapsed / duration),
         planned_regime=entry.planned_regime.value if entry is not None else None,
+        planned_symbol=entry.blueprint.market.symbol if entry is not None else None,
         planned_energy=entry.planned_energy if entry is not None else None,
         novelty_target=blueprint.novelty.target if blueprint is not None else None,
         transition_in=entry.transition_in.value if entry is not None else None,
@@ -310,6 +321,7 @@ def _queue_entry_to_dto(
         # 0–100, like every other energy in the UI. See ``_reason_from_blueprint``.
         energy=composition.energy * 100.0,
         planned_regime=entry.planned_regime.value,
+        planned_symbol=entry.blueprint.market.symbol,
         lock=entry.lock_level.value,
         lock_label=_LOCK_LABELS[entry.lock_level],
         lock_reason=entry.lock_reason or None,
@@ -781,6 +793,66 @@ def status_to_dto(view: RuntimeView) -> StationStatusV1:
     )
 
 
+def routing_to_dto(view: RuntimeView) -> ActiveMarketV1 | None:
+    """Render the routing subsystem for the header and the Market page.
+
+    Returns ``None`` when no routing service is attached rather than inventing a
+    single-symbol stand-in: a UI told "XAUUSD, open, healthy" by a view that in fact knows
+    nothing about availability is worse than one that shows no routing panel at all.
+
+    This is the only rendering of routing state. `ActiveMarketService` deliberately has no
+    `as_payload()` of its own — a second dict-shaped view of the same facts would drift from
+    this one the first time a field was added to just one of them.
+    """
+    service = cast("ActiveMarketService | None", view.routing)
+    if service is None:
+        return None
+
+    router = service.router
+    active = router.active
+    symbols = tuple(
+        MarketAvailabilityV1(
+            symbol=assessment.symbol,
+            state=assessment.state.value,
+            reason=assessment.reason,
+            feed_degraded=assessment.feed_degraded,
+            data_age_seconds=_finite(assessment.data_age_seconds),
+            feed_status=assessment.feed_status.value,
+            calendar_open=assessment.calendar_open,
+            is_active=symbol == service.active_symbol,
+            bars_processed=service.bars_for(symbol),
+            last_price=service.last_price(symbol),
+            assessed_at=assessment.assessed_at,
+        )
+        for symbol, assessment in router.assessments.items()
+    )
+
+    return ActiveMarketV1(
+        active_symbol=service.active_symbol,
+        primary_symbol=router.primary,
+        is_primary=bool(active and active.is_primary),
+        has_active_market=bool(active and active.is_active),
+        active_since=None if active is None else active.since,
+        switch_reason=None if active is None else active.reason.value,
+        switch_count=router.switch_count,
+        pending_symbol=router.pending_symbol,
+        pending_seconds_remaining=router.pending_seconds_remaining(),
+        symbols=symbols,
+    )
+
+
+def _finite(value: float | None) -> float | None:
+    """``inf`` and ``nan`` render as absent, never as a number.
+
+    A symbol with no service has an infinite data age, and ``Infinity`` is not valid JSON —
+    some parsers accept it, others reject the whole frame. "No answer" is the honest
+    rendering regardless of which.
+    """
+    if value is None or value != value or value in (float("inf"), float("-inf")):
+        return None
+    return float(value)
+
+
 def build_live_state(view: RuntimeView, *, now: datetime | None = None) -> LiveStateV1:
     """One coherent frame. The WebSocket's payload and `/api/status`'s body."""
     moment = now or datetime.now(tz=UTC)
@@ -816,6 +888,7 @@ def build_live_state(view: RuntimeView, *, now: datetime | None = None) -> LiveS
     return LiveStateV1(
         status=status_to_dto(view),
         market=market_dto,
+        routing=routing_to_dto(view),
         now_playing=now_playing,
         queue=queue_dtos,
         buffer=buffer_dto,

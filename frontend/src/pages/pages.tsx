@@ -26,7 +26,12 @@ import {
   YAxis,
 } from 'recharts'
 
-import { EnergyTimeline, MarketPanel, type TimelineWindow } from '../components/MarketPanel'
+import {
+  EnergyTimeline,
+  MarketPanel,
+  MarketRoutingPanel,
+  type TimelineWindow,
+} from '../components/MarketPanel'
 import { GenerationStrip, HealthPanel } from '../components/HealthPanel'
 import { NowPlayingPanel } from '../components/NowPlaying'
 import { BufferPanel, EmergencyBanner, QueuePanel } from '../components/QueuePanel'
@@ -197,8 +202,10 @@ function RegimeExplanation() {
   )
 }
 
+
 export function MarketPage() {
   const { state } = useLive()
+  const simulation = useCapability('simulation')
   const [window, setWindow] = useState<TimelineWindow>('1h')
   const history = useQuery({
     queryKey: ['market-history', window],
@@ -208,11 +215,22 @@ export function MarketPage() {
 
   return (
     <div className="space-y-4 p-4" data-testid="market-page">
-      <PageHeader title="Market Lab" subtitle="XAUUSD as the station reads it" />
+      <PageHeader
+        title="Market Lab"
+        subtitle={
+          state?.routing
+            ? state.routing.active_symbol + ' as the station reads it'
+            : 'The market as the station reads it'
+        }
+      />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <MarketPanel market={state?.market ?? null} />
         <RegimeExplanation />
       </div>
+      <MarketRoutingPanel
+        routing={state?.routing ?? null}
+        canSimulate={simulation?.state === 'ready'}
+      />
       <EnergyTimeline history={history.data ?? null} window={window} onWindowChange={setWindow} />
       <SimulationPanel />
     </div>
@@ -670,15 +688,59 @@ function PostProductionPanel() {
 
 // ----------------------------------------------------------------- 5. Library
 
+
+/**
+ * Market filter for the library and analytics pages.
+ *
+ * Driven from the routing frame rather than from a hard-coded pair, so configuring a third
+ * fallback adds a button instead of a code change. Absent when routing is not attached —
+ * a filter with one option is a control that lies about having a choice.
+ *
+ * "All markets" is the *absence* of a filter, not a value sent to the server. The API has
+ * no ALL sentinel to get wrong.
+ */
+function MarketFilter({
+  value,
+  onChange,
+}: {
+  value: string | null
+  onChange: (symbol: string | null) => void
+}) {
+  const { state } = useLive()
+  const symbols = state?.routing?.symbols.map((entry) => entry.symbol) ?? []
+  if (symbols.length < 2) return null
+
+  return (
+    <div className="flex items-center gap-1" data-testid="market-filter">
+      <span className="label mr-1">Market</span>
+      <Button onClick={() => onChange(null)} disabled={value === null}>
+        All
+      </Button>
+      {symbols.map((symbol) => (
+        <Button
+          key={symbol}
+          onClick={() => onChange(symbol)}
+          disabled={value === symbol}
+          data-testid={'market-filter-' + symbol}
+        >
+          {symbol}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 export function LibraryPage() {
   const [search, setSearch] = useState('')
+  const [symbol, setSymbol] = useState<string | null>(null)
   const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   const limit = 40
 
   const library = useQuery({
-    queryKey: ['library', search, offset],
-    queryFn: () => api.library({ search: search || undefined, offset, limit }),
+    queryKey: ['library', search, symbol, offset],
+    queryFn: () =>
+      api.library({ search: search || undefined, symbol: symbol ?? undefined, offset, limit }),
   })
   const detail = useQuery({
     queryKey: ['library-track', selected],
@@ -688,7 +750,19 @@ export function LibraryPage() {
 
   return (
     <div className="space-y-4 p-4" data-testid="library-page">
-      <PageHeader title="Track Library" subtitle="Everything the station has planned or played" />
+      <PageHeader
+        title="Track Library"
+        subtitle="Everything the station has planned or played"
+        action={
+          <MarketFilter
+            value={symbol}
+            onChange={(next) => {
+              setSymbol(next)
+              setOffset(0)
+            }}
+          />
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Panel
@@ -838,9 +912,10 @@ const ANALYTICS_WINDOWS = ['24h', '7d', '30d', 'all'] as const
 
 export function AnalyticsPage() {
   const [window, setWindow] = useState<(typeof ANALYTICS_WINDOWS)[number]>('24h')
+  const [symbol, setSymbol] = useState<string | null>(null)
   const analytics = useQuery({
-    queryKey: ['analytics', window],
-    queryFn: () => api.analytics(window),
+    queryKey: ['analytics', window, symbol],
+    queryFn: () => api.analytics(window, symbol ?? undefined),
   })
 
   const cards = [
@@ -856,8 +931,14 @@ export function AnalyticsPage() {
     <div className="space-y-4 p-4" data-testid="analytics-page">
       <PageHeader
         title="Analytics"
-        subtitle="Counted from the database. Nothing here is estimated."
+        subtitle={
+          symbol
+            ? 'Counted from the database, ' + symbol + ' only. Nothing here is estimated.'
+            : 'Counted from the database. Nothing here is estimated.'
+        }
         action={
+          <div className="flex items-center gap-3">
+            <MarketFilter value={symbol} onChange={setSymbol} />
           <div className="flex gap-0.5" role="group" aria-label="Time range">
             {ANALYTICS_WINDOWS.map((option) => (
               <button
@@ -875,6 +956,7 @@ export function AnalyticsPage() {
                 {option}
               </button>
             ))}
+          </div>
           </div>
         }
       />

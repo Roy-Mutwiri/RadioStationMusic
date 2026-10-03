@@ -193,6 +193,7 @@ def make_blueprint(
     primary_topic: str | None = "liquidity_breakout",
     secondary_topic: str | None = "risk_management",
     regime: MarketRegime = MarketRegime.BULLISH_BREAKOUT,
+    symbol: str = "XAUUSD",
     energy: float = 86.0,
     composition_energy: float = 0.91,
     seed: int = 1234,
@@ -244,6 +245,7 @@ def make_blueprint(
         track_id=track_id,
         created_at_iso=FIXED_NOW.isoformat(),
         market=BlueprintMarketContextV1(
+            symbol=symbol,
             regime=regime,
             direction=MarketDirection.BULLISH,
             energy=energy,

@@ -43,6 +43,13 @@ _MODES = ("major", "minor", "dorian", "mixolydian", "lydian", "phrygian", "harmo
 class BlueprintMarketContextV1(Contract):
     """The market conditions that produced this blueprint (§8 ``market``)."""
 
+    #: Which market this track was planned against.
+    #:
+    #: Recorded on the blueprint, not derived at render time, because a track generated
+    #: under XAUUSD may still be sitting in the queue after the station has moved to
+    #: BTCUSD. Without this the §46 detail page and the queue would attribute it to
+    #: whichever market happened to be active when someone looked.
+    symbol: str = Field(default="XAUUSD", min_length=1, max_length=32)
     regime: MarketRegime
     direction: MarketDirection
     energy: Score100

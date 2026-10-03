@@ -404,6 +404,10 @@ class MusicDirector:
             persona=persona,
             vocal_style=vocal_style,
             instrumental=instrumental,
+            # The active symbol travels *with* the state rather than as a second
+            # parameter, so the director cannot be handed a gold reading and a Bitcoin
+            # symbol. One object, one market.
+            symbol=state.symbol,
             temperature=stance.temperature,
             divergence_strength=divergence.strength,
         )
@@ -448,6 +452,7 @@ class MusicDirector:
             track_id=track_id,
             created_at_iso=now.isoformat(),
             market=BlueprintMarketContextV1(
+                symbol=state.symbol,
                 regime=state.regime,
                 direction=state.direction,
                 energy=state.energy,

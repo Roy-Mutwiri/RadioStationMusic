@@ -51,12 +51,17 @@ class BarReading:
     suppression: str
 
 
+#: Plausible starting levels, by symbol. See the note where this is used.
+START_PRICES: dict[str, float] = {"XAUUSD": 4_000.0, "BTCUSD": 103_000.0}
+
+
 def run_simulation(
     settings: AppSettings,
     scenario: Scenario,
     *,
     bars: int,
     seed: int,
+    symbol: str | None = None,
     switch_to: Scenario | None = None,
     switch_at: int | None = None,
 ) -> list[BarReading]:
@@ -69,8 +74,14 @@ def run_simulation(
     """
     clock = VirtualClock(start=SIMULATION_START)
     ticks_per_bar = 20
+    resolved = (symbol or settings.markets.primary).upper()
     simulator = MarketSimulationEngine(
-        symbol=settings.market.symbol, start_price=4_000.0, seed=seed,
+        symbol=resolved,
+        # Only the Market page ever shows the level, and §6 forbids musical decisions
+        # depending on it — but a four-thousand-dollar Bitcoin in this table reads as a
+        # broken tool rather than as a simulation.
+        start_price=START_PRICES.get(resolved, 4_000.0),
+        seed=seed,
         ticks_per_bar=ticks_per_bar,
     )
     simulator.set_scenario(scenario)
@@ -199,6 +210,7 @@ async def command(args: argparse.Namespace, settings: AppSettings) -> int:
         scenario,
         bars=args.bars,
         seed=args.seed,
+        symbol=args.symbol,
         switch_to=switch_to,
         switch_at=args.switch_at,
     )
@@ -235,7 +247,8 @@ async def command(args: argparse.Namespace, settings: AppSettings) -> int:
     if switch_to is not None:
         header += f" -> {switch_to.value} at bar {args.switch_at}"
     print(header)
-    print(f"  seed={args.seed} bars={args.bars} symbol={settings.market.symbol}")
+    symbol = (args.symbol or settings.markets.primary).upper()
+    print(f"  seed={args.seed} bars={args.bars} symbol={symbol}")
     print()
     print(render_table(readings, every=args.every))
     print()
@@ -261,6 +274,14 @@ def register(subparsers: Any) -> None:
         default=Scenario.BREAKOUT_UP.value,
         choices=[item.value for item in Scenario],
         help="scenario to run",
+    )
+    parser.add_argument(
+        "--symbol",
+        default=None,
+        help=(
+            "symbol to simulate; defaults to markets.primary. Use the fallback (BTCUSD) to "
+            "check how the engines read the market the station runs on at weekends."
+        ),
     )
     parser.add_argument("--bars", type=int, default=240, help="bars to simulate")
     parser.add_argument("--seed", type=int, default=42, help="RNG seed (reproducible)")

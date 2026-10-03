@@ -87,9 +87,10 @@ def market(
     regime: MarketRegime = MarketRegime.NORMAL_RANGE,
     energy: float = 50.0,
     direction: MarketDirection = MarketDirection.NEUTRAL,
+    symbol: str = "XAUUSD",
 ) -> MarketStateV1:
     return MarketStateV1(
-        symbol="XAUUSD",
+        symbol=symbol,
         timestamp=FIXED_NOW,
         regime=regime,
         direction=direction,
@@ -834,3 +835,30 @@ async def test_gate_j_the_soak_command_runs_the_real_runtime(
     assert result.track_id_duplicates == 0
     assert result.blueprint_duplicates == 0
     assert result.passed, "; ".join(result.failures)
+
+
+# ------------------------------------------------- market switching (routing V1)
+
+
+async def test_the_first_market_state_is_not_treated_as_a_market_switch(
+    harness: Harness,
+) -> None:
+    """A restart must not open by announcing a switch that never happened.
+
+    `RadioStation.set_market` detects a change of market by comparing against the previous
+    state, so the very first call has nothing to compare against and must be silent.
+    Without this the station would greet every launch with "Gold's closed for now, we're
+    following Bitcoin" whether or not anything had moved.
+    """
+    station = harness.station
+    first = market(symbol="XAUUSD")
+    station.set_market(first)
+    assert station.pending_market_switch is None
+
+    station.set_market(market(symbol="XAUUSD"))
+    assert station.pending_market_switch is None, (
+        "a second state for the same market registered as a switch"
+    )
+
+    station.set_market(market(symbol="BTCUSD"))
+    assert station.pending_market_switch == ("XAUUSD", "BTCUSD")

@@ -40,6 +40,7 @@ from tradefix_radio.director.music_director import MusicDirector
 from tradefix_radio.director.selection import WeightedSelector
 from tradefix_radio.generation.factory import build_provider
 from tradefix_radio.generation.manager import DatabaseJobUnitOfWork, GenerationManager
+from tradefix_radio.market.active import ActiveMarketService
 from tradefix_radio.market.feeds.simulated import SimulatedFeed
 from tradefix_radio.market.service import MarketDataService
 from tradefix_radio.market.simulation import Scenario
@@ -81,6 +82,22 @@ MAX_WARMUP_POLLS: Final = 20_000
 #: window the timeline offers.
 TIMELINE_SAMPLE_SECONDS: Final = 5
 
+#: Plausible starting prices for the simulated feeds, by symbol.
+#:
+#: The *level* is irrelevant to the music — §6 forbids musical decisions depending on gold's
+#: absolute price, and the same holds for Bitcoin. It matters only because the Market page
+#: shows a price, and a four-thousand-dollar Bitcoin would read as a broken feed rather than
+#: as a simulation. A symbol with no entry here falls back to the feed's own default.
+_SIMULATED_START_PRICES: Final = {"XAUUSD": 4_000.0, "BTCUSD": 103_000.0}
+
+#: Scenario assigned to a fallback symbol when the primary's scenario is the default.
+#:
+#: The two feeds must not be the same price process under different names, or the "no
+#: regime-state contamination" property would be untestable in a running station — both
+#: symbols would agree by construction. When the operator has *chosen* a scenario it is
+#: applied to every symbol, because then the choice is the point.
+_FALLBACK_SCENARIO: Final = Scenario.VOLATILITY_SPIKE
+
 #: Run modes in which scenario controls are offered (§72).
 _SIMULATION_MODES: Final = frozenset({RunMode.DEVELOPMENT, RunMode.SIMULATION})
 
@@ -101,6 +118,15 @@ def _station_energy(station: RadioStation) -> float | None:
     if entry is None:
         return None
     return entry.blueprint.composition.energy * 100.0
+
+
+def _all_classified(market: ActiveMarketService) -> bool:
+    """True once every configured symbol has a state the regime engine will stand behind."""
+    return all(
+        (state := service.current_state) is not None
+        and state.regime is not MarketRegime.UNKNOWN
+        for service in market.services.values()
+    )
 
 
 class CatchUpClock:
@@ -173,7 +199,7 @@ class ControlCenterRunner:
         self._clock = SystemClock()
         self._database: Database | None = None
         self._station: RadioStation | None = None
-        self._market: MarketDataService | None = None
+        self._market: ActiveMarketService | None = None
         self._feed_clock: CatchUpClock | None = None
         self._market_task: asyncio.Task[None] | None = None
         self._view: RuntimeView | None = None
@@ -199,14 +225,23 @@ class ControlCenterRunner:
         # Everything else runs on the system clock.
         warmup_seconds = settings.market.bar_seconds * (settings.market.warmup_bars + 4)
         feed_clock = CatchUpClock(warmup_seconds)
-        feed = SimulatedFeed(scenario=self._scenario, seed=self._seed, clock=feed_clock)
-        market = MarketDataService(settings, feed, clock=feed_clock)
-        await market.start()
-        self._market = market
         self._feed_clock = feed_clock
-        await self._warm_feed(market, feed_clock, settings.market.bar_seconds)
 
         coordinator = RuntimeCoordinator(clock=self._clock)
+
+        # One market service per configured symbol, behind the router. The station still
+        # consumes a single "current state"; which symbol produced it is the router's
+        # business, not the scheduler's.
+        market = ActiveMarketService(
+            settings,
+            self._build_market_services(settings, feed_clock),
+            coordinator=coordinator,
+            clock=self._clock,
+        )
+        await market.start()
+        self._market = market
+        await self._warm_feed(market, feed_clock, settings.market.bar_seconds)
+
         director = MusicDirector(
             settings,
             load_content_library(config_dir=CONFIG_DIR),
@@ -294,6 +329,7 @@ class ControlCenterRunner:
             settings=settings,
             station=station,
             market_service=market,
+            routing=market,
             generation=generation,
             database=database,
             started_at=datetime.now(tz=UTC),
@@ -333,8 +369,37 @@ class ControlCenterRunner:
             self._database = None
         _log.info("control_center.stopped")
 
+    def _build_market_services(
+        self, settings: AppSettings, feed_clock: CatchUpClock
+    ) -> dict[str, MarketDataService]:
+        """A warmed, independent feed and engine stack per configured symbol.
+
+        Every symbol gets its own seed and — unless the operator chose a scenario — its own
+        price process, so the fallback is a genuinely different market rather than gold
+        under another ticker. They share the catch-up clock because they must warm together:
+        a fallback that is still cold when the primary closes would hand the director an
+        UNKNOWN regime at exactly the moment it is needed.
+        """
+        services: dict[str, MarketDataService] = {}
+        for index, symbol in enumerate(settings.markets.symbols_in_order):
+            scenario = self._scenario
+            if index > 0 and scenario is Scenario.RANDOM_WALK:
+                scenario = _FALLBACK_SCENARIO
+            feed = SimulatedFeed(
+                symbol=symbol,
+                scenario=scenario,
+                # Offset per symbol: the same seed would make two feeds that differ only in
+                # their label, and every "the two markets read differently" assertion —
+                # in tests and on the dashboard alike — would be vacuous.
+                seed=self._seed + index * 1_013,
+                start_price=_SIMULATED_START_PRICES.get(symbol, 4_000.0),
+                clock=feed_clock,
+            )
+            services[symbol] = MarketDataService(settings, feed, clock=feed_clock)
+        return services
+
     async def _warm_feed(
-        self, market: MarketDataService, clock: CatchUpClock, bar_seconds: int
+        self, market: ActiveMarketService, clock: CatchUpClock, bar_seconds: int
     ) -> None:
         """Wind the feed's clock to the present, polling as it goes.
 
@@ -362,17 +427,19 @@ class ControlCenterRunner:
             # unknown regime composes from a neutral reading of a market that is in fact
             # doing something — for the twenty minutes it takes to accumulate bars at one
             # per minute.
-            if (
-                clock.caught_up
-                and state is not None
-                and state.regime is not MarketRegime.UNKNOWN
-            ):
+            # *Every* symbol, not just the active one. The fallback has to be warm before
+            # it is needed: a switch that handed the director an UNKNOWN regime would make
+            # the station's first minutes on Bitcoin its least market-aware, which is the
+            # opposite of the point.
+            if clock.caught_up and state is not None and _all_classified(market):
                 _log.info(
                     "control_center.feed_warmed",
                     seconds=round(time.monotonic() - started, 2),
+                    active_symbol=market.active_symbol,
                     regime=state.regime.value,
                     energy=round(state.energy, 1),
                     bars=market.bars_processed,
+                    symbols=sorted(market.services),
                 )
                 return
             # Yield so the loop stays responsive; the poll itself does no I/O worth awaiting.
