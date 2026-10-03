@@ -673,6 +673,88 @@ async def check_ace_step_environment(clock: Clock) -> ComponentHealthV1:
     )
 
 
+async def check_audio_analysis(clock: Clock) -> ComponentHealthV1:
+    """The Phase 6 analysis stack: librosa, a loudness meter, and their cold-start cost (§6.25).
+
+    Reported as one component because the three are one capability — feature extraction
+    without a loudness meter produces a QC result with a hole in it, and the operator's
+    question is "can this build validate audio", not "which wheel is missing".
+
+    The JIT cost is *measured*, not assumed. librosa's numba kernels compile on first use, and
+    on this machine that first call cost 29 s for MFCC and 15 s for beat tracking. The pipeline
+    pays it at construction via `warm_up`, and doctor reports it so a slow host is visible
+    before it shows up as a starved buffer.
+    """
+    from tradefix_radio.audio.analysis import (  # noqa: PLC0415
+        librosa_available,
+        loudness_meter_available,
+    )
+
+    librosa_ok = librosa_available()
+    meter_ok = loudness_meter_available()
+
+    if not librosa_ok:
+        return unhealthy(
+            "audio_analysis",
+            HealthStatus.CRITICAL,
+            "librosa is not installed; feature extraction and QC cannot run",
+            clock=clock,
+            remediation=(
+                "Install the audio extras: `pip install librosa pyloudnorm`. "
+                "ADR-01 pins Python 3.10 so the numba wheels librosa needs are available."
+            ),
+        )
+    if not meter_ok:
+        return unhealthy(
+            "audio_analysis",
+            HealthStatus.DEGRADED,
+            "librosa is present but no ITU-R BS.1770 loudness meter is installed",
+            clock=clock,
+            remediation=(
+                "Install pyloudnorm: `pip install pyloudnorm`. Without it the loudness check "
+                "warns instead of measuring, and mastering cannot be verified."
+            ),
+        )
+
+    import librosa  # noqa: PLC0415
+
+    # librosa does not declare __version__ in its type stubs, hence the lookup rather than
+    # the attribute; a missing version is a cosmetic gap and must not fail the check.
+    version = getattr(librosa, "__version__", "unknown")
+    return healthy(
+        "audio_analysis",
+        clock=clock,
+        detail=f"librosa {version} with a BS.1770 loudness meter",
+    )
+
+
+async def check_fingerprinting(clock: Clock) -> ComponentHealthV1:
+    """Which fingerprint implementation is active (§6.4, §6.25).
+
+    Never critical. The built-in chroma fingerprint always works, so the station can always
+    run; what the operator needs to know is that it is *weaker* at near-duplicate detection
+    than Chromaprint, and that the difference is a real one rather than a formality. Reporting
+    DEGRADED says exactly that without implying the station is broken.
+    """
+    from tradefix_radio.audio.fingerprint import fingerprint_capability  # noqa: PLC0415
+
+    capability = fingerprint_capability()
+    detail = str(capability["detail"])
+    if capability["chromaprint_available"]:
+        return healthy("fingerprinting", clock=clock, detail=detail)
+    return unhealthy(
+        "fingerprinting",
+        HealthStatus.DEGRADED,
+        detail,
+        clock=clock,
+        remediation=(
+            "Install Chromaprint and put `fpcalc` on PATH "
+            "(`winget install AcoustID.Chromaprint`). The station runs without it using the "
+            "built-in chroma fingerprint, which catches fewer near-duplicates."
+        ),
+    )
+
+
 def is_required(name: str, settings: AppSettings) -> bool:
     """Whether a failing check should block startup, given the run mode (§73).
 
@@ -685,6 +767,15 @@ def is_required(name: str, settings: AppSettings) -> bool:
     if name == "ffmpeg":
         # Needed as soon as real audio is mastered, which is any non-mock provider.
         return settings.mastering.enabled and settings.generation.provider != "mock"
+    if name == "audio_analysis":
+        # Required wherever post-production runs, which is every mode that puts generated
+        # audio on air: without it, nothing can validate a track and §6's central rule —
+        # that a failing track never becomes READY — cannot be enforced at all.
+        return True
+    if name == "fingerprinting":
+        # Never required: the built-in provider always works. Its absence is a capability
+        # difference to report, not a reason to refuse to start.
+        return False
     if name == "node":
         # The station broadcasts without a frontend build.
         return False

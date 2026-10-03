@@ -37,6 +37,8 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -92,7 +94,18 @@ class Track(Base):
     secondary_topic: Mapped[str | None] = mapped_column(String(96), default=None)
 
     regime_at_generation: Mapped[str] = mapped_column(String(48), index=True)
+    #: **Market** energy on 0-100 that prompted the track.
     energy_at_generation: Mapped[float] = mapped_column(Float)
+    #: **Composition** intensity on 0-1 that the director chose in response (SS6.7).
+    #:
+    #: A separate column rather than a reuse of the one above, because they are different
+    #: quantities on different scales: one is what the market did, the other is what the
+    #: director decided about it. Denormalised here for the same reason genre and BPM are --
+    #: blueprint similarity reads it for every track in the comparison window, and parsing
+    #: the stored blueprint JSON for each would put a deserialise on the hot path.
+    composition_energy: Mapped[float] = mapped_column(
+        Float, default=0.0, server_default=text("0")
+    )
     session_at_generation: Mapped[str] = mapped_column(String(48))
 
     seed: Mapped[int] = mapped_column(Integer)
@@ -233,6 +246,18 @@ class AudioFingerprint(Base):
         String(64), ForeignKey("tracks.track_id", ondelete="CASCADE"), primary_key=True
     )
     file_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    #: SHA-256 of the *decoded* audio (§6.3), which is what exact-duplicate detection uses.
+    #: Distinct from ``file_sha256``, which changes with container and metadata and so would
+    #: miss the same audio written twice in different wrappers.
+    canonical_sha256: Mapped[str | None] = mapped_column(String(64), index=True, default=None)
+    #: Which implementation produced ``fingerprint_value`` — ``chromaprint`` or the built-in.
+    #: Recorded because fingerprints from different providers are not comparable, and a
+    #: library assembled across an upgrade would otherwise mix them silently.
+    fingerprint_provider: Mapped[str | None] = mapped_column(String(32), default=None)
+    fingerprint_version: Mapped[str | None] = mapped_column(String(48), default=None)
+    fingerprint_value: Mapped[str | None] = mapped_column(Text, default=None)
+    #: Layout version of ``embedding``. Same reasoning as the provider above.
+    embedding_version: Mapped[int | None] = mapped_column(Integer, default=None)
     chroma_mean: Mapped[list[float]] = mapped_column(PortableJson)
     chroma_std: Mapped[list[float]] = mapped_column(PortableJson)
     mfcc_mean: Mapped[list[float]] = mapped_column(PortableJson)
@@ -265,6 +290,159 @@ class SimilarityResult(Base):
     components: Mapped[list[dict[str, Any]]] = mapped_column(PortableJson, default=list)
     compared_against: Mapped[int] = mapped_column(Integer, default=0)
     evaluated_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
+
+
+class TrackQcResult(Base):
+    """One QC pass over one track (SS6.1, SS6.10).
+
+    Two rows per approved track in the normal case: the raw generator output and the mastered
+    file. Keeping both is what makes "mastering introduced clipping" a findable fact rather
+    than an inference from a single overwritten verdict.
+    """
+
+    __tablename__ = "track_qc_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    track_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("tracks.track_id", ondelete="CASCADE"), index=True
+    )
+    #: ``raw`` or ``mastered``.
+    stage: Mapped[str] = mapped_column(String(16), index=True)
+    status: Mapped[str] = mapped_column(String(8), index=True)
+    #: Count of each outcome, so the Originality page can aggregate without loading checks.
+    passed_count: Mapped[int] = mapped_column(Integer, default=0)
+    warned_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    analysis_backend: Mapped[str] = mapped_column(String(16), default="numpy")
+    elapsed_seconds: Mapped[float] = mapped_column(Float, default=0.0)
+    evaluated_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
+
+    checks: Mapped[list[TrackQcCheck]] = relationship(
+        back_populates="result", cascade="all, delete-orphan"
+    )
+
+
+class TrackQcCheck(Base):
+    """One measurement within a QC pass.
+
+    A row per check rather than a JSON blob, because SS6.1 requires every check to carry its
+    own status, value and threshold, and because "how often does loudness fail" is a question
+    an operator will ask and a column answers.
+    """
+
+    __tablename__ = "track_qc_checks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    result_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("track_qc_results.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(48), index=True)
+    status: Mapped[str] = mapped_column(String(8), index=True)
+    #: Null when the check could not be performed -- never a stand-in number.
+    value: Mapped[float | None] = mapped_column(Float, default=None)
+    unit: Mapped[str] = mapped_column(String(24), default="")
+    threshold: Mapped[str] = mapped_column(String(96), default="")
+    reason: Mapped[str] = mapped_column(Text, default="")
+
+    result: Mapped[TrackQcResult] = relationship(back_populates="checks")
+
+
+class AudioFeatureRow(Base):
+    """Extracted features, in the compact form SS6.2 asks for.
+
+    Separate from ``audio_fingerprints``, which Phase 1 shaped around similarity vectors. This
+    holds the measurements QC judged and the Originality page displays.
+    """
+
+    __tablename__ = "audio_features"
+
+    track_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("tracks.track_id", ondelete="CASCADE"), primary_key=True
+    )
+    duration_seconds: Mapped[float] = mapped_column(Float)
+    sample_rate: Mapped[int] = mapped_column(Integer)
+    channels: Mapped[int] = mapped_column(Integer)
+    peak: Mapped[float] = mapped_column(Float)
+    rms: Mapped[float] = mapped_column(Float)
+    crest_factor: Mapped[float] = mapped_column(Float)
+    dc_offset: Mapped[float] = mapped_column(Float)
+    integrated_lufs: Mapped[float | None] = mapped_column(Float, default=None)
+    spectral_centroid: Mapped[float] = mapped_column(Float, default=0.0)
+    spectral_bandwidth: Mapped[float] = mapped_column(Float, default=0.0)
+    spectral_rolloff: Mapped[float] = mapped_column(Float, default=0.0)
+    zero_crossing_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    stereo_correlation: Mapped[float] = mapped_column(Float, default=1.0)
+    silence_ratio: Mapped[float] = mapped_column(Float, default=0.0)
+    clipped_sample_ratio: Mapped[float] = mapped_column(Float, default=0.0)
+    tempo: Mapped[float | None] = mapped_column(Float, default=None)
+    musical_key: Mapped[str | None] = mapped_column(String(32), default=None)
+    rms_profile: Mapped[list[float]] = mapped_column(PortableJson, default=list)
+    backend: Mapped[str] = mapped_column(String(16), default="numpy")
+    computed_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
+
+
+class MasteringResultRow(Base):
+    """What mastering did to one track (SS6.9).
+
+    Persisted because "why is this track quieter than that one" is a question with a real
+    answer -- the energy-band target -- and because a loudness drift across the library is
+    only visible as a trend.
+    """
+
+    __tablename__ = "mastering_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    track_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("tracks.track_id", ondelete="CASCADE"), index=True
+    )
+    outcome: Mapped[str] = mapped_column(String(16), index=True)
+    target_lufs: Mapped[float] = mapped_column(Float)
+    measured_lufs_before: Mapped[float | None] = mapped_column(Float, default=None)
+    measured_lufs_after: Mapped[float | None] = mapped_column(Float, default=None)
+    true_peak_dbtp: Mapped[float | None] = mapped_column(Float, default=None)
+    true_peak_ceiling_dbtp: Mapped[float | None] = mapped_column(Float, default=None)
+    #: The target was missed because the limiter reached the ceiling first, not because
+    #: normalisation failed. Stored so a quiet master can be explained rather than re-run.
+    peak_constrained: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), index=True
+    )
+    gain_applied_db: Mapped[float | None] = mapped_column(Float, default=None)
+    trimmed_start_seconds: Mapped[float] = mapped_column(Float, default=0.0)
+    trimmed_end_seconds: Mapped[float] = mapped_column(Float, default=0.0)
+    duration_before: Mapped[float] = mapped_column(Float, default=0.0)
+    duration_after: Mapped[float] = mapped_column(Float, default=0.0)
+    elapsed_seconds: Mapped[float] = mapped_column(Float, default=0.0)
+    detail: Mapped[str] = mapped_column(Text, default="")
+    mastered_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
+
+
+class LyricFingerprintRow(Base):
+    """Lexical fingerprint of one lyric (SS6.8).
+
+    The ``lyrics`` table Phase 1 created holds the text and its topic metadata; this holds the
+    derived forms comparison runs against, so a comparison never has to re-tokenise every
+    historical lyric.
+    """
+
+    __tablename__ = "lyric_fingerprints"
+
+    track_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("tracks.track_id", ondelete="CASCADE"), primary_key=True
+    )
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    line_hashes: Mapped[list[str]] = mapped_column(PortableJson, default=list)
+    shingles: Mapped[list[str]] = mapped_column(PortableJson, default=list)
+    hook_hashes: Mapped[list[str]] = mapped_column(PortableJson, default=list)
+    word_count: Mapped[int] = mapped_column(Integer, default=0)
+    unique_word_ratio: Mapped[float] = mapped_column(Float, default=0.0)
+    internal_repetition: Mapped[float] = mapped_column(Float, default=0.0)
+    #: How many times the station's own name appears (SS21). Counted rather than inferred so
+    #: a drift towards every lyric being an advert is visible as a number.
+    tradefix_mentions: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0")
+    )
+    computed_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
 
 
 class UsedSeed(Base):

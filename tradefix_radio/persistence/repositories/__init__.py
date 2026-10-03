@@ -21,6 +21,13 @@ from tradefix_radio.persistence.repositories.memory import (
     MemoryKeys,
     RadioMemoryRepository,
 )
+from tradefix_radio.persistence.repositories.originality import (
+    DEFAULT_LIBRARY_LIMIT,
+    OriginalityRepository,
+    StoredQcCheck,
+    StoredQcResult,
+    TrackEvidence,
+)
 from tradefix_radio.persistence.repositories.queue import QueueRepository
 from tradefix_radio.persistence.repositories.tracks import (
     TrackHistoryEntry,
@@ -29,16 +36,21 @@ from tradefix_radio.persistence.repositories.tracks import (
 )
 
 __all__ = [
+    "DEFAULT_LIBRARY_LIMIT",
     "GenerationJobRepository",
     "HealthEventRepository",
     "JobRecord",
     "MemoryKeys",
     "MetricPoint",
     "MetricRepository",
+    "OriginalityRepository",
     "QueueRepository",
     "RadioMemoryRepository",
     "Repository",
+    "StoredQcCheck",
+    "StoredQcResult",
     "SystemEventRepository",
+    "TrackEvidence",
     "TrackFileRepository",
     "TrackHistoryEntry",
     "TrackRepository",

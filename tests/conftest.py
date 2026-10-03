@@ -194,6 +194,7 @@ def make_blueprint(
     secondary_topic: str | None = "risk_management",
     regime: MarketRegime = MarketRegime.BULLISH_BREAKOUT,
     energy: float = 86.0,
+    composition_energy: float = 0.91,
     seed: int = 1234,
     title: str = "Liquidity After Midnight",
     persona_id: str | None = "tf01",
@@ -203,6 +204,12 @@ def make_blueprint(
 
     Centralised so that adding a required blueprint field breaks one builder
     instead of forty tests.
+
+    ``energy`` and ``composition_energy`` are deliberately separate arguments for two
+    deliberately separate things: the first is the **market** energy on 0-100 that prompted
+    the track, the second is the **composition** intensity on 0-1 that the director chose in
+    response. They correlate but are not the same number, and conflating them is the exact
+    confusion Phase 5 had to untangle at the API boundary.
     """
     # The contract forbids a secondary genre equal to the primary. Tests vary
     # `genre` freely, so drop the default secondary rather than making every
@@ -251,7 +258,7 @@ def make_blueprint(
             bpm=bpm,
             key=key,
             duration_seconds=duration_seconds,
-            energy=0.91,
+            energy=composition_energy,
             rhythm_density=0.86,
             bass_intensity=0.90,
             drum_intensity=0.94,

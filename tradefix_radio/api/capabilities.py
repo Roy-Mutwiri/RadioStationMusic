@@ -24,6 +24,8 @@ import enum
 from dataclasses import dataclass
 from typing import Final
 
+from tradefix_radio.audio.mastering import ffmpeg_available
+
 __all__ = [
     "Capability",
     "CapabilityReport",
@@ -80,9 +82,11 @@ class CapabilityReport:
 
 
 #: Phase that delivers each subsystem not yet built, straight from the implementation plan.
+#:
+#: Originality and mastering were removed when Phase 6 delivered them — a capability that
+#: exists must never still advertise a future phase, or the UI keeps telling an operator to
+#: wait for something already running.
 _PLANNED_PHASES: Final[dict[Capability, int]] = {
-    Capability.ORIGINALITY: 6,
-    Capability.MASTERING: 6,
     Capability.OBS: 8,
     Capability.WATCHDOG: 9,
 }
@@ -96,6 +100,7 @@ def detect_capabilities(
     simulation_allowed: bool,
     gpu_present: bool,
     provider_name: str,
+    has_post_production: bool = False,
 ) -> dict[Capability, CapabilityReport]:
     """Work out what this process can do, from what is actually wired into it.
 
@@ -159,18 +164,37 @@ def detect_capabilities(
         else "No NVIDIA GPU is visible. The mock provider does not need one.",
     )
 
-    # Not built yet. Each says which phase delivers it, so the UI can be specific rather than
-    # showing an empty card.
-    add(
-        Capability.ORIGINALITY,
-        CapabilityState.PLANNED,
-        "Fingerprinting, embeddings and lyric similarity arrive with Phase 6.",
-    )
-    add(
-        Capability.MASTERING,
-        CapabilityState.PLANNED,
-        "Loudness normalisation and the mastering chain arrive with Phase 6.",
-    )
+    # Phase 6 subsystems. Both are now built, so their state is a fact about this process
+    # rather than a phase number: the pipeline is either attached and its tools present, or it
+    # is not, and the detail says which. Reporting READY from configuration instead would be
+    # the fabrication this module exists to prevent.
+    if not has_post_production:
+        add(
+            Capability.ORIGINALITY,
+            CapabilityState.UNAVAILABLE,
+            "No post-production pipeline is attached to this API process.",
+        )
+        add(
+            Capability.MASTERING,
+            CapabilityState.UNAVAILABLE,
+            "No post-production pipeline is attached to this API process.",
+        )
+    else:
+        add(
+            Capability.ORIGINALITY,
+            CapabilityState.READY,
+            _originality_detail(),
+        )
+        # Mastering is DEGRADED rather than READY without FFmpeg: the subsystem exists and the
+        # API will answer, but every track it is handed will fail to master. Saying READY here
+        # would put a green light on a stage that cannot complete.
+        add(
+            Capability.MASTERING,
+            CapabilityState.READY if ffmpeg_available() else CapabilityState.DEGRADED,
+            "Two-pass loudness normalisation is available."
+            if ffmpeg_available()
+            else "FFmpeg is not on PATH; no track can be mastered until it is installed.",
+        )
     add(
         Capability.OBS,
         CapabilityState.PLANNED,
@@ -182,6 +206,19 @@ def detect_capabilities(
         "Process supervision and chaos recovery arrive with Phase 9.",
     )
     return reports
+
+
+def _originality_detail() -> str:
+    """Name the fingerprint provider actually in use.
+
+    Which one it is changes what the numbers mean — the built-in chroma fingerprint is
+    weaker at near-duplicate detection than Chromaprint — so the UI is told rather than left
+    to assume the better of the two.
+    """
+    from tradefix_radio.audio.fingerprint import fingerprint_capability  # noqa: PLC0415
+
+    capability = fingerprint_capability()
+    return f"Similarity and lyric comparison are running. {capability['detail']}"
 
 
 def gpu_is_present() -> bool:

@@ -58,6 +58,8 @@ _LABELS = {
     "python": "Python",
     "node": "Node",
     "ffmpeg": "FFmpeg",
+    "audio_analysis": "Audio analysis",
+    "fingerprinting": "Fingerprinting",
     "config": "Configuration",
     "directories": "Directories",
     "database": "Database",
@@ -176,6 +178,8 @@ def _build_registry(settings: AppSettings, clock: Clock) -> HealthRegistry:
     add("python", lambda: env_checks.check_python(clock))
     add("node", lambda: env_checks.check_node(clock))
     add("ffmpeg", lambda: env_checks.check_ffmpeg(clock))
+    add("audio_analysis", lambda: env_checks.check_audio_analysis(clock))
+    add("fingerprinting", lambda: env_checks.check_fingerprinting(clock))
     add("config", lambda: _check_config(clock, settings))
     add("directories", lambda: env_checks.check_directories(clock, settings))
     add("database", lambda: _check_database(clock, settings))
@@ -404,6 +408,17 @@ async def _cmd_soak(args: argparse.Namespace) -> int:
     return await soak.command(args, _load(args))
 
 
+def _with_settings(
+    command: Callable[[argparse.Namespace, AppSettings], Coroutine[Any, Any, int]],
+) -> Callable[[argparse.Namespace], Coroutine[Any, Any, int]]:
+    """Adapt a settings-taking command to the handler signature argparse dispatches to."""
+
+    async def run(args: argparse.Namespace) -> int:
+        return await command(args, _load(args))
+
+    return run
+
+
 async def _cmd_version(_args: argparse.Namespace) -> int:
     print(f"tradefix-radio {__version__}")
     print(f"python {sys.version.split()[0]} ({sys.executable})")
@@ -467,7 +482,7 @@ def build_parser() -> argparse.ArgumentParser:
     config_cmd.add_argument("--section", default=None, help="limit output to one section")
     config_cmd.set_defaults(handler=_cmd_config)
 
-    from tradefix_radio.cli import dev, market_sim, report_director, soak
+    from tradefix_radio.cli import audio_tools, dev, market_sim, report_director, soak
 
     market_sim.register(sub)
     sub.choices["market-sim"].set_defaults(handler=_cmd_market_sim)
@@ -480,6 +495,12 @@ def build_parser() -> argparse.ArgumentParser:
     dev.register(sub)
     sub.choices["dev"].set_defaults(handler=_cmd_dev)
     sub.choices["report-director"].set_defaults(handler=_cmd_report_director)
+
+    # §6.26's per-file inspection tools. Each takes settings, so they share one adapter
+    # rather than each growing a near-identical `_cmd_*` wrapper in this module.
+    audio_tools.register(sub)
+    for name, command in audio_tools.COMMANDS.items():
+        sub.choices[name].set_defaults(handler=_with_settings(command))
 
     version = sub.add_parser("version", help="print version information")
     version.set_defaults(handler=_cmd_version)

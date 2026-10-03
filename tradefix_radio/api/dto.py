@@ -33,20 +33,30 @@ from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
     "AlertV1",
+    "AudioFeaturesV1",
     "BufferV1",
     "CapabilityV1",
     "EmergencyV1",
+    "FingerprintV1",
     "GenerationHealthV1",
     "GenerationJobV1",
     "HealthComponentV1",
     "LiveStateV1",
+    "LyricFingerprintV1",
     "MarketPointV1",
     "MarketV1",
+    "MasteringV1",
     "NowPlayingV1",
+    "OriginalityResultV1",
+    "OriginalitySummaryV1",
     "ProgrammingReasonV1",
+    "QcCheckV1",
+    "QcResultV1",
     "QueueItemV1",
+    "SimilarityComponentV1",
     "StationStatusV1",
     "SystemResourcesV1",
+    "TrackEvidenceV1",
     "TrackSummaryV1",
 ]
 
@@ -430,3 +440,175 @@ class LiveStateV1(_Dto):
     alerts: tuple[AlertV1, ...] = ()
     capabilities: tuple[CapabilityV1, ...] = ()
     at: datetime
+
+
+# ---------------------------------------------------------------- originality
+
+
+class QcCheckV1(_Dto):
+    """One QC measurement (§6.1).
+
+    Every field here exists because §6.1 requires a check to report more than a verdict: the
+    measured value, the threshold it was held to, and a sentence saying what that means. A
+    status alone would tell an operator that something failed and nothing about what to do.
+    """
+
+    name: str
+    status: Literal["pass", "warn", "fail"]
+    #: ``None`` when the check could not be performed — never a stand-in number.
+    value: float | None = None
+    unit: str = ""
+    threshold: str = ""
+    reason: str = ""
+
+
+class QcResultV1(_Dto):
+    """One QC pass over one file."""
+
+    stage: Literal["raw", "mastered"]
+    status: Literal["pass", "warn", "fail"]
+    summary: str
+    passed_count: int = Field(ge=0)
+    warned_count: int = Field(ge=0)
+    failed_count: int = Field(ge=0)
+    analysis_backend: str
+    elapsed_seconds: float = Field(ge=0.0)
+    evaluated_at: datetime
+    checks: tuple[QcCheckV1, ...] = ()
+
+
+class SimilarityComponentV1(_Dto):
+    """One comparison against one library track, with its parts intact (§6.5).
+
+    The components are sent individually rather than collapsed, because the brief is explicit
+    that one scalar must not be treated as absolute truth — and because "0.86 overall" and
+    "0.86 overall, all of it lyrics" call for different operator responses.
+    """
+
+    track_id: str
+    score: float = Field(ge=0.0, le=1.0)
+    components: dict[str, float] = Field(default_factory=dict)
+    is_exact_audio: bool = False
+    is_exact_lyrics: bool = False
+    blueprint_threshold: float | None = None
+    blueprint_is_recent: bool | None = None
+    detail: str = ""
+
+
+class OriginalityResultV1(_Dto):
+    """The originality verdict for one track."""
+
+    track_id: str
+    verdict: Literal["approve", "review", "reject"]
+    novelty_score: float = Field(ge=0.0, le=1.0)
+    max_similarity: float = Field(ge=0.0, le=1.0)
+    threshold: float = Field(ge=0.0, le=1.0)
+    closest_track_id: str | None = None
+    deciding_component: str | None = None
+    compared_against: int = Field(ge=0)
+    comparisons: tuple[SimilarityComponentV1, ...] = ()
+    evaluated_at: datetime
+
+
+class MasteringV1(_Dto):
+    """What mastering did to one track (§6.9)."""
+
+    outcome: Literal["mastered", "skipped", "failed"]
+    target_lufs: float
+    measured_lufs_before: float | None = None
+    measured_lufs_after: float | None = None
+    true_peak_dbtp: float | None = None
+    true_peak_ceiling_dbtp: float | None = None
+    #: The target was missed because the limiter hit the ceiling, not because anything failed.
+    peak_constrained: bool = False
+    gain_applied_db: float | None = None
+    trimmed_seconds: float = Field(default=0.0, ge=0.0)
+    duration_after: float | None = Field(default=None, ge=0.0)
+    elapsed_seconds: float = Field(default=0.0, ge=0.0)
+    detail: str = ""
+    mastered_at: datetime
+
+
+class AudioFeaturesV1(_Dto):
+    """The measured character of one file (§6.2)."""
+
+    duration_seconds: float = Field(ge=0.0)
+    sample_rate: int = Field(gt=0)
+    channels: int = Field(gt=0)
+    peak: float
+    rms: float
+    crest_factor: float
+    integrated_lufs: float | None = None
+    spectral_centroid: float | None = None
+    tempo: float | None = None
+    musical_key: str | None = None
+    silence_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    clipped_sample_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
+    backend: str
+    computed_at: datetime
+
+
+class FingerprintV1(_Dto):
+    """Identity hashes and which implementation produced them (§6.4).
+
+    The provider is part of the payload because fingerprints from different providers are not
+    comparable, and because the built-in fallback is weaker than Chromaprint. A UI that showed
+    a fingerprint without saying which kind would imply a guarantee that does not exist.
+    """
+
+    canonical_sha256: str | None = None
+    file_sha256: str | None = None
+    provider: str | None = None
+    provider_version: str | None = None
+    embedding_version: int | None = None
+    tempo: float | None = None
+    musical_key: str | None = None
+    blueprint_signature: str | None = None
+    computed_at: datetime | None = None
+
+
+class LyricFingerprintV1(_Dto):
+    """Derived lyric statistics (§6.8)."""
+
+    content_hash: str
+    word_count: int = Field(ge=0)
+    unique_word_ratio: float = Field(ge=0.0, le=1.0)
+    internal_repetition: float = Field(ge=0.0, le=1.0)
+    tradefix_mentions: int = Field(default=0, ge=0)
+    line_count: int = Field(ge=0)
+    computed_at: datetime
+
+
+class TrackEvidenceV1(_Dto):
+    """Everything recorded about one track's trip through post-production.
+
+    Returned as one document because the Originality page shows the chain, not a verdict: the
+    question an operator arrives with is "why did this not make it", and that answer spans QC,
+    similarity and mastering together.
+    """
+
+    track_id: str
+    qc_results: tuple[QcResultV1, ...] = ()
+    features: AudioFeaturesV1 | None = None
+    originality: OriginalityResultV1 | None = None
+    mastering: MasteringV1 | None = None
+    fingerprint: FingerprintV1 | None = None
+    lyrics: LyricFingerprintV1 | None = None
+
+
+class OriginalitySummaryV1(_Dto):
+    """The Originality page's header row.
+
+    ``novelty_histogram`` is ten buckets spanning 0–1. Sent as counts rather than percentages
+    so a chart with four tracks in it cannot be mistaken for one with four thousand.
+    """
+
+    library_size: int = Field(ge=0)
+    evaluated_count: int = Field(ge=0)
+    verdict_counts: dict[str, int] = Field(default_factory=dict)
+    novelty_histogram: tuple[int, ...] = ()
+    #: What the built-in similarity actually rests on, stated rather than implied.
+    fingerprint_provider: str
+    fingerprint_detail: str
+    #: §86: the station never claims a track has never existed before.
+    scope_note: str

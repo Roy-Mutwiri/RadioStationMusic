@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import random
 from collections.abc import AsyncIterator, Iterator
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -227,6 +228,30 @@ def client(view: RuntimeView) -> Iterator[TestClient]:
         yield test_client
 
 
+@pytest.fixture
+def validating_client(view: RuntimeView) -> Iterator[TestClient]:
+    """A client whose process has post-production attached.
+
+    Separate from `client` rather than replacing it, because both states are real and both
+    must behave correctly: a build without the pipeline has to refuse with a reason, and a
+    build with it has to answer. One fixture could only ever test one of those.
+    """
+    attached = replace(
+        view,
+        capabilities=detect_capabilities(
+            has_station=True,
+            has_market_feed=True,
+            has_generation=True,
+            simulation_allowed=True,
+            gpu_present=False,
+            provider_name="mock",
+            has_post_production=True,
+        ),
+    )
+    with TestClient(create_app(attached, serve_frontend=False)) as test_client:
+        yield test_client
+
+
 # ----------------------------------------------------------------- shape
 
 
@@ -322,24 +347,38 @@ async def test_h_unbuilt_subsystems_refuse_rather_than_return_zeroes(
     client: TestClient,
 ) -> None:
     """§86. A 200 with empty arrays would render as "0 rejections" for a subsystem that does
-    not exist — which is the fabrication the rule forbids."""
-    for path in ("/api/originality/summary", "/api/obs/status"):
-        response = client.get(path)
-        assert response.status_code == 409, path
-        detail = response.json()["detail"]
-        assert detail["state"] == "planned"
-        assert detail["arrives_in_phase"] in (6, 8)
-        assert detail["detail"]
+    not exist — which is the fabrication the rule forbids.
+
+    Updated for Phase 6: originality is now *built*, so a process without the pipeline
+    attached refuses as ``unavailable`` rather than ``planned``. The distinction is the one
+    `CapabilityState` exists to draw — "this arrives later" and "this should be here and is
+    not" are different messages to an operator.
+    """
+    response = client.get("/api/originality/summary")
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["state"] == "unavailable"
+    assert detail["arrives_in_phase"] is None
+    assert detail["detail"]
+
+    response = client.get("/api/obs/status")
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["state"] == "planned"
+    assert detail["arrives_in_phase"] == 8
+    assert detail["detail"]
 
 
 async def test_i_capabilities_name_the_phase_that_delivers_them(
     client: TestClient,
 ) -> None:
     reports = {row["capability"]: row for row in client.get("/api/capabilities").json()}
-    assert reports["originality"]["arrives_in_phase"] == 6
     assert reports["obs"]["arrives_in_phase"] == 8
     assert reports["watchdog"]["arrives_in_phase"] == 9
     assert reports["playout"]["state"] == "ready"
+    # Delivered in Phase 6, so it must no longer advertise a future phase — a capability that
+    # exists while still telling an operator to wait for it is worse than either state alone.
+    assert reports["originality"]["arrives_in_phase"] is None
 
 
 async def test_j_an_absent_gpu_reports_null_not_zero(client: TestClient) -> None:
@@ -692,3 +731,53 @@ async def test_z8_the_app_serves_the_built_frontend_when_present(
             assert "text/html" in page.headers["content-type"]
             # ...but never for an API path, which must still 404 honestly.
             assert client.get("/api/nope").status_code == 404
+
+
+# ----------------------------------------------------------- originality (§6.15)
+
+
+async def test_originality_summary_states_its_own_scope(
+    validating_client: TestClient,
+) -> None:
+    """§86: the page may not imply a guarantee the engine does not provide.
+
+    The scope note ships with the data rather than living in the frontend, so the claim and
+    the numbers cannot drift apart. Asserted here because a UI-side sentence is one careless
+    copy edit away from becoming a promise the system cannot keep.
+    """
+    response = validating_client.get("/api/originality/summary")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scope_note"]
+    assert "copyright" in body["scope_note"].lower()
+    assert "this station's own library" in body["scope_note"]
+    # Which implementation produced the numbers, stated rather than assumed.
+    assert body["fingerprint_provider"]
+    assert body["fingerprint_detail"]
+
+
+async def test_originality_summary_reports_an_empty_library_as_empty(
+    validating_client: TestClient,
+) -> None:
+    """Zero is a real count here, not a stand-in — nothing has been evaluated yet."""
+    body = validating_client.get("/api/originality/summary").json()
+    assert body["library_size"] == 0
+    assert body["evaluated_count"] == 0
+    assert body["verdict_counts"] == {}
+    assert len(body["novelty_histogram"]) == 10
+    assert sum(body["novelty_histogram"]) == 0
+
+
+async def test_recent_originality_is_empty_rather_than_invented(
+    validating_client: TestClient,
+) -> None:
+    assert validating_client.get("/api/originality/recent").json() == []
+
+
+async def test_evidence_for_an_unprocessed_track_is_404_not_an_empty_shell(
+    validating_client: TestClient,
+) -> None:
+    """An empty document would read as "everything passed with no findings"."""
+    response = validating_client.get("/api/originality/tracks/TF-NOT-REAL")
+    assert response.status_code == 404
+    assert "TF-NOT-REAL" in response.json()["detail"]

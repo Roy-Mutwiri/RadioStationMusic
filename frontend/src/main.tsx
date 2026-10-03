@@ -28,7 +28,9 @@ const MarketPage = lazy(() => pages().then((m) => ({ default: m.MarketPage })))
 const RadioPage = lazy(() => pages().then((m) => ({ default: m.RadioPage })))
 const GenerationPage = lazy(() => pages().then((m) => ({ default: m.GenerationPage })))
 const LibraryPage = lazy(() => pages().then((m) => ({ default: m.LibraryPage })))
-const OriginalityPage = lazy(() => pages().then((m) => ({ default: m.OriginalityPage })))
+const OriginalityPage = lazy(() =>
+  import('./pages/Originality').then((m) => ({ default: m.OriginalityPage })),
+)
 const AnalyticsPage = lazy(() => pages().then((m) => ({ default: m.AnalyticsPage })))
 const ObsPage = lazy(() => pages().then((m) => ({ default: m.ObsPage })))
 const SystemPage = lazy(() => pages().then((m) => ({ default: m.SystemPage })))

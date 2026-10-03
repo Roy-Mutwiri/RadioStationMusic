@@ -45,6 +45,7 @@ from tradefix_radio.market.feeds.simulated import SimulatedFeed
 from tradefix_radio.market.service import MarketDataService
 from tradefix_radio.market.simulation import Scenario
 from tradefix_radio.persistence.database import Database
+from tradefix_radio.postprocess.pipeline import PostProductionPipeline
 from tradefix_radio.radio.emergency import EmergencyManager, reserve_from_directory
 from tradefix_radio.radio.station import RadioStation
 from tradefix_radio.radio.station_ids import StationIdLibrary, default_library
@@ -221,6 +222,16 @@ class ControlCenterRunner:
             unit_of_work=DatabaseJobUnitOfWork(database.session),
             clock=self._clock,
         )
+        # Post-production (§6). Constructed before the station because the station holds it
+        # for the life of the run, and because `warm_analysis` pays librosa's one-off numba
+        # JIT cost here rather than on the first track the station generates — which is
+        # exactly when the buffer is emptiest.
+        post_production = PostProductionPipeline(
+            settings,
+            clock=self._clock,
+            master_dir=settings.paths.generated_dir / "mastered",
+        )
+
         station = RadioStation(
             settings,
             database=database,
@@ -247,6 +258,7 @@ class ControlCenterRunner:
             clock=self._clock,
             audio_dir=settings.paths.generated_dir,
             playout_block_seconds=1.0,
+            post_production=post_production,
         )
         await station.start()
         self._station = station
@@ -273,6 +285,7 @@ class ControlCenterRunner:
                 simulation_allowed=settings.mode in _SIMULATION_MODES,
                 gpu_present=gpu_is_present(),
                 provider_name=settings.generation.provider,
+                has_post_production=True,
             ),
         )
         _log.info(

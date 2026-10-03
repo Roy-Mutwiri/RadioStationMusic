@@ -94,6 +94,7 @@ class TrackRepository(Repository):
             secondary_topic=blueprint.lyrics.secondary_topic,
             regime_at_generation=blueprint.market.regime.value,
             energy_at_generation=blueprint.market.energy,
+            composition_energy=blueprint.composition.energy,
             session_at_generation=blueprint.market.session,
             seed=blueprint.seed,
             provider=provider,

@@ -26,6 +26,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Final
 
 import structlog
 
@@ -36,12 +37,14 @@ from tradefix_radio.core.clock import VirtualClock
 from tradefix_radio.director.library import load_content_library
 from tradefix_radio.director.music_director import MusicDirector
 from tradefix_radio.director.selection import WeightedSelector
+from tradefix_radio.generation.defects import DefectInjectingProvider
 from tradefix_radio.generation.manager import DatabaseJobUnitOfWork, GenerationManager
 from tradefix_radio.generation.mock import MockMusicProvider
 from tradefix_radio.market.feeds.simulated import SimulatedFeed
 from tradefix_radio.market.service import MarketDataService
 from tradefix_radio.market.simulation import Scenario
 from tradefix_radio.persistence.database import Database
+from tradefix_radio.postprocess.pipeline import PostProductionPipeline
 from tradefix_radio.radio.emergency import EmergencyManager, ProceduralSource
 from tradefix_radio.radio.station import RadioStation
 from tradefix_radio.radio.station_ids import StationIdLibrary, default_library
@@ -150,6 +153,16 @@ class SoakResult:
     genres_used: int = 0
     longest_genre_run: int = 1
     distinct_bpms: int = 0
+    #: Post-production (§6). Zero across the board when the pipeline is not attached,
+    #: which is why ``post_production`` records whether it ran rather than letting a row of
+    #: zeros be read as "nothing was rejected".
+    post_production: bool = False
+    defects_injected: int = 0
+    defects_by_kind: dict[str, int] = field(default_factory=dict)
+    post_production_rejected: int = 0
+    rejection_reasons: dict[str, int] = field(default_factory=dict)
+    injected_ids_that_aired: list[str] = field(default_factory=list)
+
     blueprint_duplicates: int = 0
     #: ``(first_track_id, repeat_track_id, signature_prefix)`` for each repeat.
     duplicate_pairs: list[tuple[str, str, str]] = field(default_factory=list)
@@ -195,12 +208,21 @@ async def run_soak(
     database: Database | None = None,
     kill_generator_from: float | None = None,
     kill_generator_until: float | None = None,
+    post_production: bool = False,
+    invalid_rate: float = 0.0,
+    duplicate_rate: float = 0.0,
 ) -> SoakResult:
     """Broadcast for ``simulated_hours`` and report what happened.
 
     ``kill_generator_from`` / ``until`` drive Gate B and Gate D — the provider is made unhealthy
     for a window, and the run proves both that playback continues and that the station rebuilds
     afterwards. Expressed as a window rather than a flag so one run can prove both halves.
+
+    ``post_production`` attaches the Phase 6 pipeline, and ``invalid_rate`` /
+    ``duplicate_rate`` spoil that fraction of the generator's output (§6.23). The two are
+    separable on purpose: injecting defects *without* the pipeline is the control run that
+    shows what the station does when nothing validates, and it is the comparison that makes
+    the pipeline run mean something.
     """
     import time  # noqa: PLC0415 - wall-clock measurement is this function's own concern
 
@@ -255,12 +277,29 @@ async def run_soak(
         clock=clock,
         seed=seed,
     )
+    injector: DefectInjectingProvider | None = None
+    if invalid_rate > 0.0 or duplicate_rate > 0.0:
+        injector = DefectInjectingProvider(
+            provider,
+            invalid_rate=invalid_rate,
+            duplicate_rate=duplicate_rate,
+            seed=seed,
+        )
     generation = GenerationManager(
-        provider=provider,
+        provider=injector or provider,
         settings=soak_settings.generation,
         unit_of_work=DatabaseJobUnitOfWork(database.session),
         clock=clock,
     )
+
+    pipeline: PostProductionPipeline | None = None
+    if post_production:
+        pipeline = PostProductionPipeline(
+            soak_settings,
+            clock=clock,
+            master_dir=soak_settings.paths.data_dir / "soak-masters",
+        )
+    result.post_production = post_production
     sink = NullSink(
         sample_rate=PLAYOUT_SAMPLE_RATE,
         channels=PLAYOUT_CHANNELS,
@@ -285,6 +324,7 @@ async def run_soak(
             )
         ),
         clock=clock,
+        post_production=pipeline,
         audio_dir=soak_settings.paths.data_dir / "soak-audio",
         # A large block keeps the step count sane. At one second, 24 simulated hours is 86 400
         # steps and the yield cost alone dominates the run; at ten it is 8 640.
@@ -421,11 +461,14 @@ async def run_soak(
         coordinator=coordinator,
         clock=clock,
         genre_sequence=genre_sequence,
+        injector=injector,
+        played_ids=played_ids,
     )
     result.broadcast_seconds = broadcast_seconds
     result.wall_seconds = time.perf_counter() - wall_started
     result.memory_end_mb = _memory_mb()
     _assess(result)
+    _assess_post_production(result)
     return result
 
 
@@ -437,6 +480,8 @@ def _collect(
     coordinator: RuntimeCoordinator,
     clock: VirtualClock,
     genre_sequence: list[str],
+    injector: DefectInjectingProvider | None = None,
+    played_ids: list[str] | None = None,
 ) -> None:
     playout = station.playout.stats
     emergency = station.emergency.stats
@@ -456,6 +501,20 @@ def _collect(
     result.transition_failures = playout.transition_failures
     result.peak_sample = playout.peak_sample
     result.underruns = playout.underruns
+
+    result.post_production_rejected = station.stats.post_production_rejected
+    result.rejection_reasons = dict(station.stats.rejection_reasons)
+    if injector is not None:
+        result.defects_injected = injector.stats.injected
+        result.defects_by_kind = dict(injector.stats.by_kind)
+        # The assertion that matters, computed rather than assumed: did anything the injector
+        # deliberately broke actually reach air? One name in this list is a §6 failure, and
+        # it is checked against the *played* history rather than against a counter, because a
+        # counter can be right while the wrong track is on the radio.
+        spoiled = set(injector.stats.corrupted_track_ids) | set(
+            injector.stats.duplicate_track_ids
+        )
+        result.injected_ids_that_aired = sorted(spoiled & set(played_ids or ()))
 
     result.tier2_activations = emergency.tier2_activations
     result.tier3_activations = emergency.tier3_activations
@@ -551,6 +610,46 @@ def _assess(result: SoakResult) -> None:
         )
 
 
+#: Rejection rate above which the pipeline is reported as starving the station.
+#:
+#: 0.60. A run that injects 30 % defects should reject somewhere near that plus whatever the
+#: generator legitimately repeats. Twice the injected rate means something other than the
+#: injected defects is being rejected en masse, and the station is being kept on air by its
+#: emergency tiers rather than by its programming — a state that looks healthy on every
+#: continuity metric and is not.
+_STARVATION_REJECTION_RATE: Final = 0.60
+
+
+def _assess_post_production(result: SoakResult) -> None:
+    """§6.24: the station kept broadcasting, and nothing broken reached air."""
+    if not result.post_production:
+        return
+    if result.injected_ids_that_aired:
+        result.failures.append(
+            f"{len(result.injected_ids_that_aired)} deliberately broken track(s) reached "
+            f"air: {', '.join(result.injected_ids_that_aired[:5])}"
+        )
+    if result.defects_injected and result.post_production_rejected == 0:
+        result.failures.append(
+            f"{result.defects_injected} defects were injected and post-production rejected "
+            "nothing — the pipeline is not being consulted"
+        )
+
+    # Rejecting too much is a failure as well as rejecting too little, and it is the one
+    # that hides: audio coverage stays at 100 %, silence stays at zero, and the station is
+    # running entirely on procedural filler. Measured and reported rather than inferred from
+    # the genre-diversity gate, which detects the symptom without naming the cause.
+    generated = result.generated
+    if generated:
+        rate = result.post_production_rejected / generated
+        if rate > _STARVATION_REJECTION_RATE:
+            result.failures.append(
+                f"post-production rejected {result.post_production_rejected} of {generated} "
+                f"tracks ({rate:.0%}); {result.defects_injected} were deliberately broken, so "
+                "the programming is being starved rather than filtered"
+            )
+
+
 def _coverage(result: SoakResult) -> float:
     if result.broadcast_seconds <= 0:
         return 0.0
@@ -605,6 +704,7 @@ def render(result: SoakResult) -> str:
         f"    Blueprint duplicates: {result.blueprint_duplicates}",
         f"    Track id duplicates:  {result.track_id_duplicates}",
         "",
+        *_post_production_lines(result),
         "  Runtime",
         f"    Unhandled exceptions: {result.unhandled_exceptions}",
         f"    Subscriber errors:    {result.subscriber_errors}",
@@ -626,6 +726,34 @@ def render(result: SoakResult) -> str:
     return "\n".join(lines)
 
 
+def _post_production_lines(result: SoakResult) -> list[str]:
+    """The §6 section of the report, or a single line saying it did not run.
+
+    The explicit "not attached" line exists because a block of zeros reads as "nothing was
+    rejected", which is a very different claim from "nothing was checked".
+    """
+    if not result.post_production:
+        return ["  Post-production", "    Not attached for this run.", ""]
+
+    lines = [
+        "  Post-production (§6)",
+        f"    Defects injected:   {result.defects_injected}",
+    ]
+    for kind, count in sorted(result.defects_by_kind.items()):
+        if kind != "none":
+            lines.append(f"      {kind:16s}{count}")
+    lines.append(f"    Tracks rejected:    {result.post_production_rejected}")
+    for reason, count in sorted(result.rejection_reasons.items()):
+        lines.append(f"      {reason:16s}{count}")
+    aired = result.injected_ids_that_aired
+    lines.append(
+        f"    Broken tracks aired: {len(aired)}"
+        + (f"  ({', '.join(aired[:5])})" if aired else "  — none, which is the requirement")
+    )
+    lines.append("")
+    return lines
+
+
 async def command(args: argparse.Namespace, settings: AppSettings) -> int:
     result = await run_soak(
         settings,
@@ -635,6 +763,9 @@ async def command(args: argparse.Namespace, settings: AppSettings) -> int:
         scenario=Scenario(args.scenario),
         kill_generator_from=args.kill_generator_from,
         kill_generator_until=args.kill_generator_until,
+        post_production=args.post_production,
+        invalid_rate=args.invalid_rate,
+        duplicate_rate=args.duplicate_rate,
     )
     print(render(result))
     if args.out:
@@ -672,6 +803,32 @@ def register(subparsers: object) -> None:
         default=Scenario.RANDOM_WALK.value,
         choices=[scenario.value for scenario in Scenario],
         help="§7 market scenario to broadcast against",
+    )
+    parser.add_argument(
+        "--post-production",
+        action="store_true",
+        help=(
+            "run every generated track through the Phase 6 QC/originality/mastering "
+            "pipeline before it may become READY (§6.14)"
+        ),
+    )
+    parser.add_argument(
+        "--invalid-rate",
+        type=float,
+        default=0.0,
+        help=(
+            "fraction of generated tracks to deliberately corrupt — silence, clipping, "
+            "truncation or a dropout (§6.23). Use 0.2 for the acceptance run."
+        ),
+    )
+    parser.add_argument(
+        "--duplicate-rate",
+        type=float,
+        default=0.0,
+        help=(
+            "fraction of generated tracks to re-emit as byte-identical copies of an "
+            "earlier track (§6.23). Use 0.1 for the acceptance run."
+        ),
     )
     parser.add_argument(
         "--kill-generator-from",

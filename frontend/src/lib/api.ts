@@ -161,7 +161,11 @@ export const api = {
 
   analytics: (window: string) => request<Analytics>(`/analytics?window=${window}`),
 
-  originality: () => request<unknown>('/originality/summary'),
+  originality: () => request<OriginalitySummary>('/originality/summary'),
+  originalityRecent: (limit = 50) =>
+    request<OriginalityResult[]>(`/originality/recent?limit=${limit}`),
+  trackEvidence: (trackId: string) =>
+    request<TrackEvidence>(`/originality/tracks/${encodeURIComponent(trackId)}`),
   obs: () => request<unknown>('/obs/status'),
 }
 
@@ -223,3 +227,128 @@ export interface Analytics {
 }
 
 export type { Alert }
+
+
+// ---------------------------------------------------------------- originality
+
+export interface OriginalitySummary {
+  library_size: number
+  evaluated_count: number
+  verdict_counts: Record<string, number>
+  novelty_histogram: number[]
+  fingerprint_provider: string
+  fingerprint_detail: string
+  /** The scope the station is willing to claim. Rendered verbatim, never paraphrased. */
+  scope_note: string
+}
+
+export interface SimilarityComponent {
+  track_id: string
+  score: number
+  components: Record<string, number>
+  is_exact_audio: boolean
+  is_exact_lyrics: boolean
+  blueprint_threshold: number | null
+  blueprint_is_recent: boolean | null
+  detail: string
+}
+
+export interface OriginalityResult {
+  track_id: string
+  verdict: 'approve' | 'review' | 'reject'
+  novelty_score: number
+  max_similarity: number
+  threshold: number
+  closest_track_id: string | null
+  deciding_component: string | null
+  compared_against: number
+  comparisons: SimilarityComponent[]
+  evaluated_at: string
+}
+
+export interface QcCheck {
+  name: string
+  status: 'pass' | 'warn' | 'fail'
+  value: number | null
+  unit: string
+  threshold: string
+  reason: string
+}
+
+export interface QcResult {
+  stage: 'raw' | 'mastered'
+  status: 'pass' | 'warn' | 'fail'
+  summary: string
+  passed_count: number
+  warned_count: number
+  failed_count: number
+  analysis_backend: string
+  elapsed_seconds: number
+  evaluated_at: string
+  checks: QcCheck[]
+}
+
+export interface MasteringRecord {
+  outcome: 'mastered' | 'skipped' | 'failed'
+  target_lufs: number
+  measured_lufs_before: number | null
+  measured_lufs_after: number | null
+  true_peak_dbtp: number | null
+  true_peak_ceiling_dbtp: number | null
+  peak_constrained: boolean
+  gain_applied_db: number | null
+  trimmed_seconds: number
+  duration_after: number | null
+  elapsed_seconds: number
+  detail: string
+  mastered_at: string
+}
+
+export interface AudioFeaturesRecord {
+  duration_seconds: number
+  sample_rate: number
+  channels: number
+  peak: number
+  rms: number
+  crest_factor: number
+  integrated_lufs: number | null
+  spectral_centroid: number | null
+  tempo: number | null
+  musical_key: string | null
+  silence_ratio: number
+  clipped_sample_ratio: number
+  backend: string
+  computed_at: string
+}
+
+export interface FingerprintRecord {
+  canonical_sha256: string | null
+  file_sha256: string | null
+  provider: string | null
+  provider_version: string | null
+  embedding_version: number | null
+  tempo: number | null
+  musical_key: string | null
+  blueprint_signature: string | null
+  computed_at: string | null
+}
+
+export interface LyricFingerprintRecord {
+  content_hash: string
+  word_count: number
+  unique_word_ratio: number
+  internal_repetition: number
+  tradefix_mentions: number
+  line_count: number
+  computed_at: string
+}
+
+export interface TrackEvidence {
+  track_id: string
+  qc_results: QcResult[]
+  features: AudioFeaturesRecord | null
+  originality: OriginalityResult | null
+  mastering: MasteringRecord | null
+  fingerprint: FingerprintRecord | null
+  lyrics: LyricFingerprintRecord | null
+}

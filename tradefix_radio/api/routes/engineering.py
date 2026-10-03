@@ -28,12 +28,23 @@ from sqlalchemy import Select, func, select
 from tradefix_radio.api.capabilities import Capability, CapabilityReport
 from tradefix_radio.api.deps import get_view
 from tradefix_radio.api.dto import (
+    AudioFeaturesV1,
     CapabilityV1,
+    FingerprintV1,
     GenerationJobV1,
+    LyricFingerprintV1,
+    MasteringV1,
+    OriginalityResultV1,
+    OriginalitySummaryV1,
+    QcCheckV1,
+    QcResultV1,
+    SimilarityComponentV1,
     SystemResourcesV1,
+    TrackEvidenceV1,
     TrackSummaryV1,
 )
 from tradefix_radio.api.snapshot import RuntimeView, capabilities_to_dtos, job_to_dto
+from tradefix_radio.audio.fingerprint import fingerprint_capability
 from tradefix_radio.core.clock import UTC
 from tradefix_radio.persistence.models import (
     GenerationJob,
@@ -41,7 +52,11 @@ from tradefix_radio.persistence.models import (
     TrackBlueprint,
     TrackFile,
 )
-from tradefix_radio.persistence.repositories import GenerationJobRepository
+from tradefix_radio.persistence.repositories import (
+    GenerationJobRepository,
+    OriginalityRepository,
+)
+from tradefix_radio.persistence.repositories.originality import TrackEvidence
 
 _log = structlog.get_logger(__name__)
 
@@ -475,13 +490,158 @@ async def get_analytics(
 # ----------------------------------------------------------------- not yet built
 
 
-@router.get("/originality/summary")
-async def get_originality(view: ViewDep) -> dict[str, object]:
-    """Phase 6. Refuses with its reason rather than returning empty metrics."""
+#: What the Originality page states, verbatim, above every number on it.
+#:
+#: §86 forbids claiming that fingerprinting guarantees copyright uniqueness, and §6 opens by
+#: saying the stronger claim — that a song has never existed before — is not technically
+#: defensible. So the scope is sent with the data rather than left to a UI copywriter: the
+#: component that owns the numbers owns the sentence that bounds them.
+ORIGINALITY_SCOPE_NOTE = (
+    "These checks compare a track against this station's own library. They detect the "
+    "station repeating itself. They do not and cannot establish that a track is original "
+    "with respect to any other music, and they are not a copyright clearance."
+)
+
+
+@router.get("/originality/summary", response_model=OriginalitySummaryV1)
+async def get_originality_summary(view: ViewDep) -> OriginalitySummaryV1:
+    """Library-wide originality statistics (§6.15)."""
     _gate(view, Capability.ORIGINALITY)
-    raise HTTPException(  # pragma: no cover - unreachable until Phase 6 lands
-        status_code=status.HTTP_409_CONFLICT,
-        detail="The originality engine reported ready but has no implementation.",
+    database = _require_database(view)
+    async with database.read_session() as session:  # type: ignore[attr-defined]
+        repository = OriginalityRepository(session)
+        library_size = await repository.library_size()
+        verdict_counts = await repository.verdict_counts()
+        histogram = await repository.novelty_distribution()
+    capability = fingerprint_capability()
+    return OriginalitySummaryV1(
+        library_size=library_size,
+        evaluated_count=sum(verdict_counts.values()),
+        verdict_counts=verdict_counts,
+        novelty_histogram=tuple(histogram),
+        fingerprint_provider=str(capability["active_provider"]),
+        fingerprint_detail=str(capability["detail"]),
+        scope_note=ORIGINALITY_SCOPE_NOTE,
+    )
+
+
+@router.get("/originality/recent", response_model=list[OriginalityResultV1])
+async def get_recent_originality(
+    view: ViewDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[OriginalityResultV1]:
+    """The most recent verdicts, newest first (§6.15)."""
+    _gate(view, Capability.ORIGINALITY)
+    database = _require_database(view)
+    async with database.read_session() as session:  # type: ignore[attr-defined]
+        rows = await OriginalityRepository(session).recent_evaluations(limit=limit)
+    return [_originality_row_to_dto(row) for row in rows]
+
+
+@router.get("/originality/tracks/{track_id}", response_model=TrackEvidenceV1)
+async def get_track_evidence(track_id: str, view: ViewDep) -> TrackEvidenceV1:
+    """Every number behind one track's approval or rejection (§6.15).
+
+    404 when nothing was ever recorded, rather than an empty document: a track with no
+    evidence has not been through post-production, and returning an empty shell would read
+    as "everything passed with no findings".
+    """
+    _gate(view, Capability.ORIGINALITY)
+    database = _require_database(view)
+    async with database.read_session() as session:  # type: ignore[attr-defined]
+        evidence = await OriginalityRepository(session).evidence_for(track_id)
+    if not evidence.qc_results and evidence.features is None and evidence.similarity is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No post-production record exists for track {track_id!r}.",
+        )
+    return _evidence_to_dto(evidence)
+
+
+def _originality_row_to_dto(row: Any) -> OriginalityResultV1:
+    return OriginalityResultV1(
+        track_id=row.track_id,
+        verdict=row.verdict,
+        novelty_score=row.novelty_score,
+        max_similarity=row.max_similarity,
+        threshold=row.threshold,
+        closest_track_id=row.closest_track_id,
+        deciding_component=row.deciding_component,
+        compared_against=row.compared_against,
+        comparisons=tuple(_comparison_to_dto(entry) for entry in (row.components or ())),
+        evaluated_at=row.evaluated_at,
+    )
+
+
+def _comparison_to_dto(entry: dict[str, Any]) -> SimilarityComponentV1:
+    return SimilarityComponentV1(
+        track_id=str(entry.get("track_id", "")),
+        score=float(entry.get("score", 0.0)),
+        components={
+            str(name): float(value)
+            for name, value in dict(entry.get("components") or {}).items()
+        },
+        is_exact_audio=bool(entry.get("is_exact_audio", False)),
+        is_exact_lyrics=bool(entry.get("is_exact_lyrics", False)),
+        blueprint_threshold=entry.get("blueprint_threshold"),
+        blueprint_is_recent=entry.get("blueprint_is_recent"),
+        detail=str(entry.get("detail", "")),
+    )
+
+
+def _evidence_to_dto(evidence: TrackEvidence) -> TrackEvidenceV1:
+    similarity = evidence.similarity
+    return TrackEvidenceV1(
+        track_id=evidence.track_id,
+        qc_results=tuple(
+            QcResultV1(
+                stage=result.stage,
+                status=result.status,
+                summary=result.summary,
+                passed_count=result.passed_count,
+                warned_count=result.warned_count,
+                failed_count=result.failed_count,
+                analysis_backend=result.analysis_backend,
+                elapsed_seconds=result.elapsed_seconds,
+                evaluated_at=result.evaluated_at,
+                checks=tuple(
+                    QcCheckV1(
+                        name=check.name,
+                        status=check.status,
+                        value=check.value,
+                        unit=check.unit,
+                        threshold=check.threshold,
+                        reason=check.reason,
+                    )
+                    for check in result.checks
+                ),
+            )
+            for result in evidence.qc_results
+        ),
+        features=(None if evidence.features is None else AudioFeaturesV1(**evidence.features)),
+        originality=(
+            None
+            if similarity is None
+            else OriginalityResultV1(
+                track_id=evidence.track_id,
+                verdict=similarity["verdict"],
+                novelty_score=similarity["novelty_score"],
+                max_similarity=similarity["max_similarity"],
+                threshold=similarity["threshold"],
+                closest_track_id=similarity["closest_track_id"],
+                deciding_component=similarity["deciding_component"],
+                compared_against=similarity["compared_against"],
+                comparisons=tuple(
+                    _comparison_to_dto(entry) for entry in similarity["comparisons"]
+                ),
+                evaluated_at=similarity["evaluated_at"],
+            )
+        ),
+        mastering=(None if evidence.mastering is None else MasteringV1(**evidence.mastering)),
+        fingerprint=(
+            None if evidence.fingerprint is None else FingerprintV1(**evidence.fingerprint)
+        ),
+        lyrics=(None if evidence.lyrics is None else LyricFingerprintV1(**evidence.lyrics)),
     )
 
 

@@ -14,6 +14,7 @@
 import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Bar,
   BarChart,
@@ -440,6 +441,8 @@ export function GenerationPage() {
         )}
       </Panel>
 
+      <PostProductionPanel />
+
       <Panel title="Manual generation" data-testid="manual-generation">
         <AwaitingPhase
           subsystem="Generation Lab"
@@ -448,6 +451,81 @@ export function GenerationPage() {
         />
       </Panel>
     </div>
+  )
+}
+
+
+/**
+ * Post-production outcomes, on the Generation page (§6.17).
+ *
+ * Here rather than only on the Originality page because this is where the question gets
+ * asked. An operator watching generation sees jobs completing and expects tracks; §6.14 says
+ * generator success is not a playable track, and without this panel the gap between "60 jobs
+ * completed" and "12 tracks queued" is invisible. The link to the full evidence lives on the
+ * Originality page; what belongs here is the *rate* and the reasons.
+ */
+function PostProductionPanel() {
+  const summary = useQuery({
+    queryKey: ['originality', 'summary'],
+    queryFn: api.originality,
+    refetchInterval: 15_000,
+    retry: false,
+  })
+
+  if (summary.isError) {
+    // 409 with its reason when the pipeline is not attached — rendered as the capability
+    // notice it is, not as a failure.
+    return (
+      <Panel title="Post-production" data-testid="post-production">
+        <AwaitingPhase
+          subsystem="Post-production"
+          phase={6}
+          detail={summary.error instanceof Error ? summary.error.message : undefined}
+        />
+      </Panel>
+    )
+  }
+
+  const verdicts = summary.data?.verdict_counts ?? {}
+  const evaluated = summary.data?.evaluated_count ?? 0
+  const rejected = (verdicts.reject ?? 0) + (verdicts.review ?? 0)
+
+  return (
+    <Panel
+      title="Post-production"
+      data-testid="post-production"
+      action={
+        <Link to="/originality" className="text-2xs text-gold-400 hover:text-gold-300">
+          evidence →
+        </Link>
+      }
+    >
+      {summary.isLoading ? (
+        <LoadingState />
+      ) : evaluated === 0 ? (
+        <EmptyState
+          title="Nothing validated yet"
+          detail="Every generated track is checked before it can become READY."
+        />
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-4">
+            <Metric label="Validated" value={evaluated} size="sm" />
+            <Metric label="Approved" value={verdicts.approve ?? 0} size="sm" tone="gold" />
+            <Metric label="Rejected" value={rejected} size="sm" />
+            <Metric
+              label="Approval rate"
+              value={`${Math.round(((verdicts.approve ?? 0) / evaluated) * 100)}%`}
+              size="sm"
+            />
+          </div>
+          <p className="mt-3 border-t hairline pt-2 text-2xs leading-relaxed text-ink-600">
+            A completed generation job is not a playable track. Every render is checked for
+            audio faults, compared against the library and mastered before it can be queued.
+          </p>
+        </>
+      )}
+    </Panel>
   )
 }
 
@@ -611,49 +689,6 @@ export function LibraryPage() {
           )}
         </Panel>
       </div>
-    </div>
-  )
-}
-
-// ----------------------------------------------------------------- 6. Originality
-
-export function OriginalityPage() {
-  const capability = useCapability('originality')
-  return (
-    <div className="space-y-4 p-4" data-testid="originality-page">
-      <PageHeader
-        title="Originality"
-        subtitle="Internal duplication prevention — not a copyright guarantee"
-      />
-      <Panel title="Originality engine">
-        <AwaitingPhase
-          subsystem="Fingerprinting, embeddings and lyric similarity"
-          phase={capability?.arrives_in_phase ?? 6}
-          detail={capability?.detail}
-        />
-      </Panel>
-      <Panel title="What this page will show">
-        <ul className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-2xs text-ink-500">
-          {[
-            'Average novelty across the library',
-            'Rejection rate and reasons',
-            'Audio similarity distribution',
-            'Lyric similarity distribution',
-            'Blueprint signature collisions',
-            'Recent rejections with their closest match',
-          ].map((item) => (
-            <li key={item} className="flex gap-1.5">
-              <span aria-hidden="true" className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-ink-700" />
-              {item}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 border-t hairline pt-2 text-2xs leading-relaxed text-ink-600">
-          The engine compares candidates against this station's own library. It prevents the
-          station repeating itself. It is not evidence that a track is original in a legal
-          sense, and nothing here will claim otherwise.
-        </p>
-      </Panel>
     </div>
   )
 }

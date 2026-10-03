@@ -33,6 +33,7 @@ from pathlib import Path
 
 import structlog
 
+from tradefix_radio.audio.analysis import EMBEDDING_VERSION
 from tradefix_radio.audio.io import read_info
 from tradefix_radio.audio.sinks import AudioSink
 from tradefix_radio.config.schema import AppSettings
@@ -50,6 +51,7 @@ from tradefix_radio.contracts.events import (
     TrackFinished,
     TrackQueued,
     TrackReady,
+    TrackRejected,
 )
 from tradefix_radio.contracts.market import MarketStateV1
 from tradefix_radio.contracts.music import MusicBlueprintV1
@@ -66,8 +68,10 @@ from tradefix_radio.director.memory import restore_director_state, save_director
 from tradefix_radio.director.music_director import DirectorDecision, MusicDirector
 from tradefix_radio.generation.manager import GenerationManager, GenerationOutcome
 from tradefix_radio.persistence.database import Database
+from tradefix_radio.persistence.models import Lyrics as LyricsRow
 from tradefix_radio.persistence.repositories import (
     MemoryKeys,
+    OriginalityRepository,
     RadioMemoryRepository,
     TrackRepository,
 )
@@ -76,6 +80,7 @@ from tradefix_radio.persistence.repositories.queue import (
     PersistedQueueSlot,
     QueueRepository,
 )
+from tradefix_radio.postprocess.pipeline import PipelineOutcome, PostProductionPipeline
 from tradefix_radio.radio.buffer import BufferAssessment, BufferLevel, BufferMonitor
 from tradefix_radio.radio.emergency import EmergencyManager
 from tradefix_radio.radio.playout import PlayingItem, PlayoutEngine
@@ -188,10 +193,15 @@ FINISHED_QUEUE_SIZE = 256
 
 #: States a track passes through once its audio exists, up to ``READY``.
 #:
-#: The QC, originality and mastering work these states name is Phase 6's. Until then the
-#: station walks them so the §27 transition trail is complete and the §46 page has something to
-#: show — rather than jumping to ``READY`` and leaving a gap the real pipeline would have to
-#: reconcile.
+#: Used **only** when no post-production pipeline is attached — the Phase 4 and Phase 5
+#: configurations, where the states are walked so the §27 transition trail is complete and the
+#: §46 page has something to show, rather than jumping to ``READY`` and leaving a gap.
+#:
+#: With a pipeline attached this constant is not used at all. §6.14 is explicit that generator
+#: success is not a playable track, and a station that walked these states unconditionally
+#: would be asserting that QC, originality and mastering had passed when none of them had run.
+#: :meth:`RadioStation._run_post_production` advances the same states one at a time as each
+#: stage *actually* completes.
 READY_LIFECYCLE: tuple[TrackState, ...] = (
     TrackState.GENERATING,
     TrackState.GENERATED,
@@ -199,6 +209,16 @@ READY_LIFECYCLE: tuple[TrackState, ...] = (
     TrackState.APPROVED,
     TrackState.MASTERING,
     TrackState.READY,
+)
+
+#: The prefix of :data:`READY_LIFECYCLE` that is true the moment audio exists on disk.
+#:
+#: Walked before post-production runs, because these two states say only "the generator
+#: produced a file and we are now looking at it" — which is exactly what has happened.
+GENERATED_LIFECYCLE: tuple[TrackState, ...] = (
+    TrackState.GENERATING,
+    TrackState.GENERATED,
+    TrackState.ANALYZING,
 )
 
 #: States a track passes through when it goes on air.
@@ -215,6 +235,14 @@ class StationStats:
     tracks_failed: int = 0
     #: Generated audio that exists on disk but could not be put into the queue.
     ready_rejected: int = 0
+    #: Tracks the generator produced successfully that post-production refused (§6.14).
+    #:
+    #: Counted apart from ``tracks_failed`` because the two mean different things to an
+    #: operator: a generation failure is the model or the host misbehaving, while a
+    #: post-production rejection is the station working exactly as designed.
+    post_production_rejected: int = 0
+    #: Rejections by reason, so the soak report can show *what* is being rejected.
+    rejection_reasons: dict[str, int] = field(default_factory=dict)
     replans: int = 0
     persists: int = 0
     recovered_queue_entries: int = 0
@@ -264,6 +292,7 @@ class RadioStation:
         clock: Clock | None = None,
         audio_dir: Path | None = None,
         playout_block_seconds: float = 1.0,
+        post_production: PostProductionPipeline | None = None,
     ) -> None:
         self._settings = settings
         self._database = database
@@ -273,6 +302,10 @@ class RadioStation:
         self._clock = clock or SystemClock()
         self._audio_dir = audio_dir or settings.paths.generated_dir
         self._station_ids = station_ids
+        # Optional so the proven Phase 4 and Phase 5 configurations are untouched. When it is
+        # absent the station behaves exactly as it did when those phases were accepted; when
+        # it is present, §6.14's rule applies and nothing reaches READY without passing it.
+        self._post_production = post_production
 
         self._queue = RadioQueue(
             locked_slots=settings.radio.locked_slots,
@@ -824,10 +857,22 @@ class RadioStation:
                 self._queue.mark_unavailable(track_id, reason="unreadable after generation")
             return
 
+        # §6.14: the generator producing a file is not the same thing as the station having a
+        # playable track, and the distinction is enforced here rather than trusted. Without a
+        # pipeline attached the old behaviour stands unchanged, which is what keeps the
+        # accepted Phase 4 and Phase 5 configurations working exactly as they were proven.
+        audio_path = result.audio_path
+        novelty = 1.0
+        if self._post_production is not None:
+            approved = await self._run_post_production(outcome, measured)
+            if approved is None:
+                return
+            audio_path, measured, novelty = approved
+
         try:
             self._queue.mark_ready(
                 track_id,
-                audio_path=str(result.audio_path),
+                audio_path=str(audio_path),
                 duration_seconds=measured,
             )
         except Exception as error:  # noqa: BLE001 - one bad slot must not stop the worker
@@ -845,7 +890,15 @@ class RadioStation:
             return
         self._stats.tracks_ready += 1
         self._buffer.record_delivery(self._clock.monotonic())
-        await self._advance_track(track_id, READY_LIFECYCLE, reason="generated")
+        if self._post_production is None:
+            await self._advance_track(track_id, READY_LIFECYCLE, reason="generated")
+        else:
+            # Every earlier state was advanced as its stage completed; only the final hop
+            # remains, and it is taken here — after ``mark_ready`` succeeded — so a track is
+            # never recorded as READY while the queue has refused it.
+            await self._advance_track(
+                track_id, (TrackState.READY,), reason="post-production approved"
+            )
 
         now = self._clock.now()
         await self._coordinator.publish(
@@ -860,9 +913,193 @@ class RadioStation:
         )
         await self._coordinator.publish(
             TrackReady(
-                at=now, track_id=track_id, duration_seconds=measured, novelty_score=1.0
+                at=now, track_id=track_id, duration_seconds=measured, novelty_score=novelty
             )
         )
+
+    async def _run_post_production(
+        self, outcome: GenerationOutcome, measured: float
+    ) -> tuple[Path, float, float] | None:
+        """Run QC, originality and mastering; return the approved master or ``None`` (§6.14).
+
+        Returns ``(master_path, duration_seconds, novelty_score)`` when the track is fit to
+        broadcast. A ``None`` return means the track was rejected and the queue slot has
+        already been removed, so the scheduler will replan into the gap.
+
+        Runs on the generation worker's task, not the step loop and not playout. That is the
+        right place for it: post-production is part of producing a track, it is the stage that
+        should be occupied while a track is being validated, and ADR-11 gives playout its own
+        task precisely so a long operation here cannot interrupt the broadcast.
+        """
+        from tradefix_radio.postprocess.pipeline import PipelineStage  # noqa: PLC0415
+
+        assert self._post_production is not None
+        result = outcome.result
+        assert result is not None
+        track_id = outcome.track_id
+
+        await self._advance_track(track_id, GENERATED_LIFECYCLE, reason="generated")
+
+        blueprint = self._blueprint_for(track_id)
+        async with self._database.session() as session:
+            originality = OriginalityRepository(session)
+            library = await originality.load_library(exclude_track_id=track_id)
+            lyrics_row = await session.get(LyricsRow, track_id)
+            lyric_text = None if lyrics_row is None else lyrics_row.text
+            tradefix_mentions = 0 if lyrics_row is None else lyrics_row.tradefix_mentions
+
+        # The clock is held across the pipeline because this is a *leaf* of real work: it
+        # awaits only threads and synchronous code, never the clock itself. Without the hold
+        # an accelerated soak would charge ten seconds of real DSP against simulated time
+        # racing ahead of it, and every generation after the first would look overdue.
+        with self._clock.hold():
+            pipeline_outcome = await self._post_production.process(
+                track_id=track_id,
+                source=result.audio_path,
+                blueprint=blueprint,
+                library=library,
+                lyric_text=lyric_text,
+                tradefix_mentions=tradefix_mentions,
+                duplicate_hash_owner_lookup=self._duplicate_hash_owner,
+                now=self._clock.now(),
+            )
+
+        with _reporting("record post-production evidence", track_id=track_id):
+            await self._persist_pipeline_evidence(pipeline_outcome)
+
+        if not pipeline_outcome.approved:
+            reason = (
+                pipeline_outcome.rejection_reason.value
+                if pipeline_outcome.rejection_reason
+                else "unknown"
+            )
+            self._stats.post_production_rejected += 1
+            self._stats.rejection_reasons[reason] = (
+                self._stats.rejection_reasons.get(reason, 0) + 1
+            )
+            _log.warning(
+                "station.post_production_rejected",
+                track_id=track_id,
+                stage=pipeline_outcome.stage.value,
+                reason=reason,
+                detail=pipeline_outcome.detail[:400],
+            )
+            # Quarantine when the audio itself is broken and rejection when it is merely
+            # unwanted. The distinction matters for retention: a quarantined file is kept for
+            # inspection, a rejected one is an ordinary unused track.
+            final_state = (
+                TrackState.QUARANTINED
+                if pipeline_outcome.stage
+                in (PipelineStage.QC_REJECTED, PipelineStage.FINAL_QC_REJECTED)
+                else TrackState.REJECTED
+            )
+            await self._advance_track(
+                track_id,
+                (final_state,),
+                reason=f"{reason}: {pipeline_outcome.detail}"[:400],
+            )
+            # The slot can never be filled by this track. Dropping it keeps the queue's
+            # projected duration honest and lets the scheduler plan a replacement, which is
+            # what keeps a rejection from becoming dead air.
+            #
+            # ``force`` because §28's positional lock exists to stop the *scheduler* from
+            # reprogramming an imminent slot for creative reasons — it was never meant to
+            # compel the station to keep a track that cannot play. Without it, a rejection at
+            # position 0 raised ``ProtectedItemError`` and the unplayable slot stayed at the
+            # head of the queue, which is the dead air this phase exists to prevent. The
+            # terminal-generation-failure path above reached the same conclusion already.
+            with _reporting("drop rejected slot", track_id=track_id):
+                self._queue.remove(track_id, force=True)
+            await self._coordinator.publish(
+                TrackRejected(
+                    at=self._clock.now(),
+                    track_id=track_id,
+                    stage=pipeline_outcome.stage.value,
+                    # The reason code first, then the sentence behind it. Both are kept
+                    # because the code is what the Originality page groups by and the
+                    # sentence is what an operator actually reads.
+                    reasons=(reason, pipeline_outcome.detail[:400]),
+                    novelty_score=pipeline_outcome.novelty_score,
+                    closest_track_id=(
+                        pipeline_outcome.similarity.closest.existing_track_id
+                        if pipeline_outcome.similarity
+                        and pipeline_outcome.similarity.closest
+                        else None
+                    ),
+                )
+            )
+            return None
+
+        await self._advance_track(
+            track_id,
+            (TrackState.APPROVED, TrackState.MASTERING),
+            reason="post-production approved",
+        )
+        master_path = pipeline_outcome.master_path or result.audio_path
+        duration = (
+            pipeline_outcome.features.duration_seconds
+            if pipeline_outcome.features is not None
+            else measured
+        )
+        return master_path, duration, pipeline_outcome.novelty_score or 1.0
+
+    async def _duplicate_hash_owner(self, canonical_hash: str) -> str | None:
+        """Which track already owns this exact audio (§6.3).
+
+        Passed into the pipeline as a callback rather than resolved up front because the
+        lookup is an indexed point query over the whole table, and doing it eagerly for every
+        candidate would load a hash the pipeline may never need.
+        """
+        async with self._database.session() as session:
+            return await OriginalityRepository(session).canonical_hash_owner(canonical_hash)
+
+    async def _persist_pipeline_evidence(self, outcome: PipelineOutcome) -> None:
+        """Write every number behind the verdict, in one transaction (§6.1, §6.5).
+
+        One transaction for the whole evidence trail: a partial write would read as though a
+        stage had run and said nothing, which is worse than no record at all.
+        """
+        now = self._clock.now()
+        async with self._database.session() as session:
+            repository = OriginalityRepository(session)
+            for qc_result in (outcome.raw_qc, outcome.final_qc):
+                if qc_result is not None:
+                    await repository.record_qc(
+                        outcome.track_id,
+                        qc_result,
+                        elapsed_seconds=outcome.timings.get("qc", 0.0),
+                        evaluated_at=now,
+                    )
+            if outcome.features is not None:
+                await repository.record_features(
+                    outcome.track_id, outcome.features, computed_at=now
+                )
+                blueprint = self._blueprint_for(outcome.track_id)
+                await repository.record_fingerprint(
+                    outcome.track_id,
+                    features=outcome.features,
+                    canonical_hash=outcome.canonical_hash or "",
+                    file_sha256=outcome.file_hash or "",
+                    fingerprint=outcome.fingerprint,
+                    blueprint_signature=(
+                        "" if blueprint is None else blueprint.signature()
+                    ),
+                    lyric_hash=(
+                        None if outcome.lyrics is None else outcome.lyrics.content_hash
+                    ),
+                    embedding_version=EMBEDDING_VERSION,
+                    computed_at=now,
+                )
+            if outcome.mastering is not None:
+                await repository.record_mastering(
+                    outcome.track_id, outcome.mastering, mastered_at=now
+                )
+            if outcome.similarity is not None:
+                await repository.record_similarity(
+                    outcome.track_id, outcome.similarity, evaluated_at=now
+                )
+            if outcome.lyrics is not None:
+                await repository.record_lyric_fingerprint(outcome.lyrics, computed_at=now)
 
     async def _advance_track(
         self, track_id: str, states: Sequence[TrackState], *, reason: str
