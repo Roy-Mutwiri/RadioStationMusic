@@ -392,6 +392,12 @@ async def _cmd_report_director(args: argparse.Namespace) -> int:
     return await report_director.command(args, _load(args))
 
 
+async def _cmd_dev(args: argparse.Namespace) -> int:
+    from tradefix_radio.cli import dev
+
+    return await dev.command(args, _load(args))
+
+
 async def _cmd_soak(args: argparse.Namespace) -> int:
     from tradefix_radio.cli import soak
 
@@ -461,7 +467,7 @@ def build_parser() -> argparse.ArgumentParser:
     config_cmd.add_argument("--section", default=None, help="limit output to one section")
     config_cmd.set_defaults(handler=_cmd_config)
 
-    from tradefix_radio.cli import market_sim, report_director, soak
+    from tradefix_radio.cli import dev, market_sim, report_director, soak
 
     market_sim.register(sub)
     sub.choices["market-sim"].set_defaults(handler=_cmd_market_sim)
@@ -470,6 +476,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     soak.register(sub)
     sub.choices["soak"].set_defaults(handler=_cmd_soak)
+
+    dev.register(sub)
+    sub.choices["dev"].set_defaults(handler=_cmd_dev)
     sub.choices["report-director"].set_defaults(handler=_cmd_report_director)
 
     version = sub.add_parser("version", help="print version information")

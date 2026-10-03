@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-ink-950 text-ink-200 font-sans antialiased;
+    /* A very low-contrast vignette so large panels do not read as flat black. Subtle enough
+       that it is invisible as a gradient and only perceptible as depth. */
+    background-image: radial-gradient(
+      120% 80% at 50% 0%,
+      rgba(255, 255, 255, 0.022) 0%,
+      transparent 60%
+    );
+    background-attachment: fixed;
+  }
+
+  /* Focus is always visible. Keyboard operation of a broadcast console is not optional, and
+     a gold ring on charcoal clears WCAG's non-text contrast minimum comfortably. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-gold-500/70 ring-offset-1 ring-offset-ink-950;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full border-2 border-transparent bg-ink-700 bg-clip-content;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-600 bg-clip-content;
+  }
+
+  /* Tabular figures everywhere a number might change in place, so a price or a countdown
+     does not shift its own layout as digits change width. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-panel border border-ink-800 bg-ink-900/80 shadow-panel;
+  }
+
+  .panel-header {
+    @apply flex items-center justify-between gap-3 border-b border-ink-800 px-4 py-2.5;
+  }
+
+  .label {
+    @apply text-2xs font-medium uppercase tracking-label text-ink-400;
+  }
+
+  .value-lg {
+    @apply font-mono text-2xl tnum text-ink-100;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-2xs
+      font-medium uppercase tracking-label;
+  }
+
+  /* A single hairline rule used to separate dense rows without drawing a table. */
+  .hairline {
+    @apply border-ink-800/80;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

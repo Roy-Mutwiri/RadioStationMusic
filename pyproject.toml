@@ -62,6 +62,9 @@ dev = [
     "mypy>=1.11,<2",
     "types-PyYAML",
     "freezegun>=1.5,<2",
+    # Starlette 0.5x's TestClient requires httpx2; without it every API test errors
+    # at import with a deprecation that is really a hard dependency check.
+    "httpx2>=2.13,<3",
 ]
 
 [project.scripts]

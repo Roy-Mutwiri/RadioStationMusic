@@ -141,6 +141,12 @@ playout engine that shares a task with scheduling cannot hold the continuity inv
 **Phase exit:** all frontend tests green; screenshots at the three resolutions attached to
 the report. → `docs/status/PHASE_5_REPORT.md`.
 
+**Status: complete.** The API is a read-only boundary around the Phase 4 runtime plus three
+mutating endpoints, each mapping to a method the runtime already shipped — nothing under
+`radio/`, `generation/`, `market/` or `director/` changed for the UI's benefit. Capability
+detection (`api/capabilities.py`) gates the pages whose subsystems arrive in Phases 6–9, so they
+refuse with a reason rather than rendering invented figures. → `docs/status/PHASE_5_REPORT.md`
+
 ---
 
 ## PHASE 6 — Audio QC, fingerprinting, originality, mastering

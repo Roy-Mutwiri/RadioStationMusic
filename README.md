@@ -23,8 +23,8 @@ monitors, recovers, and repeats.
 | 2 | Market engine: simulator, features, energy, regimes | ✅ `docs/status/PHASE_2_REPORT.md` |
 | 3 | Music director, lyric director, diversity engine | ✅ `docs/status/PHASE_3_REPORT.md` |
 | 4 | Mock radio: runtime, queue, scheduler, playout, three-tier fallback | ✅ `docs/status/PHASE_4_REPORT.md` |
-| 5 | API + control centre + stream overlay | ⏳ next |
-| 6 | Audio QC, fingerprinting, duplication prevention, mastering | — |
+| 5 | API + control centre + stream overlay | ✅ `docs/status/PHASE_5_REPORT.md` |
+| 6 | Audio QC, fingerprinting, duplication prevention, mastering | ⏳ next |
 | 7 | ACE-Step 1.5 integration | — |
 | 8 | OBS integration | — |
 | 9 | Resilience: watchdog, recovery, chaos | — |
@@ -85,10 +85,29 @@ tradefix config [--section S]  resolved configuration, secrets masked
 tradefix market-sim            run a market scenario, print the engine's reading
 tradefix report-director       statistical report over N director decisions (§3.12)
 tradefix soak --simulated-hours N   accelerated continuous-broadcast proof (§4.10)
+tradefix dev                   run the station and serve the Control Center
 tradefix version
 ```
 
-Later phases add `benchmark` and the `dev` / `simulation` / `production` runners.
+Later phases add `benchmark` and the `simulation` / `production` runners.
+
+### Running the Control Center
+
+```powershell
+.\.venv\Scripts\tradefix dev --scenario violent_breakout
+```
+
+Starts the station, the market simulator, the mock generator and an HTTP API in one process
+(§72's development mode), and serves the console at `http://127.0.0.1:8000` with the broadcast
+overlay at `/overlay/live`. No GPU, no broker, no OBS and no sound device are required.
+
+Build the frontend once first:
+
+```powershell
+cd frontend; npm install; npm run build
+```
+
+Or run `npm run dev` for the hot-reloading frontend against the same API.
 
 ### Proving it broadcasts
 
