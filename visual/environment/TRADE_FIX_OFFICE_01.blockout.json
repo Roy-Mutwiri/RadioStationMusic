@@ -232,7 +232,7 @@
       "frame_at_subject": { "w": 1528, "h": 859, "z_range": [900, 1760] },
       "down_angle_degrees": 7.9,
       "bezel_clearance_mm": 122,
-      "composition": "Monitor ledge at 30% of frame height, shoulders 21%, eye line 46%, crown 65%. Cyan glow rising from the ledge into his face; window and city behind his head.",
+      "composition": "HOME SHOT and the default — what should be on screen when someone arrives on the stream for the first time, and the reference composition every other plate is graded against. Monitor ledge at 30% of frame height, shoulders 21%, eye line 46%, crown 65%. Cyan glow rising from the ledge into his face; window and city behind his head.",
       "move": "slow push-in up to 4%"
     },
     {
@@ -304,9 +304,8 @@
       "frame_at_subject": { "w": 2025, "h": 1139, "z_range": [770, 1910] },
       "down_angle_degrees": 4.5,
       "bezel_clearance_mm": 164,
-      "composition": "PRIMARY STREAM CAMERA and the default. Three-quarter of his face toward screen-left, body angled, window and city behind, MON_4 near camera on the right as a soft out-of-focus foreground glow. The watch reads on his left wrist. This is what should be on screen when someone arrives on the stream for the first time.",
-      "move": "slow push-in up to 4%",
-      "hour_share_cap": 0.35
+      "composition": "Second hero shot. Three-quarter of his face toward screen-left, body angled, window and city behind, MON_4 near camera on the right as a soft out-of-focus foreground glow. The watch reads on his left wrist. The natural alternative when the hero front has just been used.",
+      "move": "slow push-in up to 4%"
     }
   ],
 

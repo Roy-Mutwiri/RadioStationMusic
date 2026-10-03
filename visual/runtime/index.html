@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>TRADE FIX VISUAL — PLACEHOLDER RUNTIME</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  /* 1920x1080 is the target. The canvas is letterboxed into whatever it is given, so
+     an OBS browser source at any size shows the same framing. */
+  :root {
+    --ink-950: #07080a; --ink-900: #0c0e12; --ink-800: #151922; --ink-700: #232935;
+    --ink-500: #444d5d; --ink-400: #6b7383; --ink-300: #9aa1ad; --ink-100: #e6e8ec;
+    --gold-500: #c9a227; --gold-400: #d9b949; --blue: #4a7fc2;
+    --green: #4f9d69; --red: #c2504a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body { font-family: 'JetBrains Mono', Consolas, ui-monospace, monospace; }
+
+  #stage { position: fixed; inset: 0; display: grid; place-items: center; }
+  canvas { display: block; background: var(--ink-950); }
+
+  /* The HUD is DOM rather than drawn, so `get_page_text` and a screen reader can both
+     read the runtime's state without a screenshot. That is the only way this page can
+     be verified without a GPU in the loop. */
+  #hud {
+    position: fixed; inset: 0; pointer-events: none;
+    font-size: 11px; line-height: 1.45; color: var(--ink-300);
+    text-shadow: 0 1px 2px rgba(0,0,0,.9);
+  }
+  #hud.off { display: none; }
+  .panel {
+    position: absolute; background: rgba(7,8,10,.72); border: 1px solid var(--ink-700);
+    padding: 8px 10px; border-radius: 3px; min-width: 210px;
+  }
+  #perf  { top: 12px; left: 12px; }
+  #char  { top: 12px; right: 12px; }
+  #cam   { bottom: 12px; left: 12px; }
+  #market{ bottom: 12px; right: 12px; }
+  .panel h2 {
+    font-size: 9px; letter-spacing: .12em; color: var(--gold-500);
+    text-transform: uppercase; margin-bottom: 5px; font-weight: 600;
+  }
+  .row { display: flex; justify-content: space-between; gap: 14px; }
+  .row span:first-child { color: var(--ink-500); }
+  .row span:last-child { color: var(--ink-100); }
+  .warn { color: var(--gold-400) !important; }
+  .bad  { color: var(--red) !important; }
+  .ok   { color: var(--green) !important; }
+
+  #stamp {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-size: 54px; letter-spacing: .3em; font-weight: 700;
+    color: rgba(201,162,39,.085); pointer-events: none; white-space: nowrap;
+  }
+  #banner {
+    position: fixed; top: 0; left: 0; right: 0; text-align: center;
+    font-size: 10px; letter-spacing: .22em; padding: 3px;
+    background: rgba(201,162,39,.14); color: var(--gold-400); pointer-events: none;
+  }
+  #fault {
+    position: fixed; inset: 0; display: none; place-items: center;
+    background: rgba(7,8,10,.94); color: var(--red); font-size: 15px;
+    text-align: center; padding: 40px; line-height: 1.7;
+  }
+  #fault.shown { display: grid; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="gl" width="1920" height="1080"></canvas></div>
+
+<!-- Unmissable, and deliberately so. This page must never be mistaken for the product. -->
+<div id="stamp">PLACEHOLDER</div>
+<div id="banner">PLACEHOLDER RUNTIME &middot; BLOCKOUT GEOMETRY &middot; NOT FINAL ARTWORK</div>
+
+<div id="hud">
+  <div class="panel" id="perf">
+    <h2>Renderer</h2>
+    <div class="row"><span>fps</span><span id="p-fps">—</span></div>
+    <div class="row"><span>fps p05</span><span id="p-p05">—</span></div>
+    <div class="row"><span>frame p95</span><span id="p-p95">—</span></div>
+    <div class="row"><span>dropped</span><span id="p-drop">0</span></div>
+    <div class="row"><span>draw calls</span><span id="p-draws">—</span></div>
+    <div class="row"><span>layers</span><span id="p-layers">—</span></div>
+    <div class="row"><span>gl memory</span><span id="p-mem">n/a</span></div>
+    <div class="row"><span>cap</span><span id="p-cap">30</span></div>
+    <div class="row"><span>socket</span><span id="p-sock">connecting</span></div>
+  </div>
+
+  <div class="panel" id="char">
+    <h2>Character</h2>
+    <div class="row"><span>state</span><span id="c-state">—</span></div>
+    <div class="row"><span>action</span><span id="c-action">—</span></div>
+    <div class="row"><span>chain</span><span id="c-chain">—</span></div>
+    <div class="row"><span>gaze</span><span id="c-gaze">—</span></div>
+    <div class="row"><span>blend</span><span id="c-blend">—</span></div>
+    <div class="row"><span>queue</span><span id="c-queue">0</span></div>
+    <div class="row"><span>fatigue</span><span id="c-fatigue">—</span></div>
+  </div>
+
+  <div class="panel" id="cam">
+    <h2>Camera</h2>
+    <div class="row"><span>live</span><span id="k-id">—</span></div>
+    <div class="row"><span>lens</span><span id="k-lens">—</span></div>
+    <div class="row"><span>held</span><span id="k-held">—</span></div>
+    <div class="row"><span>transition</span><span id="k-trans">—</span></div>
+    <div class="row"><span>parallax</span><span id="k-par">—</span></div>
+    <div class="row"><span>drift</span><span id="k-drift">—</span></div>
+  </div>
+
+  <div class="panel" id="market">
+    <h2>State</h2>
+    <div class="row"><span>symbol</span><span id="m-sym">—</span></div>
+    <div class="row"><span>band</span><span id="m-band">—</span></div>
+    <div class="row"><span>energy</span><span id="m-energy">—</span></div>
+    <div class="row"><span>bpm</span><span id="m-bpm">—</span></div>
+    <div class="row"><span>charts</span><span id="m-charts">—</span></div>
+    <div class="row"><span>station</span><span id="m-station">—</span></div>
+  </div>
+</div>
+
+<div id="fault"></div>
+<script src="app.js"></script>
+</body>
+</html>

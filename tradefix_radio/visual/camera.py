@@ -74,13 +74,16 @@ CAMERA_METADATA: Final[dict[str, CameraMetadata]] = {
         minimum_hold_seconds=50.0,
         maximum_hold_seconds=240.0,
         market_affinity=_affinity(
-            (B.B0_DORMANT, 1.3), (B.B1_QUIET, 1.2), (B.B2_STEADY, 1.0),
-            (B.B3_FOCUSED, 1.1), (B.B4_ALERT, 1.0), (B.B5_PEAK, 0.9),
+            (B.B0_DORMANT, 1.3), (B.B1_QUIET, 1.2), (B.B2_STEADY, 1.1),
+            (B.B3_FOCUSED, 1.1), (B.B4_ALERT, 1.1), (B.B5_PEAK, 1.0),
         ),
         behavior_affinity={CS.MARKET_REACTION: 1.4, CS.IDLE_FOCUS: 1.1},
         transition=TRANSITION_CUT,
         parallax_amplitude=0.008,
-        hour_share_cap=0.25,
+        # The home shot carries the largest share. Primacy is enforced by the camera
+        # director's return-to-master bias; this cap is what stops it becoming the
+        # *only* shot.
+        hour_share_cap=0.34,
         allows_push_in=True,
     ),
     "CAM_2": CameraMetadata(
@@ -158,19 +161,26 @@ CAMERA_METADATA: Final[dict[str, CameraMetadata]] = {
         minimum_hold_seconds=55.0,
         maximum_hold_seconds=300.0,
         market_affinity=_affinity(
-            (B.B0_DORMANT, 1.4), (B.B1_QUIET, 1.3), (B.B2_STEADY, 1.2),
-            (B.B3_FOCUSED, 1.2), (B.B4_ALERT, 1.1), (B.B5_PEAK, 1.0),
+            (B.B0_DORMANT, 1.3), (B.B1_QUIET, 1.2), (B.B2_STEADY, 1.1),
+            (B.B3_FOCUSED, 1.1), (B.B4_ALERT, 1.0), (B.B5_PEAK, 0.9),
         ),
         behavior_affinity={CS.IDLE_FOCUS: 1.3, CS.MARKET_REACTION: 1.3},
         transition=TRANSITION_CUT,
         parallax_amplitude=0.007,
-        hour_share_cap=0.35,
+        # The second hero. Generous, but below CAM_1 — the stream has one home shot, and
+        # two cameras with near-equal large shares is what makes a rotation visible.
+        hour_share_cap=0.24,
         allows_push_in=True,
     ),
 }
 
 #: The home shot. What should be on screen when someone arrives for the first time.
-DEFAULT_CAMERA: Final = "CAM_7"
+#:
+#: `CAM_1`, the hero front — the composition every plate is graded against
+#: (`CAMERA_PLAN.md` §3) and the one the brief requires to remain primary. The earlier
+#: choice of `CAM_7` made the three-quarter the home shot, which measured as `CAM_7`
+#: 22.1 % / `CAM_1` 15.9 % of airtime over two hours: a stream with no clear master.
+DEFAULT_CAMERA: Final = "CAM_1"
 
 
 @dataclass(slots=True)
@@ -236,11 +246,17 @@ def validate_metadata(blockout: Blockout) -> list[str]:
                 f"{camera_id}: minimum hold {meta.minimum_hold_seconds}s is below the "
                 "absolute 30s floor; no market condition justifies faster cutting"
             )
+        # Share caps are scheduling, not geometry, and `GEOMETRY_FREEZE.md` §5 declares
+        # them tunable. A cap recorded in the blockout therefore has to be rejected
+        # rather than cross-checked: cross-checking it meant every tuning pass had to
+        # edit the frozen artefact, which is how a freeze quietly stops meaning anything.
+        # CR-003 removed the one that existed.
         declared = blockout.cameras[camera_id].hour_share_cap
-        if declared is not None and abs(declared - meta.hour_share_cap) > 1e-6:
+        if declared is not None:
             problems.append(
-                f"{camera_id}: hour share cap {meta.hour_share_cap} disagrees with the "
-                f"blockout's {declared}"
+                f"{camera_id}: the blockout declares hour_share_cap {declared}. Share "
+                "caps are scheduling metadata and live in CAMERA_METADATA; the blockout "
+                "carries geometry only (GEOMETRY_FREEZE.md §5)"
             )
     for camera_id in blockout.cameras:
         if camera_id not in CAMERA_METADATA:

@@ -41,6 +41,7 @@ import structlog
 from tradefix_radio.core.clock import Clock, SystemClock
 from tradefix_radio.director.selection import Candidate, Constraint, WeightedSelector
 from tradefix_radio.visual.camera import CameraState
+from tradefix_radio.visual.camera_director import ActionView, CameraDecision, CameraDirector
 from tradefix_radio.visual.catalog import (
     AMPLITUDE_JITTER,
     CATALOG,
@@ -229,12 +230,16 @@ class DirectorOutput:
     actions: list[CharacterActionV1] = field(default_factory=list)
     gaze_shifts: list[GazeShiftV1] = field(default_factory=list)
     state_changed: CharacterState | None = None
+    #: Set when the camera director cut this tick.
+    camera_cut: CameraDecision | None = None
     #: Human-readable notes for the debug timeline.
     notes: list[str] = field(default_factory=list)
 
     @property
     def is_empty(self) -> bool:
-        return not (self.actions or self.gaze_shifts or self.state_changed)
+        return not (
+            self.actions or self.gaze_shifts or self.state_changed or self.camera_cut
+        )
 
 
 @dataclass
@@ -278,6 +283,7 @@ class BehaviorDirector:
         market_reactivity: float = 1.0,
         music_reactivity: float = 1.0,
         visual_energy: float = 1.0,
+        camera_auto: bool = True,
     ) -> None:
         self._geometry = blockout or default_blockout()
         self._clock: Clock = clock or SystemClock()
@@ -301,6 +307,12 @@ class BehaviorDirector:
         self.gaze = GazeDirector(self._geometry, self._rng)
         self.blink = BlinkDriver()
         self.camera = CameraState()
+        #: V8. Behavioural camera selection — motivations, safety vetoes, anti-repetition.
+        self.camera_director = CameraDirector(
+            rng=self._rng, state=self.camera, auto=camera_auto
+        )
+        #: The last camera decision, for the control page and the soak.
+        self.last_camera_decision: CameraDecision | None = None
 
         self.character_state = CharacterState.IDLE_FOCUS
         self._state_until = 0.0
@@ -394,6 +406,7 @@ class BehaviorDirector:
 
         self._drive_gaze(now, at, state, out)
         self._drive_blink(now, at, out)
+        self._drive_camera(now, state, out)
         return out
 
     def advance_to(self, state: VisualStateV1, seconds: float) -> list[DirectorOutput]:
@@ -1019,6 +1032,39 @@ class BehaviorDirector:
         # Blinks are reflexes and are deliberately kept out of the action history: they
         # would otherwise dominate every window and swamp the anti-repetition signal
         # that exists to police deliberate behaviour.
+
+    # ================================================== camera
+
+    def _drive_camera(self, now: float, state: VisualStateV1, out: DirectorOutput) -> None:
+        """Let the camera director decide, last in the tick.
+
+        Last on purpose: it reads the behaviour that has already been settled this tick,
+        so a cut cannot be chosen against an action the director is about to replace.
+        """
+        if not self.camera.auto:
+            self.last_camera_decision = None
+            return
+        decision = self.camera_director.tick(
+            now=now,
+            state=state,
+            character_state=self.character_state,
+            running=tuple(
+                ActionView(
+                    action=entry.action,
+                    started_monotonic=entry.ends_monotonic
+                    - entry.action.total_ms / 1000.0,
+                    ends_monotonic=entry.ends_monotonic,
+                )
+                for entry in self._running
+            ),
+            chain_id=self._chain.chain.chain_id if self._chain else None,
+            chain_step=self._chain.step if self._chain else None,
+            chain_committed=bool(self._chain and self._chain.committed),
+        )
+        self.last_camera_decision = decision
+        if decision.changed:
+            out.camera_cut = decision
+            out.notes.append(f"camera {decision.camera_id}: {decision.reason}")
 
     # ================================================== bookkeeping
 

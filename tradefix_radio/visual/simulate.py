@@ -32,6 +32,14 @@ from datetime import datetime
 from typing import Final
 
 from tradefix_radio.core.clock import UTC, VirtualClock
+from tradefix_radio.visual.camera import CAMERA_METADATA
+from tradefix_radio.visual.camera_director import (
+    ACQUISITION_STEPS,
+    DOUBLE_CUT_WINDOW,
+    MINIMUM_HOLD_FLOOR,
+    CameraDecision,
+    CameraSoakReport,
+)
 from tradefix_radio.visual.catalog import (
     CATALOG,
     CHAINS,
@@ -246,6 +254,9 @@ class SimulationReport:
     posture_during_chain: list[str] = field(default_factory=list)
     posture_during_reaction: list[str] = field(default_factory=list)
 
+    # -- V8 camera director
+    camera: CameraSoakReport = field(default_factory=CameraSoakReport)
+
     # -- the two structural invariants. Both must be zero.
     lock_violations: list[str] = field(default_factory=list)
     overlap_violations: list[str] = field(default_factory=list)
@@ -353,7 +364,13 @@ class SimulationReport:
 
     @property
     def is_structurally_sound(self) -> bool:
-        """Whether every invariant held. A `False` here is a bug, not a tuning note."""
+        """Whether every invariant held. A `False` here is a bug, not a tuning note.
+
+        Camera safety is included deliberately. A cut taken mid-blend or during an object
+        acquisition is a visible pose pop on a public stream — the same class of defect as
+        a lock violation, and it should fail the run rather than appear as a line a reader
+        might skim past.
+        """
         return not (
             self.lock_violations
             or self.overlap_violations
@@ -361,6 +378,8 @@ class SimulationReport:
             or self.unreachable_anchors
             or self.unknown_gaze_targets
             or self.cooldown_violations
+            or self.camera.unsafe_cuts
+            or self.camera.cam6_without_interaction
         )
 
     @property
@@ -431,6 +450,47 @@ class SimulationReport:
         for name, count in self.category_counts.most_common():
             bar = "#" * max(1, round(40 * count / total))
             lines.append(f"  {name:<11} {count / total * 100:5.1f} %  {count:>6,}  {bar}")
+
+        lines += ["", "-- camera"]
+        camera = self.camera
+        lines += [
+            f"cuts               {camera.cuts} ({camera.cuts_per_hour:.2f} / h)",
+            f"holds              {camera.min_hold:.0f} / {camera.median_hold:.0f} / "
+            f"{camera.max_hold:.0f} s  (min / median / max)",
+            f"mean hold          {camera.mean_hold:.0f} s",
+        ]
+        for camera_id, share in sorted(
+            camera.camera_shares.items(), key=lambda item: -item[1]
+        ):
+            bar = "#" * max(1, round(30 * share))
+            cuts = camera.camera_counts.get(camera_id, 0)
+            lines.append(
+                f"  {camera_id:<9} {share * 100:5.1f} % of airtime  {cuts:>4} cuts  {bar}"
+            )
+        def ranked(counts: dict[str, int], limit: int | None = None) -> str:
+            ordered = sorted(counts.items(), key=lambda item: -item[1])
+            return ", ".join(f"{name} {count}" for name, count in ordered[:limit])
+
+        if camera.motivation_counts:
+            lines.append(f"motivations        {ranked(camera.motivation_counts)}")
+        if camera.transition_counts:
+            lines.append(f"transitions        {ranked(camera.transition_counts)}")
+        if camera.veto_counts:
+            lines.append(f"top vetoes         {ranked(camera.veto_counts, 4)}")
+        lines += [
+            f"action visibility  {camera.action_visibility * 100:.1f} % of action time "
+            f"on a camera that shows it",
+            f"state alignment    {camera.state_alignment * 100:.1f} %",
+            f"top 3-cut run      {camera.top_sequence_share * 100:.2f} % "
+            f"(deterministic rotation shows up here)",
+            f"A-B alternations   {camera.alternations}",
+            f"unsafe cuts        {len(camera.unsafe_cuts)}"
+            + ("" if not camera.unsafe_cuts else "  <-- INVESTIGATE"),
+            f"CAM_6 unmotivated  {len(camera.cam6_without_interaction)}",
+            f"camera safe?       {'yes' if camera.is_safe else 'NO - INVESTIGATE'}",
+        ]
+        for failure in camera.unsafe_cuts[:5]:
+            lines.append(f"      {failure}")
 
         lines += ["", "-- repetition"]
         if self.top_trigram:
@@ -542,6 +602,11 @@ class BehaviorSimulator:
         in_flight: dict[str, tuple[frozenset[InteractionLock], float]] = {}
         armed_cooldowns: dict[str, float] = {}
 
+        report.camera.duration_seconds = duration_seconds
+        camera_since = 0.0
+        camera_live = director.camera.camera_id
+        report.camera.camera_sequence.append(camera_live)
+
         elapsed = 0.0
         while elapsed < duration_seconds:
             now = self._clock.monotonic()
@@ -593,6 +658,37 @@ class BehaviorSimulator:
                         f"EXECUTING entered from {before.value}; permitted: {permitted}"
                     )
 
+            if output.camera_cut is not None:
+                decision = output.camera_cut
+                held = now - camera_since
+                report.camera.cuts += 1
+                report.camera.holds.append(held)
+                report.camera.camera_time[camera_live] = (
+                    report.camera.camera_time.get(camera_live, 0.0) + held
+                )
+                report.camera.camera_counts[decision.camera_id] = (
+                    report.camera.camera_counts.get(decision.camera_id, 0) + 1
+                )
+                report.camera.camera_sequence.append(decision.camera_id)
+                report.camera.transition_counts[decision.transition] = (
+                    report.camera.transition_counts.get(decision.transition, 0) + 1
+                )
+                if decision.motivation is not None:
+                    key = decision.motivation.value
+                    report.camera.motivation_counts[key] = (
+                        report.camera.motivation_counts.get(key, 0) + 1
+                    )
+                self._audit_cut(report, director, decision, held, now)
+                camera_since = now
+                camera_live = decision.camera_id
+            elif director.last_camera_decision is not None:
+                for reason in director.last_camera_decision.vetoes.values():
+                    report.camera.veto_counts[reason] = (
+                        report.camera.veto_counts.get(reason, 0) + 1
+                    )
+
+            self._audit_visibility(report, director, self._tick_seconds)
+
             for note in output.notes:
                 if note.startswith("chain complete "):
                     report.chains_completed[note.removeprefix("chain complete ")] += 1
@@ -614,8 +710,95 @@ class BehaviorSimulator:
             self._clock.advance_sync(self._tick_seconds)
             elapsed += self._tick_seconds
 
+        # Credit the final, unterminated hold so the shares add up.
+        final_hold = self._clock.monotonic() - camera_since
+        report.camera.camera_time[camera_live] = (
+            report.camera.camera_time.get(camera_live, 0.0) + final_hold
+        )
         self._finalise(report, trigrams, energy_sum)
         return report
+
+    def _audit_cut(
+        self,
+        report: SimulationReport,
+        director: BehaviorDirector,
+        decision: CameraDecision,
+        held: float,
+        now: float,
+    ) -> None:
+        """Check every cut against the safety rules that must never be broken.
+
+        Audited independently of the director's own vetoes on purpose: a test that asks
+        the director whether it obeyed itself proves nothing. These re-derive the
+        conditions from the state the cut was made in.
+        """
+        camera = report.camera
+        if held < MINIMUM_HOLD_FLOOR - 1e-6:
+            camera.unsafe_cuts.append(
+                f"{decision.camera_id} after {held:.1f}s, below the "
+                f"{MINIMUM_HOLD_FLOOR:.0f}s floor"
+            )
+        if len(camera.holds) >= 2 and camera.holds[-1] < DOUBLE_CUT_WINDOW - 1e-6:
+            camera.unsafe_cuts.append(
+                f"second cut inside {DOUBLE_CUT_WINDOW:.0f}s ({camera.holds[-1]:.1f}s)"
+            )
+        if decision.camera_id == "CAM_6":
+            chain = director._chain
+            anchored = any(
+                entry.action.anchor is not None for entry in director._running
+            )
+            if chain is None and not anchored:
+                camera.cam6_without_interaction.append(
+                    f"CAM_6 cut at {now:.0f}s with no desk interaction"
+                )
+        chain = director._chain
+        if chain is not None and chain.step < chain.chain.length:
+            step_id = chain.chain.steps[chain.step]
+            if step_id in ACQUISITION_STEPS:
+                camera.unsafe_cuts.append(
+                    f"cut to {decision.camera_id} during {step_id}"
+                )
+
+    #: An action must last this long, or belong to a chain, before being off-camera is
+    #: something a viewer would notice.
+    VISIBILITY_THRESHOLD_MS = 2_000
+
+    def _audit_visibility(
+        self, report: SimulationReport, director: BehaviorDirector, dt: float
+    ) -> None:
+        """Accumulate two visibility measures. The second is the meaningful one.
+
+        **State alignment** asks whether the live camera favours the current character
+        state. States last 10-70 seconds, which a 130-second hold can track, so
+        `behavior_affinity` is the mechanism that actually steers framing.
+
+        **Action visibility** asks the same of the momentary action, restricted to
+        notable ones — longer than two seconds, or part of a chain. It is expected to be
+        low and that is not a defect: a long hold cannot follow a quarter-second mouse
+        click, and a camera that tried would be the music-video cutting the brief rules
+        out. Reported because it was asked for.
+        """
+        live = director.camera.camera_id
+        if CAMERA_METADATA[live].behavior_affinity.get(director.character_state, 1.0) > 1.0:
+            report.camera.aligned_state_seconds += dt
+        else:
+            report.camera.misaligned_state_seconds += dt
+
+        for entry in director._running:
+            action = entry.action
+            notable = (
+                action.chain_id is not None
+                or action.duration_ms >= self.VISIBILITY_THRESHOLD_MS
+            )
+            if not notable:
+                continue
+            affinity = spec(action.action_id).camera_affinity
+            if not affinity:
+                continue
+            if live in affinity:
+                report.camera.visible_action_seconds += dt
+            else:
+                report.camera.invisible_action_seconds += dt
 
     # -- per-action bookkeeping -------------------------------------------
 

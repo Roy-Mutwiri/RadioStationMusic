@@ -154,6 +154,48 @@ pen and notebook (2 480), mouse (2 720), keyboard (3 200), mug (3 760), stream p
 `test_cam_6_frames_every_interactive_prop` and
 `test_camera_frame_widths_match_their_lenses`.
 
+### CR-003 — scheduling metadata removed from the blockout; `CAM_1` is the home shot
+
+**Date:** 2026-10-03, during V8.
+
+**Reason.** Two problems, one of which caused the other.
+
+The acceptance criterion is that `CAM_1` remain primary. It did not: over two hours of
+`breakout` the airtime split `CAM_7` 22.1 %, `CAM_3` 19.8 %, `CAM_1` 15.9 %. `CAM_1` was
+third.
+
+The cause traced back into this file. The blockout's `CAM_7` entry carried
+`"hour_share_cap": 0.35` and a `composition` string beginning "PRIMARY STREAM CAMERA and
+the default". Both are **scheduling claims living in the geometry file**, and §5 of this
+document explicitly declares share caps tunable. So the frozen artefact asserted a
+scheduling decision that the freeze was not supposed to govern, `validate_metadata`
+cross-checked the code against it, and the result was that changing a value declared
+tunable required editing the frozen file — which is how a freeze quietly stops meaning
+anything.
+
+**Changes:**
+
+- `CAM_7`: `hour_share_cap` field **removed**. Its `composition` prose no longer claims
+  primacy; it is described as the second hero shot.
+- `CAM_1`: `composition` prose now records that it is the home shot and the default, which
+  it already was as the reference composition every plate is graded against.
+- `validate_metadata` now **rejects** any blockout that declares `hour_share_cap` at all,
+  rather than cross-checking it. The rule is enforced instead of merely documented.
+
+**No geometry changed.** Not one position, target, lens, FOV, distance, frame size or
+bezel clearance. This CR edits two prose strings and deletes one field that should never
+have been in a geometry file.
+
+**Affected cameras:** `CAM_1` and `CAM_7` in prose only. The scheduling change that
+follows from it — `CAM_1`'s cap 0.25 → 0.34, `CAM_7`'s 0.35 → 0.24, and primacy
+re-expressed as a return-to-master bias rather than a flat multiplier — lives in
+`camera.py` and `camera_director.py` and is **not** part of this CR, because §5 puts it
+outside the freeze. It is recorded in `CAMERA_PLAN.md` §3 and §5 and measured in
+`V8_REPORT.md` §B.2.
+
+**Validator rerun:** 17 passed. `CAM_1` holds the largest airtime share at 2 h, 8 h and
+24 h on `breakout` and on `quiet`, with zero unsafe cuts.
+
 ---
 
 ## 5. What is *not* frozen
@@ -164,8 +206,11 @@ Deliberately left open, because these are tuning rather than geometry:
   `tradefix_radio/visual/catalog.py` and are expected to be tuned against soak results.
   Several already have been; see `V6_REPORT.md` §4.
 - **Band profiles** — rate, blend scale, reaction threshold, idle share, dwell scale.
-- **Camera scheduling metadata** — hold times, affinities, share caps. The camera
-  *transforms* are frozen; when the camera director chooses between them is not.
+- **Camera scheduling metadata** — hold times, affinities, share caps, which camera is
+  primary. The camera *transforms* are frozen; when the camera director chooses between
+  them is not. These live in `CAMERA_METADATA` and `camera_director.py`, and the blockout
+  must not carry them — `validate_metadata` rejects a blockout that declares a share cap,
+  for the reason recorded in CR-003.
 - **The asset manifest's per-plate layer stacks** beyond the hero camera. Only `CAM_1`'s
   stack is enumerated; the other six derive from the same room and the same depth rule,
   and enumerating them before the hero plate is accepted would be guessing at

@@ -1,11 +1,13 @@
 """``tradefix visual`` — behaviour simulation, asset manifest, and self-checks.
 
-Four subcommands, all of which run **without artwork and without the station**:
+Six subcommands. The first four run **without artwork and without the station**:
 
-    tradefix visual simulate   run the behaviour director for simulated hours
-    tradefix visual timeline    print a human-readable action timeline
-    tradefix visual manifest    show or write the art asset contract
-    tradefix visual doctor      validate the catalogue against frozen V1 geometry
+    tradefix visual simulate    run the behaviour director for simulated hours
+    tradefix visual timeline     print a human-readable action timeline
+    tradefix visual manifest     show or write the art asset contract
+    tradefix visual doctor       validate the catalogue against frozen V1 geometry
+    tradefix visual serve        serve the placeholder renderer and push commands
+    tradefix visual benchmark    measure what a browser reports rendering it
 
 ``simulate`` is the one that matters. It is the whole argument for the director living
 in Python: a 24-hour behavioural soak that completes in minutes, is reproducible from a
@@ -15,11 +17,15 @@ seed, and prints numbers a human can argue with.
 from __future__ import annotations
 
 import argparse
+import asyncio
+import contextlib
 import json
+from pathlib import Path
 from typing import Any
 
 from tradefix_radio.config.schema import AppSettings
 from tradefix_radio.visual.assets import AssetManifest, manifest_path, write_manifest
+from tradefix_radio.visual.bridge import StationLink, default_station_url
 from tradefix_radio.visual.camera import validate_metadata
 from tradefix_radio.visual.catalog import (
     CATALOG,
@@ -30,6 +36,14 @@ from tradefix_radio.visual.catalog import (
 from tradefix_radio.visual.contracts import ActionCategory
 from tradefix_radio.visual.director import TICK_SECONDS
 from tradefix_radio.visual.geometry import default_blockout, load_blockout
+from tradefix_radio.visual.scene import frame_workload
+from tradefix_radio.visual.service import (
+    DEFAULT_PORT,
+    RUNTIME_DIR,
+    VisualRuntime,
+    create_app,
+    runtime_url,
+)
 from tradefix_radio.visual.simulate import DURATIONS, SCENARIOS, run_scenario
 
 
@@ -95,6 +109,43 @@ def register(subparsers: Any) -> None:
     )
     doctor.add_argument("--blockout", default=None, help="path to an alternative blockout")
 
+    serve = inner.add_parser(
+        "serve", help="run the visual process and the placeholder renderer"
+    )
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=DEFAULT_PORT)
+    serve.add_argument(
+        "--scenario", default=None, choices=sorted(SCENARIOS),
+        help=(
+            "drive the director from a simulated scenario instead of the station. "
+            "Every simulated frame is badged, so a test mode cannot be streamed by "
+            "accident"
+        ),
+    )
+    serve.add_argument("--seed", type=int, default=None, help="RNG seed; makes a run reproducible")
+    serve.add_argument(
+        "--station", default=None, metavar="URL",
+        help=f"station WebSocket (default {default_station_url()})",
+    )
+
+    benchmark = inner.add_parser(
+        "benchmark",
+        help="serve the runtime, then summarise the frame timings a browser reports",
+    )
+    benchmark.add_argument("--host", default="127.0.0.1")
+    benchmark.add_argument("--port", type=int, default=DEFAULT_PORT)
+    benchmark.add_argument("--scenario", default="breakout", choices=sorted(SCENARIOS))
+    benchmark.add_argument("--seed", type=int, default=7)
+    benchmark.add_argument(
+        "--fps", type=int, default=30, choices=(30, 60),
+        help="frame cap to measure; run it twice, once at each, and compare",
+    )
+    benchmark.add_argument(
+        "--seconds", type=float, default=120.0,
+        help="how long to collect once a renderer connects",
+    )
+    benchmark.add_argument("--json", type=Path, default=None, help="write the summary here")
+
 
 async def command(args: argparse.Namespace, _settings: AppSettings) -> int:
     """Dispatch. Settings are accepted for CLI symmetry; the visual layer reads none.
@@ -102,6 +153,10 @@ async def command(args: argparse.Namespace, _settings: AppSettings) -> int:
     That is not an oversight — the visual layer is a read-only consumer with no station
     configuration of its own, and taking settings it ignores keeps it honest about that.
     """
+    if args.visual_command == "serve":
+        return await _serve(args)
+    if args.visual_command == "benchmark":
+        return await _benchmark(args)
     handler = {
         "simulate": _simulate,
         "timeline": _timeline,
@@ -202,6 +257,52 @@ def _report_json(report: Any) -> dict[str, Any]:
             "back_to_back_repeats": report.back_to_back_repeats,
             "has_visible_loop": report.has_visible_loop,
         },
+        "rhythm": {
+            "min": round(report.fatigue_min, 4),
+            "max": round(report.fatigue_max, 4),
+            "mean": round(report.fatigue_mean, 4),
+            "cycles": report.fatigue_cycles,
+            "cycle_durations_hours": report.cycle_durations_hours,
+            "turning_points": report.fatigue_turning_points,
+            "time_near_floor": round(report.fatigue_time_near_floor, 4),
+            "time_near_ceiling": round(report.fatigue_time_near_ceiling, 4),
+            "pinned_ceiling": report.fatigue_pinned_ceiling,
+            "pinned_floor": report.fatigue_pinned_floor,
+            "phase_shares": report.work_phase_shares,
+        },
+        "posture": {
+            "major_total": report.posture_major_total,
+            "major_per_hour": round(report.posture_major_total / max(1e-9, report.hours), 3),
+            "minor_total": report.posture_minor_total,
+            "minor_per_hour": round(report.posture_minor_total / max(1e-9, report.hours), 3),
+            "during_chain": report.posture_during_chain,
+            "during_reaction": report.posture_during_reaction,
+        },
+        "camera": {
+            "cuts": report.camera.cuts,
+            "cuts_per_hour": round(report.camera.cuts_per_hour, 3),
+            "hold_seconds": {
+                "min": round(report.camera.min_hold, 1),
+                "median": round(report.camera.median_hold, 1),
+                "mean": round(report.camera.mean_hold, 1),
+                "max": round(report.camera.max_hold, 1),
+            },
+            "airtime_shares": {
+                camera_id: round(share, 4)
+                for camera_id, share in report.camera.camera_shares.items()
+            },
+            "cut_counts": dict(report.camera.camera_counts),
+            "motivations": dict(report.camera.motivation_counts),
+            "transitions": dict(report.camera.transition_counts),
+            "vetoes": dict(report.camera.veto_counts),
+            "action_visibility": round(report.camera.action_visibility, 4),
+            "state_alignment": round(report.camera.state_alignment, 4),
+            "top_sequence_share": round(report.camera.top_sequence_share, 5),
+            "alternations": report.camera.alternations,
+            "unsafe_cuts": report.camera.unsafe_cuts,
+            "cam6_without_interaction": report.camera.cam6_without_interaction,
+            "safe": report.camera.is_safe,
+        },
         "invariants": {
             "lock_violations": report.lock_violations,
             "overlap_violations": report.overlap_violations,
@@ -209,6 +310,7 @@ def _report_json(report: Any) -> dict[str, Any]:
             "unreachable_anchors": report.unreachable_anchors,
             "unknown_gaze_targets": report.unknown_gaze_targets,
             "cooldown_violations": report.cooldown_violations,
+            "unsafe_cuts": report.camera.unsafe_cuts,
             "structurally_sound": report.is_structurally_sound,
         },
     }
@@ -331,6 +433,116 @@ def _doctor(args: argparse.Namespace) -> int:
             print(f"    {problem}")
         return 1
     print("  catalogue, cameras and asset manifest all agree with frozen V1 geometry")
+    return 0
+
+
+# ------------------------------------------------------------------ serve
+
+
+async def _serve(args: argparse.Namespace) -> int:
+    """Run the visual process. Serves the placeholder renderer and pushes commands."""
+    import uvicorn  # noqa: PLC0415 - only this path needs a server
+
+    if not RUNTIME_DIR.is_dir():
+        print(f"  runtime not found at {RUNTIME_DIR}")
+        return 1
+
+    runtime = VisualRuntime(
+        seed=args.seed,
+        scenario=args.scenario,
+        station_url=args.station or default_station_url(),
+    )
+    # The station link only runs in live mode. In scenario mode the visual layer is
+    # entirely self-contained, which is what lets the renderer be verified with no
+    # station running at all.
+    #
+    # Attached to the runtime rather than registered as an `on_event` handler: FastAPI
+    # ignores `on_event` entirely when an explicit `lifespan` is passed, so the link
+    # would have been created and never started.
+    if args.scenario is None:
+        runtime.link = StationLink(url=runtime.station_url, bridge=runtime.bridge)
+
+    app = create_app(runtime)
+
+    print(f"  visual runtime      {runtime_url(args.host, args.port)}")
+    print(f"  mode                {'simulated: ' + args.scenario if args.scenario else 'live'}")
+    if args.scenario is None:
+        print(f"  station socket      {runtime.station_url} (read-only)")
+    print(f"  OBS browser source  {runtime_url(args.host, args.port)} at 1920x1080")
+    print("  debug overlay       add ?debug=1   HUD off: ?hud=0   60 fps: ?fps=60")
+    print()
+
+    config = uvicorn.Config(
+        app, host=args.host, port=args.port, log_level="info", access_log=False
+    )
+    await uvicorn.Server(config).serve()
+    return 0
+
+
+# ------------------------------------------------------------------ benchmark
+
+
+async def _benchmark(args: argparse.Namespace) -> int:
+    """Measure the renderer's cost. Needs a browser; this command drives everything else.
+
+    The GPU figures cannot be obtained from Python — no headless process on this machine
+    has a GPU context — so this serves the runtime, waits for a browser to attach, and
+    reports what the renderer itself measured. Run it once at `--fps 30` and once at
+    `--fps 60`, then compare: ADR-10 prefers 30 if the picture holds, because ACE-Step
+    owns this GPU and the visual layer is the tenant.
+    """
+    import uvicorn  # noqa: PLC0415 - only this path needs a server
+
+    runtime = VisualRuntime(seed=args.seed, scenario=args.scenario)
+    app = create_app(runtime)
+    url = f"{runtime_url(args.host, args.port)}?fps={args.fps}&hud=1"
+
+    config = uvicorn.Config(
+        app, host=args.host, port=args.port, log_level="warning", access_log=False
+    )
+    server = uvicorn.Server(config)
+    serving = asyncio.create_task(server.serve())
+
+    print(f"  open this in Chrome or an OBS browser source at 1920x1080:\n\n    {url}\n")
+    print(f"  collecting for {args.seconds:g}s once it connects. Alongside it, read")
+    print("  GPU and VRAM from Task Manager > Performance > GPU, or OBS > View > Stats —")
+    print("  a renderer cannot measure the GPU it is running on.\n")
+
+    try:
+        waited = 0.0
+        while not runtime.benchmark().get("samples") and waited < 300.0:
+            await asyncio.sleep(1.0)
+            waited += 1.0
+        if not runtime.benchmark().get("samples"):
+            print("  no renderer connected within 5 minutes; nothing measured")
+            return 1
+
+        print("  renderer attached; collecting")
+        await asyncio.sleep(args.seconds)
+        summary = runtime.benchmark()
+    finally:
+        server.should_exit = True
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await serving
+
+    summary["fps_cap"] = args.fps
+    summary["derived_frame_workload"] = frame_workload()
+
+    print(f"\n  fps cap             {args.fps}")
+    print(f"  samples             {summary['samples']}")
+    print(f"  frames rendered     {summary['frames_rendered']}")
+    for key in ("fps_mean", "fps_p05", "frame_time_p95_ms", "gl_memory_mb"):
+        spread = summary[key]
+        print(
+            f"  {key:<19} min {spread['min']:<9} mean {spread['mean']:<9} "
+            f"p95 {spread['p95']:<9} max {spread['max']}"
+        )
+    print(f"  dropped frames      {summary['dropped_frames']}")
+    print(f"  quality profile     {summary['profile']}")
+
+    if args.json:
+        args.json.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        print(f"\n  wrote {args.json}")
     return 0
 
 

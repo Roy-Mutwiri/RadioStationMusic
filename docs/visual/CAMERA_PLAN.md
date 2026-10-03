@@ -161,13 +161,19 @@ mid-sequence and locked**, never as a cut into idle hands.
 
 ### CAM 7 — Three-quarter cinematic
 
-The primary stream camera and the default. From the south-east, slightly high and angled down
-4.5°.
+The second hero shot. From the south-east, slightly high and angled down 4.5°.
 
 Frame 2 025 × 1 139 mm. Three-quarter view of his face toward screen-left, body angled, window
 and city behind, `MON_4` near camera on the right providing a soft out-of-focus foreground glow.
-The watch reads on his left wrist. This is the composition that should be on screen when
-someone arrives on the stream for the first time, and it holds longest.
+The watch reads on his left wrist. It holds as long as `CAM_1` and is the natural alternative
+when the hero front has just been used.
+
+> **Revised.** This section previously named `CAM_7` the primary camera and the default. It is
+> not: `CAM_1` is. Measured over two hours of `breakout`, `CAM_7` took 22.1 % of airtime against
+> `CAM_1`'s 15.9 %, with `CAM_3` at 19.8 % between them — three cameras within seven points of
+> each other is a stream with no master shot, and it failed the acceptance criterion that `CAM_1`
+> remain primary. Camera scheduling metadata is explicitly not frozen (`GEOMETRY_FREEZE.md` §5),
+> so this needed no change request. See §5 for how primacy is now expressed.
 
 ### Why all seven work from one set
 
@@ -252,17 +258,29 @@ risk.
 
 | Shot | Max single hold | Max share of any rolling hour | Min gap before reuse |
 |---|---|---|---|
-| `CAM_1` | 240 s | 25 % | 2 shots |
+| `CAM_1` | 240 s | **34 %** | 1 shot |
 | `CAM_2` | 200 s | 15 % | 2 shots |
 | `CAM_3` | 150 s | 20 % | 2 shots |
 | `CAM_4` | **75 s** | **8 %** | **4 shots** |
 | `CAM_5` | 300 s | 18 % | 3 shots |
 | `CAM_6` | **50 s** | **6 %** | **5 shots** |
-| `CAM_7` | 300 s | **35 %** | 1 shot |
+| `CAM_7` | 300 s | 24 % | 2 shots |
 
-`CAM_7` is the home shot and is allowed the largest share; the stream should feel like it has a
+`CAM_1` is the home shot and is allowed the largest share; the stream should feel like it has a
 primary camera it returns to. `CAM_4` and `CAM_6` are the intimate and the risky one, and both
 are rationed.
+
+**Primacy is a return bias, not a weight.** A flat multiplier on the home shot — which is what
+the first implementation used — makes it win nearly every contest it enters, and the stream stops
+exploring. Instead `CAM_1`'s pull is zero while it is live or just left, and grows with time away
+from it, reaching 2.6× after 420 s (`HOME_RETURN_SECONDS`, `HOME_BIAS_MAX`). The effect is that
+the stream is free to go and look at something and then comes back, which is what a master shot
+is. It also composes correctly with the family penalty: `CAM_1 → CAM_7 → CAM_1` is still
+discouraged as three hero shots running, but a return after several minutes elsewhere is not.
+
+The share cap is what keeps `CAM_1` near its ceiling rather than pinned at it: the bias argues
+for going home, the cap argues against going home too often, and the measured share settles
+between them.
 
 ### Selection
 

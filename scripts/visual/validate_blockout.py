@@ -16,8 +16,11 @@ shoulder = (3200.0, 3000.0, 1080.0)
 bez = b["validation"]["bezel_plane"]
 BY, BZ = float(bez["y"]), float(bez["z"])
 FACE_EXEMPT = {"CAM_6"}          # desk-surface shot; target below the bezel by design
-YAW_LIMIT = b["gaze_rules"]["yaw_limit_degrees"]
-PITCH_LO, PITCH_HI = b["gaze_rules"]["pitch_limits_degrees"]
+# Participation tiers, keyed by id. CR-001 replaced the flat yaw/pitch limits with these;
+# this script still read `gaze_rules.yaw_limit_degrees` and so crashed on import from that
+# point on. It had been dead ever since — the freeze tests carried the enforcement, which
+# is why nothing noticed. Check 4 below is rewritten against the tier model.
+TIERS = {t["id"]: t for t in b["gaze_rules"]["participation_model"]["tiers"]}
 
 # --- 1. derived monitor heights
 cz = b["monitors"]["common"]["centre_z"]
@@ -69,8 +72,12 @@ for a in b["anchors"]:
     if dist > REACH:
         fails.append(f"{a['id']} at {dist:.0f} mm exceeds reach {REACH} mm")
 
-# --- 4. gaze targets within head range
-print(f"\n[4] gaze target angles from the eye (yaw +-{YAW_LIMIT}, pitch {PITCH_LO}..{PITCH_HI}):")
+# --- 4. every gaze target's angle fits the participation it declares
+#
+# The check is on the DECLARATION, not on the angle. A large angle is fine when the right
+# body parts are declared to reach it; what is not fine is a target claiming "eyes only"
+# for an angle that needs a shoulder turn. That is the whole point of CR-001.
+print("\n[4] gaze target angles against their declared participation tier:")
 for g in b["gaze_targets"]:
     pos = g["position"]
     if not isinstance(pos, dict):
@@ -80,15 +87,43 @@ for g in b["gaze_targets"]:
     # neutral facing is -Y; yaw measured off that axis
     yaw = math.degrees(math.atan2(dx, -dy))
     pitch = math.degrees(math.atan2(dz, math.hypot(dx, dy)))
-    inrange = abs(yaw) <= YAW_LIMIT and PITCH_LO <= pitch <= PITCH_HI
-    if g.get("requires_torso_turn"):
-        print(f"    {g['id']:<32} yaw {yaw:+7.1f}  pitch {pitch:+6.1f}  [exempt: torso turn]")
+
+    declared = g.get("participation")
+    if declared is None:
+        print(f"    {g['id']:<32} yaw {yaw:+7.1f}  pitch {pitch:+6.1f}  [NO TIER]")
+        fails.append(f"{g['id']} declares no participation tier")
         continue
-    ok = "OK " if inrange else "FAIL"
-    part = "eyes" if abs(yaw) < 10 else "head" if abs(yaw) < 45 else "shoulders" if abs(yaw) < 70 else "torso"
-    print(f"    {g['id']:<32} yaw {yaw:+7.1f}  pitch {pitch:+6.1f}  {part:<9} [{ok}]")
-    if not inrange:
-        fails.append(f"{g['id']} outside head range (yaw {yaw:+.1f}, pitch {pitch:+.1f})")
+    tier = TIERS.get(declared)
+    if tier is None:
+        print(f"    {g['id']:<32} yaw {yaw:+7.1f}  pitch {pitch:+6.1f}  [UNKNOWN {declared}]")
+        fails.append(f"{g['id']} declares unknown tier {declared!r}")
+        continue
+
+    fits = abs(yaw) <= tier["max_abs_yaw"] and abs(pitch) <= tier["max_abs_pitch"]
+    ok = "OK " if fits else "FAIL"
+    print(
+        f"    {g['id']:<32} yaw {yaw:+7.1f}  pitch {pitch:+6.1f}  "
+        f"{declared:<18} (<={tier['max_abs_yaw']}, <={tier['max_abs_pitch']}) [{ok}]"
+    )
+    if not fits:
+        fails.append(
+            f"{g['id']} declares {declared!r} (yaw <={tier['max_abs_yaw']}, "
+            f"pitch <={tier['max_abs_pitch']}) but sits at yaw {yaw:+.1f}, "
+            f"pitch {pitch:+.1f} — declare a wider tier or move the target"
+        )
+
+# --- 4b. no camera may carry scheduling metadata. CR-003.
+print("\n[4b] cameras carry geometry only:")
+for c in b["cameras"]:
+    scheduling = [k for k in ("hour_share_cap", "minimum_hold_seconds",
+                              "maximum_hold_seconds", "market_affinity") if k in c]
+    if scheduling:
+        print(f"    {c['id']}: carries {', '.join(scheduling)}  [FAIL]")
+        fails.append(
+            f"{c['id']} declares scheduling metadata {scheduling}; that lives in "
+            "CAMERA_METADATA (GEOMETRY_FREEZE.md §5, CR-003)"
+        )
+print(f"    {len(b['cameras'])} cameras checked")
 
 # --- 5. default gaze pitch claim
 m1 = next(g for g in b["gaze_targets"] if g["id"] == "GAZE_MON_1")["position"]
