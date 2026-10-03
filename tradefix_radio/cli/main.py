@@ -485,6 +485,9 @@ def build_parser() -> argparse.ArgumentParser:
     config_cmd.set_defaults(handler=_cmd_config)
 
     from tradefix_radio.cli import (
+        audio_devices as audio_cli,
+    )
+    from tradefix_radio.cli import (
         audio_tools,
         dev,
         market_sim,
@@ -493,6 +496,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     from tradefix_radio.cli import (
         models as models_cli,
+    )
+    from tradefix_radio.cli import (
+        station as station_cli,
     )
 
     market_sim.register(sub)
@@ -515,6 +521,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     models_cli.register(sub)
     sub.choices["models"].set_defaults(handler=_with_settings(models_cli.command))
+
+    station_cli.register(sub)
+    sub.choices["station"].set_defaults(handler=_with_settings(station_cli.command))
+
+    audio_cli.register(sub)
+    sub.choices["audio"].set_defaults(handler=_with_settings(audio_cli.command))
 
     version = sub.add_parser("version", help="print version information")
     version.set_defaults(handler=_cmd_version)

@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import pathlib
 import shutil
 import sys
 from pathlib import Path
@@ -623,6 +624,30 @@ async def check_audio_device(clock: Clock, settings: AppSettings) -> ComponentHe
     return healthy("audio_device", clock=clock, detail=f"output device {matches[0]!r}")
 
 
+def _find_uv() -> str | None:
+    """Locate `uv`, including where its own installer puts it.
+
+    `shutil.which` alone is not enough. uv's install script drops the binary in
+    ``~/.local/bin`` and *prints* instructions to add that to PATH — so on a correctly
+    installed machine where the operator has not restarted their shell, or where a service
+    runs with a minimal environment, `which` returns None and the diagnostic reports a
+    missing tool that is sitting right there. A health check that is wrong about the
+    environment is worse than no health check, because it sends people to fix the wrong
+    thing.
+    """
+    found = shutil.which("uv")
+    if found is not None:
+        return found
+    candidates = [
+        pathlib.Path.home() / ".local" / "bin" / ("uv.exe" if sys.platform == "win32" else "uv"),
+        pathlib.Path.home() / ".cargo" / "bin" / ("uv.exe" if sys.platform == "win32" else "uv"),
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
 async def check_ace_step_environment(clock: Clock) -> ComponentHealthV1:
     """Whether the external ACE-Step toolchain is installed (§19, ADR-02).
 
@@ -633,8 +658,8 @@ async def check_ace_step_environment(clock: Clock) -> ComponentHealthV1:
     problems: list[str] = []
     advice: list[str] = []
 
-    if shutil.which("uv") is None:
-        problems.append("uv not found on PATH")
+    if _find_uv() is None:
+        problems.append("uv not found")
         advice.append(
             'Install uv: `powershell -ExecutionPolicy ByPass -c "irm '
             'https://astral.sh/uv/install.ps1 | iex"`'
@@ -645,6 +670,12 @@ async def check_ace_step_environment(clock: Clock) -> ComponentHealthV1:
         code, output = await _run_command("py", "-0p")
         if code == 0:
             found_python = any(tag in output for tag in ("3.11", "3.12"))
+    if not found_python and _find_uv() is not None:
+        # uv provisions its own interpreters. A machine with uv and no system 3.11/3.12 is
+        # correctly set up — `uv sync` downloads one into ACE-Step's own directory, which is
+        # exactly what happened on this host. Reporting it as missing sent the operator to
+        # install something they do not need.
+        found_python = True
     if not found_python:
         problems.append(f"no Python {ACE_STEP_PYTHON_RANGE} interpreter detected")
         advice.append(

@@ -31,8 +31,7 @@ import uvicorn
 from tradefix_radio.api.app import create_app
 from tradefix_radio.api.capabilities import detect_capabilities, gpu_is_present
 from tradefix_radio.api.snapshot import RuntimeView
-from tradefix_radio.audio.format import PLAYOUT_CHANNELS, PLAYOUT_SAMPLE_RATE
-from tradefix_radio.audio.sinks import NullSink
+from tradefix_radio.audio.factory import build_sink, describe_sink
 from tradefix_radio.config.schema import AppSettings, RunMode
 from tradefix_radio.contracts.enums import MarketRegime
 from tradefix_radio.core.clock import UTC, SystemClock
@@ -222,6 +221,11 @@ class ControlCenterRunner:
             unit_of_work=DatabaseJobUnitOfWork(database.session),
             clock=self._clock,
         )
+        # The output device, resolved before anything else starts: a misconfigured sink
+        # should fail at launch rather than after the first track has been generated.
+        sink = build_sink(settings, clock=self._clock, realtime=True)
+        self._sink = sink
+
         # Post-production (§6). Constructed before the station because the station holds it
         # for the life of the run, and because `warm_analysis` pays librosa's one-off numba
         # JIT cost here rather than on the first track the station generates — which is
@@ -238,15 +242,12 @@ class ControlCenterRunner:
             coordinator=coordinator,
             director=director,
             generation=generation,
-            # A null sink by default: development has no sound device and does not need one.
-            # §72 keeps audio output out of development mode, and the whole runtime — queue,
-            # scheduler, transitions, buffer — is exercised identically either way.
-            sink=NullSink(
-                sample_rate=PLAYOUT_SAMPLE_RATE,
-                channels=PLAYOUT_CHANNELS,
-                clock=self._clock,
-                realtime=True,
-            ),
+            # Built from configuration, not hardcoded. `audio.sink: null_sink` is still the
+            # development default — §72 keeps audio output out of development mode and the
+            # whole runtime is exercised identically either way — but `sounddevice` now
+            # actually reaches a device. Before this the setting was read by `doctor` and by
+            # nothing that played audio.
+            sink=sink,
             station_ids=StationIdLibrary(
                 default_library(settings.paths.root_dir / "station_ids"),
                 repeat_horizon=settings.radio.station_id_repeat_horizon,
@@ -310,6 +311,7 @@ class ControlCenterRunner:
             "control_center.started",
             mode=settings.mode.value,
             scenario=self._scenario.value,
+            sink=describe_sink(sink),
         )
         return self._view
 

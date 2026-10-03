@@ -717,7 +717,16 @@ class AudioSettings(Section):
     # parses as None, so a config file saying `sink: null` would silently fail
     # validation with a confusing message.
     sink: Literal["sounddevice", "null_sink", "wav_file"] = "null_sink"
+    #: Substring of the output device name, or a PortAudio index as a string.
     device_name: str = "CABLE Input"
+    #: Which host API to use when the name matches several — the normal Windows case.
+    #:
+    #: Windows enumerates every device once per host API (MME, DirectSound, WASAPI,
+    #: WDM-KS), so `device_name` alone is ambiguous on essentially every Windows machine,
+    #: including for the shipped "CABLE Input" value. Left unset the sink picks by a
+    #: documented preference order (WASAPI first) and logs which one it opened; set this to
+    #: pin it, e.g. "WASAPI" or "MME". Run `tradefix audio devices` to see the options.
+    device_host_api: str | None = None
     sample_rate: int = Field(default=44_100, ge=8_000, le=192_000)
     channels: int = Field(default=2, ge=1, le=2)
     #: Mixer block size in frames. Smaller = lower latency, more CPU wakeups.
