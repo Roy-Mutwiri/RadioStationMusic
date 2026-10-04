@@ -557,7 +557,12 @@ def test_every_composed_lyric_passes_the_stations_own_validator(
             failures.append(
                 (
                     f"{plan.lyric_format.key if plan.lyric_format else '?'}/{persona_key}",
-                    "; ".join(v.detail for v in result.violations),
+                    # `.rule: message`, not `.detail` — which `LyricViolationV1` does not
+                    # have, so this line raised `AttributeError` instead of reporting the
+                    # failure and hid every rule name behind a pydantic traceback.
+                    "; ".join(
+                        f"{v.rule}: {v.message}" for v in result.violations if v.fatal
+                    ),
                 )
             )
         assert plan.topic is not None

@@ -258,6 +258,64 @@ class Lyrics(Base):
     )
 
 
+class ProviderSubmission(Base):
+    """Exactly what was sent to the generation provider, and what came back changed.
+
+    §7.10 forbids the provider silently replacing lyrics, and §7.9/§7.26 require the prompt
+    to be recorded with the track. The spec that carries all of it was already being built —
+    :meth:`GenerationSpec.as_metadata` even documents itself as "the record persisted with
+    the track" — and then dropped on the floor, which is how a vocal track could come out
+    instrumental with nothing in the database able to say why.
+
+    One row per *attempt*, not per track. A retry that produced different audio from a
+    different prompt is the single most useful thing to be able to look at afterwards, and a
+    primary key on ``track_id`` alone would overwrite the interesting one.
+
+    ``requested_lyrics`` is a copy, never the source of truth: the validated lyric lives in
+    :class:`Lyrics` and is not touched from here. Holding both is what makes the diff between
+    "what the station composed" and "what the model was given" answerable.
+    """
+
+    __tablename__ = "provider_submissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    track_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("tracks.track_id", ondelete="CASCADE"), index=True
+    )
+    attempt: Mapped[int] = mapped_column(Integer, default=1)
+    provider: Mapped[str] = mapped_column(String(64))
+    model_identifier: Mapped[str] = mapped_column(String(128))
+
+    #: The final provider prompt — the caption string, as submitted.
+    caption: Mapped[str] = mapped_column(Text)
+    #: The validated lyric the station asked for. ``None`` for a genuine instrumental.
+    requested_lyrics: Mapped[str | None] = mapped_column(Text, default=None)
+    #: The lyric field as actually submitted, including the ``[Instrumental]`` marker.
+    provider_lyrics: Mapped[str] = mapped_column(Text)
+    #: True when the two differ (§7.10).
+    lyrics_modified: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    #: Why they differ, in words.
+    lyric_notes: Mapped[list[str]] = mapped_column(PortableJson, default=list)
+    #: Whether the submission asked for an instrumental.
+    instrumental: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+
+    seed: Mapped[int] = mapped_column(Integer)
+    inference_steps: Mapped[int] = mapped_column(Integer)
+    guidance_scale: Mapped[float] = mapped_column(Float)
+    profile: Mapped[str] = mapped_column(String(32))
+    duration_seconds: Mapped[float] = mapped_column(Float)
+    bpm: Mapped[int] = mapped_column(Integer)
+    key_scale: Mapped[str] = mapped_column(String(48))
+    warnings: Mapped[list[str]] = mapped_column(PortableJson, default=list)
+
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
+
+    __table_args__ = (
+        # "Show me the vocal tracks that went out instrumental" — the query this exists for.
+        Index("ix_provider_submissions_track_attempt", "track_id", "attempt"),
+    )
+
+
 class AudioFingerprint(Base):
     """Content descriptors retained permanently, even after audio is reclaimed."""
 

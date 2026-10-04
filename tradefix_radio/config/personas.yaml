@@ -249,9 +249,18 @@ formats:
   "minimal vocal":
     density: 0.18
     educational: 0.3
-    sections: [phrase, phrase, phrase]
+    # `phrase` maps to the hook role, and the composer deliberately writes the hook once
+    # and reuses it wherever a format repeats it — that is what makes it a hook rather
+    # than three different choruses. A format whose every section is a hook therefore
+    # rendered as the *same block three times*: 54 words of which 18 were distinct, with
+    # nothing for the hook to be a hook of. The `passage` in the middle is what it comes
+    # back from. Measured: 23 of 41 "minimal vocal" lyrics were all-identical before this.
+    sections: [phrase, passage, phrase]
     min_words: 24
-    max_words: 90
+    # Raised from 90 with the `passage`. Hook + passage + hook lands at 85-95 words, and
+    # the old ceiling clipped the top of that range. Still sparse: 110 words across a
+    # three-minute track is roughly 0.6 words a second, against 1.5 for a full rap.
+    max_words: 110
     energy: {min: 0, max: 70}
 
   "station anthem":

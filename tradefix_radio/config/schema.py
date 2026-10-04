@@ -451,6 +451,26 @@ class LyricsSettings(Section):
     #: Minimum distinct-word ratio; catches gibberish and padding (§17).
     min_lexical_diversity: float = Field(default=0.22, gt=0.0, le=1.0)
 
+    #: What to do when a vocal blueprint cannot be given validated lyrics.
+    #:
+    #: ``instrumental`` realises the track without words and records why; ``fail`` gives
+    #: up on the track entirely. Never a third option — the provider is not permitted to
+    #: invent its own trading lyrics, which is the §7.10 boundary this whole path exists
+    #: to hold.
+    #:
+    #: Instrumental by default, because a radio station with a draining buffer is better
+    #: served by a track without words than by no track, and the fallback is recorded
+    #: rather than silent.
+    on_lyric_failure: Literal["instrumental", "fail"] = "instrumental"
+
+    #: Buffer levels at which the station stops *asking* for vocals.
+    #:
+    #: Vocals cost two composition attempts and a validation pass before the GPU is even
+    #: touched, and they fail more often than instrumentals. When the buffer is the
+    #: emergency, survival outranks variety — but only for new requests: vocals are never
+    #: switched off permanently, and a healthy buffer restores normal diversity.
+    suppress_vocals_at_buffer: tuple[str, ...] = ("critical",)
+
     @model_validator(mode="after")
     def _check(self) -> LyricsSettings:
         if self.min_lyric_words >= self.max_lyric_words:
@@ -570,6 +590,12 @@ def _default_profiles() -> dict[str, AceStepProfileSettings]:
             timeout_multiplier=1.8,
             description="More steps and stronger guidance, when the buffer is healthy.",
         ),
+        "vocal": AceStepProfileSettings(
+            inference_steps=28,
+            guidance_scale=7.5,
+            timeout_multiplier=2.6,
+            description="For tracks with words. Enough steps for diction to resolve.",
+        ),
     }
 
 
@@ -606,6 +632,24 @@ class AceStepSettings(Section):
 
     #: Which §7.8 preset to use when the buffer is healthy.
     profile: str = "balanced"
+
+    #: The preset used when the request actually carries lyrics.
+    #:
+    #: Vocals need more denoising steps than instruments do, and this is measured rather
+    #: than assumed. At the `balanced` default — 8 steps, guidance 3.0 — the model renders
+    #: the arrangement convincingly and the words never resolve: two listening tests on real
+    #: station output came back "no vocals at all" while the submission record showed the
+    #: full validated lyric had been sent. The same prompt and lyric at 28 steps and
+    #: guidance 7.5 produced clear, intelligible rap.
+    #:
+    #: It is a separate profile rather than a higher global default because the cost is real
+    #: and falls only where it is needed. Measured on a 215-second track: 8 steps took 67 s
+    #: (3.22x faster than real time), 28 steps took 145 s (1.48x). Charging every ambient
+    #: instrumental for diction nobody is singing would halve §93 capacity for nothing.
+    #:
+    #: Set to the same value as `profile` to disable the distinction.
+    vocal_profile: str = "vocal"
+
     profiles: dict[str, AceStepProfileSettings] = Field(default_factory=_default_profiles)
     #: §7.20: let buffer health step the profile down toward `fast`. Never up.
     buffer_aware_profile: bool = True
@@ -652,6 +696,11 @@ class AceStepSettings(Section):
             raise ValueError(
                 f"generation.ace_step.profile={self.profile!r} is not among the configured "
                 f"profiles ({', '.join(sorted(self.profiles))})"
+            )
+        if self.vocal_profile not in self.profiles:
+            raise ValueError(
+                f"generation.ace_step.vocal_profile={self.vocal_profile!r} is not among the "
+                f"configured profiles ({', '.join(sorted(self.profiles))})"
             )
         if self.worker_process and self.worker_directory is None:
             raise ValueError(
@@ -1030,6 +1079,19 @@ class AppSettings(Section):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
     market: MarketSettings = Field(default_factory=MarketSettings)
+    #: True when an interactive test run has lowered the buffer targets.
+    #:
+    #: Set only by `tradefix station start --test-mode`, never by a configuration file —
+    #: it describes *this process*, not a deployment. It exists so the Control Center can
+    #: say so: a dashboard showing a 12-minute buffer target where production uses 45 is
+    #: showing a number that would be alarming if it were real, and an operator has no way
+    #: to tell the difference from the figure alone.
+    #:
+    #: It gates nothing. QC thresholds, originality thresholds, mastering requirements,
+    #: lock rules and retry policy are not reachable from here, which is deliberate: test
+    #: mode may reduce waiting, never the gates that decide what is fit to broadcast.
+    test_mode: bool = False
+
     #: Which symbol the station programmes against, and when it may change.
     markets: MarketRoutingSettings = Field(default_factory=MarketRoutingSettings)
     energy: EnergySettings = Field(default_factory=EnergySettings)

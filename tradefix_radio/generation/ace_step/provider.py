@@ -401,6 +401,12 @@ class AceStepProvider:
             peak_vram_bytes=usage.peak_vram_bytes,
             detail={
                 "prompt": spec.as_metadata(),
+                # What the station *asked* for, kept beside what the provider was *given*.
+                # The spec only knows the latter, so a downgrade from validated lyric to
+                # `[Instrumental]` is invisible from the spec alone (§7.10).
+                "requested_lyrics": (
+                    None if request.lyrics is None else request.lyrics.text
+                ),
                 "gpu": usage.as_metadata(),
                 "lm_model": self._settings.lm_model,
                 "requested_duration_seconds": spec.duration_seconds,
@@ -414,14 +420,27 @@ class AceStepProvider:
     def _profile_for(self, request: GenerationRequest) -> GenerationProfile:
         """The profile this request runs under.
 
+        A request that carries lyrics gets the vocal profile. Diction needs denoising steps
+        that an arrangement does not, and at the `balanced` default the words never resolve —
+        the model renders a convincing backing track and swallows the vocal. That was the
+        cause of "no vocals at all" on real station output whose submission record showed the
+        complete validated lyric had been sent.
+
+        Keyed on ``request.lyrics``, not on ``blueprint.vocal.enabled``. A vocal blueprint
+        that failed to get validated lyrics is realised as an instrumental, and paying 2.2x
+        the GPU time for words that are not in the payload would be pure waste.
+
         A retry steps *down* in cost. §7.7 allows degrading settings after a failure, and a
         second attempt at the same expensive profile is the attempt most likely to fail the
         same way — particularly after an OOM, where the cheaper profile is also the smaller
         allocation.
         """
-        name = self._settings.profile
+        has_lyrics = request.lyrics is not None and bool(request.lyrics.text.strip())
+        name = self._settings.vocal_profile if has_lyrics else self._settings.profile
         if request.attempt > 1:
-            ladder = ["quality", "balanced", "fast"]
+            # `vocal` sits above `quality`: the step-down ladder is ordered by cost, so a
+            # retry after a timeout or an OOM gives up diction before it gives up the track.
+            ladder = ["vocal", "quality", "balanced", "fast"]
             if name in ladder:
                 name = ladder[min(len(ladder) - 1, ladder.index(name) + request.attempt - 1)]
         return self._profiles.get(name) or self._profiles.get("balanced") or (

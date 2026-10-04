@@ -12,6 +12,7 @@ None of this needs a GPU or a model, so it runs in normal CI.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,7 @@ import pytest
 from tests.fake_ace_step import FakeAceStep
 from tests.conftest import make_blueprint, make_settings
 from tradefix_radio.config.schema import AppSettings
+from tradefix_radio.contracts.lyrics import LyricsV1
 from tradefix_radio.core.clock import SystemClock
 from tradefix_radio.core.errors import (
     GenerationCancelledError,
@@ -153,6 +155,59 @@ async def test_an_instrumental_request_uses_the_marker_the_server_reads(
     assert "instrumental" not in submitted, (
         "the REST API has no such field; sending it implies a guarantee it does not give"
     )
+
+
+async def test_a_request_with_lyrics_runs_at_the_vocal_profile(
+    server: FakeAceStep, tmp_path: Path, clean_environ: dict[str, str]
+) -> None:
+    """Measured, not preferred: below ~16 steps the words do not resolve.
+
+    Two listening passes on real station output came back "no vocals at all" while the
+    stored submission showed the complete validated lyric had been sent — the model was
+    rendering the arrangement and swallowing the diction at the `balanced` default of 8
+    steps. The same prompt and lyric at 28 steps produced intelligible rap.
+    """
+    provider = provider_for(server, tmp_path, clean_environ)
+    request = request_for(tmp_path, genre="uk_drill", instrumental=False)
+    with_words = replace(
+        request,
+        lyrics=LyricsV1(
+            track_id=request.track_id,
+            text="[hook]\nread it twice\nquiet hands",
+            primary_topic="risk",
+            format="full rap",
+            perspective="observer",
+            tradefix_mentions=0,
+            educational_intensity=0.4,
+        ),
+    )
+    result = await provider.generate(with_words)
+
+    prompt = result.detail["prompt"]
+    assert isinstance(prompt, dict)
+    assert prompt["profile"] == "vocal"
+    assert int(prompt["inference_steps"]) > 16
+    assert server.submissions[0]["inference_steps"] == prompt["inference_steps"]
+
+
+async def test_an_instrumental_request_does_not_pay_for_diction(
+    server: FakeAceStep, tmp_path: Path, clean_environ: dict[str, str]
+) -> None:
+    """The vocal profile costs 2.2x the GPU time; it falls only where words exist.
+
+    Keyed on the lyrics the request carries rather than on the blueprint's intent, because a
+    vocal blueprint whose lyrics failed validation is realised as an instrumental — and
+    paying for articulation of words that are not in the payload buys nothing.
+    """
+    provider = provider_for(server, tmp_path, clean_environ)
+    # A blueprint that *asked* for vocals, with no lyrics attached: the §7.10 downgrade.
+    result = await provider.generate(request_for(tmp_path, instrumental=False))
+
+    prompt = result.detail["prompt"]
+    assert isinstance(prompt, dict)
+    assert prompt["profile"] == "balanced"
+    assert prompt["instrumental"] is True
+    assert prompt["lyrics_modified"] is True, "a silent downgrade must not be recorded as clean"
 
 
 async def test_polling_waits_for_a_slow_generation(

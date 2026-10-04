@@ -29,9 +29,11 @@ import asyncio
 import contextlib
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field, replace
+from datetime import datetime
 from pathlib import Path
 
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tradefix_radio.audio.analysis import EMBEDDING_VERSION
 from tradefix_radio.audio.io import read_info
@@ -59,6 +61,7 @@ from tradefix_radio.contracts.events import (
     TrackReady,
     TrackRejected,
 )
+from tradefix_radio.contracts.lyrics import LyricsV1
 from tradefix_radio.contracts.market import MarketStateV1
 from tradefix_radio.contracts.music import MusicBlueprintV1
 from tradefix_radio.contracts.queue import QueueLockLevel
@@ -74,12 +77,18 @@ from tradefix_radio.director.history import HistoryEntry, ProgrammingHistory
 from tradefix_radio.director.memory import restore_director_state, save_director_state
 from tradefix_radio.director.music_director import DirectorDecision, MusicDirector
 from tradefix_radio.generation.manager import GenerationManager, GenerationOutcome
+from tradefix_radio.lyrics.orchestrator import (
+    LyricGenerationResult,
+    LyricOrchestrator,
+)
 from tradefix_radio.persistence.database import Database
 from tradefix_radio.persistence.models import Lyrics as LyricsRow
 from tradefix_radio.persistence.repositories import (
     GenerationJobRepository,
+    LyricsRepository,
     MemoryKeys,
     OriginalityRepository,
+    ProviderSubmissionsRepository,
     RadioMemoryRepository,
     TrackRepository,
 )
@@ -140,6 +149,26 @@ def _slot_to_entry(slot: PersistedQueueSlot) -> QueueEntry:
         generation_progress=slot.generation_progress,
         audio_path=slot.audio_path,
         started_at=slot.started_at,
+    )
+
+
+def _lyrics_from_row(row: LyricsRow) -> LyricsV1:
+    """Rebuild the lyric contract from its stored row.
+
+    Only the fields the provider and the validator read. `lines` is not reconstructed:
+    the section structure is recoverable from the text's own tags, and inventing line
+    metadata that was never stored would be worse than omitting it.
+    """
+    return LyricsV1(
+        track_id=row.track_id,
+        text=row.text,
+        primary_topic=row.primary_topic,
+        secondary_topic=row.secondary_topic,
+        format=row.lyric_format,
+        perspective=row.perspective,
+        tradefix_mentions=row.tradefix_mentions,
+        educational_intensity=row.educational_intensity,
+        concepts_used=tuple(row.concepts_used or ()),
     )
 
 
@@ -264,6 +293,13 @@ class StationStats:
     #: operator: a generation failure is the model or the host misbehaving, while a
     #: post-production rejection is the station working exactly as designed.
     post_production_rejected: int = 0
+    #: Vocal blueprints given validated lyrics, and those that could not be (B3).
+    lyrics_composed: int = 0
+    lyrics_failed: int = 0
+    #: Vocals not even attempted because the buffer was at a suppressing level. Counted
+    #: apart from failures: this is the station choosing, not the station struggling, and
+    #: conflating them would make a healthy pressure response look like a defect.
+    lyrics_suppressed: int = 0
     #: Rejections by reason, so the soak report can show *what* is being rejected.
     rejection_reasons: dict[str, int] = field(default_factory=dict)
     replans: int = 0
@@ -327,6 +363,26 @@ class RadioStation:
         self._station_ids = station_ids
         #: Set when the active symbol changes, cleared when the identifier is queued.
         self._pending_market_switch: tuple[str, str] | None = None
+        #: Composed lyrics by track id, for the generation request.
+        #:
+        #: Held in memory because `claim_and_generate` takes a *synchronous* callback and
+        #: cannot await a database read. Populated when the lyric is composed and
+        #: rehydrated for queued tracks on recovery, so a restart does not turn pending
+        #: vocal tracks into instrumentals.
+        self._composed_lyrics: dict[str, LyricsV1] = {}
+
+        #: Composes and validates lyrics before anything reaches the provider (B3).
+        #:
+        #: Built here rather than inside the director because it needs the lyric history
+        #: from the database, and a director that reached for a session would stop being
+        #: testable against a list.
+        self._lyrics = LyricOrchestrator(
+            director.library,
+            settings.lyrics,
+            director.lyrics_director,
+            director.selector,
+        )
+
         #: Which provenance class the tracks this process plans belong to.
         #:
         #: Derived from the run mode rather than configured, because the honest answer is
@@ -537,7 +593,13 @@ class RadioStation:
             )
 
         self._history = [_as_history_entry(entry) for entry in history]
-        self._used_titles = list(titles)
+        # Reversed to oldest-first. `recent_titles` returns newest-first, and the scheduler
+        # grows this list by appending each title it plans and then reads `[-40:]` as "the
+        # most recent forty" for §99's similarity rejection. Against a newest-first list that
+        # slice returns the *oldest* forty — so the check compared each new title against
+        # names from hundreds of tracks ago and never against the ones a listener had just
+        # heard. Exact-collision checking uses the whole list and does not care about order.
+        self._used_titles = list(reversed(titles))
         self._used_signatures = {entry.blueprint_signature for entry in history}
         self._played_track_ids = {entry.track_id for entry in history}
 
@@ -576,6 +638,18 @@ class RadioStation:
 
         self._queue.restore(entries)
         self._stats.recovered_queue_entries = len(entries)
+
+        # Rehydrate the lyrics of restored slots.
+        #
+        # Without this a restart silently converts every pending vocal track into an
+        # instrumental: the words are safe in the database, but the synchronous callback
+        # the generation manager uses can only read the in-memory map.
+        async with self._database.session() as session:
+            lyrics_repository = LyricsRepository(session)
+            for entry in entries:
+                row = await lyrics_repository.get(entry.track_id)
+                if row is not None:
+                    self._composed_lyrics[entry.track_id] = _lyrics_from_row(row)
 
         async with self._database.session() as session:
             memory = RadioMemoryRepository(session)
@@ -790,10 +864,15 @@ class RadioStation:
             capacity_ratio=self._generation.capacity_snapshot().capacity_ratio,
         )
         self._scheduler.enqueue(planned, state=state)
-        await self._persist_tracks(planned)
-        await self._publish_new_entries(planned)
+        abandoned = await self._persist_tracks(planned)
+        kept = [p for p in planned if p.blueprint.track_id not in abandoned]
+        await self._publish_new_entries(kept)
 
-        for produced in planned:
+        # No job for a track the lyric policy abandoned. Dropping the queue slot inside
+        # `_persist_tracks` is not enough on its own: the job is planned *here*, after that
+        # call, so the slot vanished and the GPU rendered the track anyway — an instrumental
+        # nobody had asked for, under the one policy that exists to say "do not make this".
+        for produced in kept:
             job = await self._generation.plan_job(
                 produced.blueprint, priority=decision.priority
             )
@@ -807,15 +886,22 @@ class RadioStation:
                 )
             )
 
-    async def _persist_tracks(self, planned: Sequence[DirectorDecision]) -> None:
-        """Write the track row and its blueprint (§8, §37).
+    async def _persist_tracks(
+        self, planned: Sequence[DirectorDecision]
+    ) -> frozenset[str]:
+        """Write the track row and its blueprint (§8, §37). Returns abandoned track ids.
 
         Not optional bookkeeping. Without it the queue persists slots whose blueprints are
         nowhere, so every one is dropped on restore — the first soak logged exactly that, and
         it meant queue recovery did not work at all despite the queue being saved.
+
+        The return value exists because the lyric failure policy can decide a track should
+        not be made at all, and the caller is the only place that can act on that: it plans
+        the generation job, and it does so *after* this returns.
         """
         now = self._clock.now()
         provider = self._generation.describe_provider()
+        abandoned: set[str] = set()
         async with self._database.session() as session:
             tracks = TrackRepository(session)
             for produced in planned:
@@ -828,6 +914,115 @@ class RadioStation:
                     model_identifier=provider,
                     provenance=self._provenance,
                 )
+                if not await self._compose_lyrics(session, produced, now=now):
+                    abandoned.add(produced.blueprint.track_id)
+        return frozenset(abandoned)
+
+    async def _compose_lyrics(
+        self,
+        session: AsyncSession,
+        produced: DirectorDecision,
+        *,
+        now: datetime,
+    ) -> bool:
+        """Write validated lyrics for a vocal blueprint, or record why there are none.
+
+        Returns whether the track should still be made. ``False`` only under the ``fail``
+        lyric policy: every other path keeps the track, as an instrumental if it must.
+
+        This is the orchestration B3 added, and its absence was invisible rather than
+        loud: `AceStepPromptBuilder` sees a vocal blueprint with no stored lyric,
+        correctly refuses to let the model invent words about markets, and silently
+        downgrades the track to an instrumental. Every vocal blueprint the director
+        produced became an instrumental, and the `lyrics` table was empty across the
+        whole database.
+
+        Composed here, with the track, rather than at generation time. Three reasons: the
+        lyric is part of the creative decision and belongs beside the blueprint; §17
+        validation costs nothing on the GPU and rejecting late would waste a generation;
+        and the lyric is an originality input, so it has to exist before the candidate is
+        compared against anything.
+        """
+        blueprint = produced.blueprint
+        if blueprint.is_instrumental or not blueprint.lyrics.enabled:
+            return True
+
+        # §7.20 in the lyric direction: buffer pressure may change what the station *asks
+        # for*, never what the audio must pass afterwards. A vocal track costs two
+        # composition attempts, a validation pass, and — since the vocal profile — 2.2x the
+        # GPU time. When the buffer is at the level the operator named, survival outranks
+        # variety. Only for new requests: nothing already composed is thrown away, and a
+        # recovered buffer restores vocals on its own.
+        level = self.assess_buffer().level.value
+        if level in self._settings.lyrics.suppress_vocals_at_buffer:
+            self._stats.lyrics_suppressed += 1
+            _log.info(
+                "lyrics.suppressed_for_buffer",
+                track_id=blueprint.track_id,
+                buffer_level=level,
+            )
+            return True
+
+        repository = LyricsRepository(session)
+        try:
+            result = self._lyrics.generate(
+                blueprint,
+                history=ProgrammingHistory(self._history),
+                persona=self._director.library.personas.get(blueprint.persona_id or ""),
+                previous_hashes=await repository.recent_hashes(),
+                previous_shingles=await repository.recent_shingles(),
+            )
+        except Exception as error:  # noqa: BLE001 - a lyric must never stop scheduling
+            # An orchestrator crash is a lyric failure, not a station failure. Left
+            # unhandled it escaped `_persist_tracks` and took the whole schedule stage with
+            # it: the test that found this measured 49 scheduling cycles, zero tracks
+            # planned and a station living on procedural audio — a far worse outcome than
+            # the instrumental the failure policy exists to choose.
+            _log.error(
+                "lyrics.orchestrator_failed",
+                track_id=blueprint.track_id,
+                error_type=type(error).__name__,
+                error=str(error),
+                exc_info=True,
+            )
+            result = LyricGenerationResult.crashed(blueprint, error)
+
+        if result.usable and result.lyrics is not None:
+            await repository.create(result.lyrics, now=now)
+            self._composed_lyrics[blueprint.track_id] = result.lyrics
+            self._stats.lyrics_composed += 1
+            return True
+
+        # No validated lyric. The provider must not be left to fill the gap, so the
+        # choice is between an instrumental and abandoning the track, and it is
+        # configuration rather than something decided here.
+        self._stats.lyrics_failed += 1
+        policy = self._settings.lyrics.on_lyric_failure
+        _log.warning(
+            "lyrics.unavailable",
+            track_id=blueprint.track_id,
+            mode=result.mode.value,
+            failure=None if result.failure is None else result.failure.value,
+            attempts=result.attempts,
+            policy=policy,
+            violations=(
+                []
+                if result.validation is None
+                else [v.rule for v in result.validation.violations][:6]
+            ),
+        )
+        if policy == "fail":
+            # Drop the slot now rather than generating audio for a track that cannot be
+            # realised as asked. The caller also needs to know, because it plans the
+            # generation job after this returns — discarding the slot alone left the GPU
+            # rendering a track whose whole point had just been abandoned.
+            self._queue.discard(blueprint.track_id, force=True)
+            return False
+        # Instrumental fallback. The blueprint keeps its recorded intent — what it asked
+        # for is part of the decision history — and the prompt builder already emits the
+        # instrumental marker when no lyric is stored, so nothing further is needed to
+        # make the audio match.
+        return True
 
     async def _publish_new_entries(
         self, planned: Sequence[DirectorDecision]
@@ -888,6 +1083,7 @@ class RadioStation:
         outcome = await self._generation.claim_and_generate(
             output_path_for=self._output_path_for,
             blueprint_for=self._blueprint_for,
+            lyrics_for=self._lyrics_for,
         )
         if outcome is None:
             return None
@@ -921,11 +1117,50 @@ class RadioStation:
                 self._queue.discard(outcome.track_id, force=True)
         return outcome
 
+    async def _record_submission(self, outcome: GenerationOutcome) -> None:
+        """Persist what the provider was actually sent for this attempt.
+
+        §7.10 and §7.26 both want this, and the data had been assembled all along — the
+        provider builds ``spec.as_metadata()`` under a docstring calling it "the record
+        persisted with the track" and then hands it to a field nothing reads. The cost of
+        that was a vocal track coming out instrumental with no way to tell, from the
+        database alone, whether the lyric was never composed, never passed, or passed and
+        ignored by the model.
+
+        Failure here is logged and swallowed. This is a diagnostic; it must never be the
+        reason a finished track does not reach air.
+        """
+        result = outcome.result
+        if result is None:
+            return
+        try:
+            async with self._database.session() as session:
+                await ProviderSubmissionsRepository(session).record(
+                    track_id=outcome.track_id,
+                    provider=result.provider_name,
+                    model_identifier=result.model_identifier,
+                    detail=result.detail,
+                    attempt=outcome.attempt,
+                    now=self._clock.now(),
+                )
+        except Exception as error:  # noqa: BLE001 - diagnostics never block playout
+            _log.warning(
+                "station.submission_record_failed",
+                track_id=outcome.track_id,
+                error_type=type(error).__name__,
+                error=str(error),
+            )
+
     async def _accept_generated(self, outcome: GenerationOutcome) -> None:
         result = outcome.result
         track_id = outcome.track_id
         if result is None:
             return
+
+        # Before anything can reject, rewrite or discard this track. What the model was
+        # given is most worth having in exactly the cases that return early below.
+        await self._record_submission(outcome)
+
         try:
             measured = read_info(result.audio_path).duration_seconds
         except AudioError as error:
@@ -1462,6 +1697,18 @@ class RadioStation:
 
     def _output_path_for(self, track_id: str) -> Path:
         return self._audio_dir / f"{track_id}.wav"
+
+    def _lyrics_for(self, track_id: str) -> LyricsV1 | None:
+        """The composed lyric for a track, for the generation request.
+
+        The last link in the production lyric path, and the one that was missing.
+        `GenerationRequest.lyrics` has always existed and `claim_and_generate` has always
+        accepted a `lyrics_for` callback — nothing ever passed one, so the field was
+        always `None`, the prompt builder saw a vocal blueprint with no words, and
+        correctly refused to let the model invent its own. Every vocal track came out
+        instrumental, which is exactly what the first real one did until this was wired.
+        """
+        return self._composed_lyrics.get(track_id)
 
     def _blueprint_for(self, track_id: str) -> MusicBlueprintV1 | None:
         entry = self._queue.get(track_id)

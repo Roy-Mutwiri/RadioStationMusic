@@ -153,6 +153,13 @@ BRAND_PATTERN = re.compile(r"\btrade ?fix\b")
 #: the two agree about what counts as structure rather than content.
 _SECTION_TAG_RE = re.compile(r"^\[[a-z0-9 _-]{2,24}\]$", re.IGNORECASE)
 
+#: Blank-line stanza boundary, for comparing whole sections against each other.
+_SECTION_SPLIT = re.compile(r"\n\s*\n")
+
+#: A section tag at the start of a block, so `[hook]` and `[phrase]` holding identical
+#: words are compared on the words rather than on what they were labelled.
+_LEADING_TAG = re.compile(r"^\[[a-z0-9 _-]{2,24}\]\s*", re.IGNORECASE)
+
 #: Minimum distinct-word ratio by word count. Short lyrics legitimately repeat more (a
 #: hook is repetition), so a single flat threshold would reject every well-formed hook.
 _DIVERSITY_BY_LENGTH: tuple[tuple[int, float], ...] = (
@@ -241,6 +248,10 @@ class LyricValidator:
         violations.extend(self._check_speculative_direction(text, ctx))
         violations.extend(self._check_gibberish(structural_words))
         violations.extend(self._check_repetition(structural_words))
+        # The *raw* text, not `normalised_text`: section structure is exactly what this rule
+        # reads, and normalisation deliberately destroys it (tags stripped, whitespace
+        # collapsed) so that duplicate detection hashes stably.
+        violations.extend(self._check_section_variety(lyrics.text))
         violations.extend(self._check_brand(text, ctx))
         violations.extend(self._check_blocklists(text, ctx))
 
@@ -468,6 +479,51 @@ class LyricValidator:
                 )
             ]
         return []
+
+    def _check_section_variety(self, text: str) -> list[LyricViolationV1]:
+        """A chorus alternates with something. A loop does not.
+
+        §15 asks for repetition tracking that tells an intentional chorus from lazy
+        duplication, and the phrase counter above cannot: it reads `_unique_line_words`,
+        which deduplicates by line precisely so that a hook repeated four times by design
+        passes. That dedup is right for a hook and blind to this — a lyric built from one
+        section emitted three times collapses to a single clean copy and sails through.
+
+        A real example, from the first track generated at the vocal profile: three
+        identical ``[phrase]`` blocks, 54 words of which 18 were distinct, every section
+        the same. Structurally that is not a chorus, because there is nothing for it to be
+        a chorus *of*.
+
+        Two sections that match are allowed — a hook stated and restated is a song. The
+        rule is that *every* section being identical, with at least three of them, is a
+        generator repeating itself rather than a writer making a point.
+        """
+        bodies = [
+            " ".join(block.split()).casefold()
+            for block in _SECTION_SPLIT.split(text)
+            if block.strip()
+        ]
+        # Strip the leading tag from each block so `[hook]`/`[phrase]` naming differences
+        # cannot disguise identical words as variety.
+        stripped = [_LEADING_TAG.sub("", body).strip() for body in bodies]
+        populated = [body for body in stripped if body]
+        if len(populated) < 3:
+            return []
+        if len(set(populated)) > 1:
+            return []
+        return [
+            LyricViolationV1(
+                rule="no_section_variety",
+                message=(
+                    f"all {len(populated)} sections are the same words; a chorus needs "
+                    "something to alternate with"
+                ),
+                excerpt=populated[0][:120],
+                measured=1.0,
+                threshold=2.0,
+                fatal=True,
+            )
+        ]
 
     def _check_repetition(self, words: Sequence[str]) -> list[LyricViolationV1]:
         """§17: "contain excessive repeated phrases".

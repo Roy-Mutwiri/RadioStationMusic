@@ -202,6 +202,16 @@ class MusicDirector:
         return self._selector
 
     @property
+    def lyrics_director(self) -> LyricsDirector:
+        """The subject planner, for callers that compose the words themselves.
+
+        Exposed because lyric *composition* deliberately lives outside this class: it
+        needs lyric history from the database, and a director that reached for a session
+        would stop being testable against a plain list.
+        """
+        return self._lyrics
+
+    @property
     def last_decision(self) -> DirectorDecision | None:
         return self._last_decision
 

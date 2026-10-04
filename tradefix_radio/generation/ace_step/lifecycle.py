@@ -155,6 +155,14 @@ BUILTIN_PROFILES: Final[dict[str, GenerationProfile]] = {
         timeout_multiplier=1.8,
         description="More steps and stronger guidance. Only when the buffer is healthy.",
     ),
+    "vocal": GenerationProfile(
+        name="vocal",
+        inference_steps=28,
+        guidance_scale=7.5,
+        timeout_multiplier=2.6,
+        description="For tracks with words. Measured: below ~16 steps the arrangement "
+        "renders and the diction does not.",
+    ),
 }
 
 
@@ -171,9 +179,13 @@ def profile_for_buffer(
     Falls back to the configured profile when the level is unrecognised, rather than
     guessing: an unknown buffer state is not evidence of urgency.
     """
-    order = ["fast", "balanced", "quality"]
+    # Ordered by cost, which is why `vocal` sits at the top: 28 steps against quality's 16.
+    # It is listed here so that a station configured for vocals is not quietly demoted to
+    # `quality` the moment buffer-aware stepping is switched on — at 16 steps the words stop
+    # resolving, and losing them to a *healthy* buffer would be the wrong way round.
+    order = ["fast", "balanced", "quality", "vocal"]
     ceiling = {
-        "healthy": "quality",
+        "healthy": "vocal",
         "low": "balanced",
         "critical": "fast",
         "empty": "fast",

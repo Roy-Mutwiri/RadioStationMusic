@@ -223,10 +223,54 @@ export interface LibraryPage {
   limit: number
 }
 
+/** The validated lyric the station composed, as stored (§17). */
+export interface TrackLyrics {
+  text: string
+  format: string
+  perspective: string
+  primary_topic: string
+  secondary_topic: string | null
+  tradefix_mentions: number
+  educational_intensity: number
+  word_count: number
+  concepts_used: string[]
+  created_at: string
+}
+
+/**
+ * What the generation provider was actually sent (§7.9, §7.10, §7.26).
+ *
+ * Kept beside the blueprint rather than folded into it, because the blueprint records the
+ * station's *intent* and this records what the model was *told*. They are supposed to
+ * agree; the whole reason this exists is that for every vocal track they silently did not.
+ */
+export interface ProviderSubmission {
+  attempt: number
+  provider: string
+  model_identifier: string
+  caption: string
+  requested_lyrics: string | null
+  provider_lyrics: string
+  lyrics_modified: boolean
+  lyric_notes: string[]
+  instrumental: boolean
+  profile: string
+  inference_steps: number
+  guidance_scale: number
+  seed: number
+  warnings: string[]
+  /** A vocal track realised without words. The headline a detail panel should lead on. */
+  vocals_downgraded: boolean
+}
+
 export interface TrackDetail {
   summary: TrackSummary
   blueprint: Record<string, unknown> | null
   has_audio: boolean
+  /** Null for a genuine instrumental, or when composition failed. */
+  lyrics: TrackLyrics | null
+  /** Null until the track has been generated at least once. */
+  submission: ProviderSubmission | null
 }
 
 export interface Analytics {

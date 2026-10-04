@@ -158,6 +158,11 @@ class GenerationSpec:
         """The record persisted with the track (§7.9, §7.26)."""
         return {
             "caption": self.caption,
+            # The lyric field as submitted, marker and all. Omitted until B3 on the grounds
+            # that the lyric was already in the `lyrics` table — which was true only for
+            # what the station *composed*, not for what the model was *given*. The gap
+            # between those two is the only place a silent downgrade can hide.
+            "lyrics": self.lyrics,
             "instrumental": self.instrumental,
             "seed": self.seed,
             "duration_seconds": self.duration_seconds,
@@ -205,10 +210,17 @@ class AceStepPromptBuilder:
             # that has no idea what it is singing about. Instrumental is the safe realisation.
             instrumental = True
             lyric_text = INSTRUMENTAL_MARKER
-            warnings.append(
+            reason = (
                 "the blueprint asked for vocals but no lyrics were composed; generated "
                 "instrumental rather than letting the model invent its own words"
             )
+            warnings.append(reason)
+            # Also a lyric *note*, and `modified` set — this is the §7.10 case, not a
+            # caption nicety. Recorded only as a warning before, which left the station's
+            # own record saying the lyric had been passed through unchanged while the
+            # track went out wordless. A downgrade nobody can query for is a silent one.
+            notes.append(reason)
+            modified = True
 
         return GenerationSpec(
             caption=caption,

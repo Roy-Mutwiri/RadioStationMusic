@@ -78,10 +78,23 @@ def test_only_ready_can_generate() -> None:
 
 
 def test_the_builtin_profiles_are_ordered_by_cost() -> None:
-    """fast < balanced < quality, or the §7.20 ladder is meaningless."""
-    steps = [BUILTIN_PROFILES[name].inference_steps for name in ("fast", "balanced", "quality")]
+    """fast < balanced < quality < vocal, or the §7.20 ladder is meaningless."""
+    names = ("fast", "balanced", "quality", "vocal")
+    steps = [BUILTIN_PROFILES[name].inference_steps for name in names]
     assert steps == sorted(steps)
-    assert len(set(steps)) == 3
+    assert len(set(steps)) == len(names)
+
+
+def test_the_vocal_profile_has_enough_steps_for_diction() -> None:
+    """Measured, not chosen for roundness.
+
+    At 8 steps the model rendered the arrangement and swallowed the words — twice, on real
+    station output whose stored submission showed the full validated lyric had been sent. The
+    same prompt at 28 steps produced intelligible rap. 16 is the nearest value not shown to
+    work, so the floor is set above it.
+    """
+    assert BUILTIN_PROFILES["vocal"].inference_steps > 16
+    assert BUILTIN_PROFILES["vocal"].guidance_scale > BUILTIN_PROFILES["quality"].guidance_scale
 
 
 def test_a_profile_cannot_carry_a_qc_threshold() -> None:

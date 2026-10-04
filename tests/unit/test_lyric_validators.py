@@ -717,3 +717,84 @@ def test_a_lyric_with_no_line_breakdown_is_still_checked() -> None:
     result = validator().validate(plain, ValidationContext(primary_topic=topic()))
     assert not result.accepted
     assert "guaranteed_outcome" in rules(result)
+
+
+# ------------------------------------------------- section variety (B3, §15)
+#
+# §15 asks for repetition tracking that distinguishes an intentional chorus from lazy
+# duplication. `_check_repetition` cannot do it: it reads the line-deduplicated word set,
+# precisely so a hook repeated four times by design passes, and that dedup makes a lyric
+# built from one section emitted three times collapse to a single clean copy.
+
+
+def _sectioned(*blocks: str) -> LyricsV1:
+    """A lyric assembled from raw blocks, so section structure survives into the text."""
+    return LyricsV1(
+        track_id="TF-SECTIONS",
+        text="\n\n".join(blocks),
+        primary_topic="discipline",
+        format="minimal vocal",
+        perspective="observer",
+        tradefix_mentions=0,
+        educational_intensity=0.4,
+    )
+
+
+#: Verbatim from the first track the station generated at the vocal profile. Three
+#: identical blocks, 54 words of which 18 were distinct, every section the same.
+_LOOPED_BLOCK = (
+    "[phrase]\n"
+    "decided before the candle, not during\n"
+    "flat is fine\n"
+    "read it twice\n"
+    "quiet hands\n"
+    "flat is fine"
+)
+
+
+def test_a_lyric_of_three_identical_sections_is_rejected() -> None:
+    result = validator().validate(
+        _sectioned(_LOOPED_BLOCK, _LOOPED_BLOCK, _LOOPED_BLOCK), ValidationContext()
+    )
+    assert not result.accepted
+    assert "no_section_variety" in {v.rule for v in result.violations}
+
+
+def test_a_chorus_between_verses_is_not_duplication() -> None:
+    """The case the rule must never catch: a hook is supposed to come back."""
+    hook = "[hook]\nread it twice\nquiet hands\nmind on the plan"
+    result = validator().validate(
+        _sectioned(
+            hook,
+            "[verse]\nmomentum measures how fast price is moving, not how far it will go\n"
+            "breakouts frequently fail; that is why the stop exists",
+            hook,
+            "[verse]\nthe rule was written before the candle got loud\n"
+            "position size is the only promise a trader can actually keep",
+            hook,
+        ),
+        ValidationContext(),
+    )
+    assert "no_section_variety" not in {v.rule for v in result.violations}
+
+
+def test_a_tag_rename_does_not_disguise_identical_words() -> None:
+    """`[hook]` and `[phrase]` holding the same words are the same section."""
+    words = "flat is fine\nread it twice\nquiet hands"
+    result = validator().validate(
+        _sectioned(f"[hook]\n{words}", f"[phrase]\n{words}", f"[refrain]\n{words}"),
+        ValidationContext(),
+    )
+    assert "no_section_variety" in {v.rule for v in result.violations}
+
+
+def test_two_sections_are_not_enough_to_call_it_a_loop() -> None:
+    """A statement and its restatement is a song. The rule abstains below three.
+
+    Asserted on the rule rather than on acceptance: a two-section lyric is short enough
+    that `too_short` may legitimately fire, and that is a different finding.
+    """
+    result = validator().validate(
+        _sectioned(_LOOPED_BLOCK, _LOOPED_BLOCK), ValidationContext()
+    )
+    assert "no_section_variety" not in {v.rule for v in result.violations}

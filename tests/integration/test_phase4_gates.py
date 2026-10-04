@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+from datetime import timedelta
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -39,7 +40,11 @@ from tradefix_radio.director.selection import WeightedSelector
 from tradefix_radio.generation.manager import DatabaseJobUnitOfWork, GenerationManager
 from tradefix_radio.generation.mock import MockMusicProvider
 from tradefix_radio.persistence.database import Database
-from tradefix_radio.persistence.repositories import GenerationJobRepository, TrackRepository
+from tradefix_radio.persistence.repositories import (
+    GenerationJobRepository,
+    TrackRepository,
+    normalise_title,
+)
 from tradefix_radio.radio.emergency import (
     EmergencyManager,
     EmergencyTrack,
@@ -862,3 +867,33 @@ async def test_the_first_market_state_is_not_treated_as_a_market_switch(
 
     station.set_market(market(symbol="BTCUSD"))
     assert station.pending_market_switch == ("XAUUSD", "BTCUSD")
+
+
+# ----------------------------------------------------------- title history
+
+
+async def test_recovery_hands_the_scheduler_titles_oldest_first(
+    harness: Harness,
+) -> None:
+    """§99's similarity check must see the titles a listener just heard.
+
+    The scheduler grows its title list by appending each title it plans, then reads
+    ``[-40:]`` as "the most recent forty". `TrackRepository.recent_titles` returns
+    *newest*-first, so passing it through unreversed made that slice the forty **oldest**
+    titles on the station — the comparison ran against names from hundreds of tracks ago and
+    never against the ones just aired. The repository test asserts newest-first and the
+    director's own test slices ``[:40]``; only the production path had it backwards.
+    """
+    now = harness.clock.now()
+    async with harness.database.session() as session:
+        tracks = TrackRepository(session)
+        for index, title in enumerate(["Oldest Call", "Middle Ground", "Newest Print"]):
+            await tracks.reserve_title(
+                title, now=now + timedelta(minutes=index), track_id=None
+            )
+
+    await harness.station.recover()
+
+    titles = harness.station._used_titles
+    assert titles[-1] == normalise_title("Newest Print")
+    assert titles[0] == normalise_title("Oldest Call")

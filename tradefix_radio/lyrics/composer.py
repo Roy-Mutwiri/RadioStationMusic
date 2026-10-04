@@ -285,7 +285,6 @@ class LyricComposer:
                     topic=topic,
                     secondary=secondary,
                     perspective=perspective,
-                    persona=persona,
                     educational=plan.spec.educational_intensity,
                     used_lines=used_lines,
                     used_points=used_points,
@@ -385,7 +384,6 @@ class LyricComposer:
         topic: TopicDefinition,
         secondary: TopicDefinition | None,
         perspective: PerspectiveDefinition,
-        persona: PersonaDefinition | None,
         educational: float,
         used_lines: set[str],
         used_points: list[str],
@@ -449,19 +447,20 @@ class LyricComposer:
             used_lines.add(line)
             lines.append(line)
 
-        # §100: a persona's signature habits are what make it feel like a different
-        # artist rather than a different label. Dropped in occasionally rather than every
-        # section, so it reads as a habit and not a catchphrase.
-        if (
-            persona is not None
-            and persona.signature
-            and role in {"body", "teach"}
-            and self._selector.rng.random() < 0.25
-        ):
-            signature = self._selector.choose_from(persona.signature)
-            if signature not in used_lines:
-                used_lines.add(signature)
-                lines.append(signature)
+        # A persona's `signature` is **not** sung, and used to be.
+        #
+        # §100 asks for signature habits that make a persona feel like a different artist,
+        # and this inserted one verbatim as a lyric line 25% of the time. But every entry
+        # in personas.yaml is written as a *stage direction* — "leaves space between
+        # lines", "holds the last note of the hook", "ends verses on the decision, not the
+        # outcome" — so the model sang the instruction. Caught in the first real vocal
+        # track the station produced, which rapped "ends verses on the decision, not the
+        # outcome" in the middle of a verse about greed.
+        #
+        # The comment above it even said the intent: "so it reads as a habit and not a
+        # catchphrase". Inserting the text is the one thing that guarantees the opposite.
+        # Persona character comes from the perspective, the format affinity and the
+        # connective lines, all of which this method already applies.
 
         if role == "close" and self._selector.rng.random() < 0.6:
             lines.append(self._selector.choose_from(_CLOSERS))

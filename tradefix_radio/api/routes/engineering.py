@@ -50,6 +50,8 @@ from tradefix_radio.contracts.enums import TrackProvenance
 from tradefix_radio.core.clock import UTC
 from tradefix_radio.persistence.models import (
     GenerationJob,
+    Lyrics,
+    ProviderSubmission,
     SimilarityResult,
     Track,
     TrackBlueprint,
@@ -57,7 +59,9 @@ from tradefix_radio.persistence.models import (
 )
 from tradefix_radio.persistence.repositories import (
     GenerationJobRepository,
+    LyricsRepository,
     OriginalityRepository,
+    ProviderSubmissionsRepository,
 )
 from tradefix_radio.persistence.repositories.originality import TrackEvidence
 
@@ -466,12 +470,64 @@ async def get_library_track(track_id: str, view: ViewDep) -> dict[str, object]:
             .select_from(TrackFile)
             .where(TrackFile.track_id == track_id, TrackFile.deleted_at.is_(None))
         )
+        lyrics = await LyricsRepository(session).get(track_id)
+        submission = await ProviderSubmissionsRepository(session).latest_for_track(
+            track_id
+        )
     return {
         "summary": summary,
         "blueprint": payload,
         # The count, deliberately **not** the path. §68: internal file paths are not exposed
         # unnecessarily, and the browser could not read one anyway.
         "has_audio": bool(audio_count),
+        "lyrics": None if lyrics is None else _lyrics_panel(lyrics),
+        # What the model was actually told, beside what the station decided. A vocal track
+        # that went out instrumental is invisible from the blueprint alone — the blueprint
+        # records the intent, and the intent was honoured right up to the provider.
+        "submission": None if submission is None else _submission_panel(submission),
+    }
+
+
+def _lyrics_panel(row: Lyrics) -> dict[str, object]:
+    """The §46 lyric panel: the words, and the decisions behind them."""
+    return {
+        "text": row.text,
+        "format": row.lyric_format,
+        "perspective": row.perspective,
+        "primary_topic": row.primary_topic,
+        "secondary_topic": row.secondary_topic,
+        "tradefix_mentions": row.tradefix_mentions,
+        "educational_intensity": round(row.educational_intensity, 3),
+        "word_count": row.word_count,
+        "concepts_used": list(row.concepts_used or ()),
+        "created_at": row.created_at.isoformat(),
+    }
+
+
+def _submission_panel(row: ProviderSubmission) -> dict[str, object]:
+    """What was sent to the provider (§7.9, §7.10, §7.26).
+
+    The lyric text is included because it is the point: the question this panel answers is
+    "did the words reach the model", and a summary that said "yes, 142 words" would have
+    been equally true of the run where the model received ``[Instrumental]``.
+    """
+    return {
+        "attempt": row.attempt,
+        "provider": row.provider,
+        "model_identifier": row.model_identifier,
+        "caption": row.caption,
+        "requested_lyrics": row.requested_lyrics,
+        "provider_lyrics": row.provider_lyrics,
+        "lyrics_modified": row.lyrics_modified,
+        "lyric_notes": list(row.lyric_notes or ()),
+        "instrumental": row.instrumental,
+        "profile": row.profile,
+        "inference_steps": row.inference_steps,
+        "guidance_scale": row.guidance_scale,
+        "seed": row.seed,
+        "warnings": list(row.warnings or ()),
+        # The headline the panel leads on: a vocal track realised without words.
+        "vocals_downgraded": bool(row.lyrics_modified and row.instrumental),
     }
 
 
