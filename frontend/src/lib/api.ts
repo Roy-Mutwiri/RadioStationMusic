@@ -256,6 +256,21 @@ export interface OriginalitySummary {
   fingerprint_detail: string
   /** The scope the station is willing to claim. Rendered verbatim, never paraphrased. */
   scope_note: string
+
+  /** PRODUCTION_RADIO tracks available to compare against. */
+  production_references: number
+  /**
+   * True when nothing has aired, so graded novelty has no basis.
+   *
+   * Rendered explicitly. The alternative is a 100% approval rate that reads as quality
+   * and is actually an empty library.
+   */
+  cold_start: boolean
+  /** Dispositions of candidates that entered REVIEW. */
+  resolution_counts: Record<string, number>
+  /** Which class of evidence decided them. */
+  evidence_counts: Record<string, number>
+  resolver_version: string | null
 }
 
 export interface SimilarityComponent {

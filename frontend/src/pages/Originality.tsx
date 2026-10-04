@@ -58,6 +58,22 @@ function checkValue(check: QcCheck): string {
   return check.unit ? `${formatted} ${check.unit}` : formatted
 }
 
+/**
+ * What each evidence class means, in a sentence an operator can act on.
+ *
+ * The raw enum values are precise and unhelpful on a dashboard; these are the same
+ * distinctions in words. Kept beside the page rather than sent from the server because
+ * they are presentation, and the server already sends the per-track reason verbatim.
+ */
+const EVIDENCE_LABELS: Record<string, string> = {
+  style_only: 'Approved — similar style, not the same recording',
+  no_production_history: 'Approved — cold start, nothing has aired to repeat',
+  rotation_pressure: 'Rejected — too close to something aired very recently',
+  definitive_duplicate: 'Rejected — exact content match',
+  strong_recording_match: 'Rejected — fingerprint says the same recording',
+  corroborated_recording_match: 'Rejected — same recording, confirmed by structure',
+}
+
 export function OriginalityPage() {
   const [selected, setSelected] = useState<string | null>(null)
 
@@ -112,6 +128,25 @@ export function OriginalityPage() {
         </p>
       )}
 
+      {data?.cold_start && (
+        /*
+         * Said plainly, because the alternative is an approval rate near 100% that reads
+         * as quality and is actually an empty library. Graded novelty compares against
+         * tracks that have aired; with none, there is nothing a new track could repeat.
+         */
+        <p
+          className="rounded-sm border border-status-degraded/30 bg-status-degraded/5 p-3
+            text-2xs leading-relaxed text-status-degraded"
+          data-testid="originality-cold-start"
+        >
+          <strong>Novelty history: COLD START.</strong> No track has aired on the
+          production station yet, so there are 0 reference recordings for creative
+          similarity. Approvals below reflect that absence, not a judgement about quality.
+          Duplicate detection is unaffected — it compares against every track regardless
+          of whether it aired.
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Metric label="Library size" value={data?.library_size ?? null} size="lg" />
         <Metric label="Evaluated" value={evaluated || null} size="lg" />
@@ -130,6 +165,37 @@ export function OriginalityPage() {
           hint={evaluated ? percent((verdicts.reject ?? 0) / evaluated) ?? undefined : undefined}
         />
       </div>
+
+      {data && Object.keys(data.evidence_counts).length > 0 && (
+        <Panel
+          title="How REVIEW candidates were resolved"
+          data-testid="review-resolution"
+          action={
+            data.resolver_version ? (
+              <span className="font-mono text-2xs text-ink-500">
+                resolver {data.resolver_version}
+              </span>
+            ) : undefined
+          }
+        >
+          <p className="mb-3 text-2xs leading-relaxed text-ink-500">
+            A REVIEW verdict means the combined score could not decide. The resolver then
+            asks what <em>kind</em> of similarity it was: two lo-fi tracks at the same
+            tempo share a genre, not a recording.
+          </p>
+          <div className="space-y-1">
+            {Object.entries(data.evidence_counts)
+              .sort((a, b) => b[1] - a[1])
+              .map(([evidence, count]) => (
+                <Row
+                  key={evidence}
+                  label={EVIDENCE_LABELS[evidence] ?? evidence}
+                  value={String(count)}
+                />
+              ))}
+          </div>
+        </Panel>
+      )}
 
       <Panel title="Novelty distribution">
         {summary.isLoading ? (

@@ -231,6 +231,7 @@ export const statusFixture: StationStatus = {
   version: '0.1.0',
   environment: 'development',
   mode: 'development',
+  test_mode: false,
   started_at: '2026-10-02T10:00:00Z',
   uptime_seconds: 7_200,
   tracks_played: 160,

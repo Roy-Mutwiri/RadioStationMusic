@@ -187,6 +187,18 @@ function TopBar() {
             Fallback market
           </span>
         )}
+        {state?.status.test_mode && (
+          // Alongside the simulation badge, not instead of it: they are different claims.
+          // Simulation says the market is not real; test mode says the buffer targets are
+          // not production's. A run can be either, both, or neither.
+          <span
+            className="chip border-status-degraded/45 bg-status-degraded/10 text-status-degraded"
+            data-testid="test-mode-chip"
+            title="Interactive test run: buffer targets are lowered so playback starts within minutes. QC, originality and mastering gates are unchanged."
+          >
+            TEST MODE
+          </span>
+        )}
         {market?.is_simulated && (
           // §72: simulation must never be mistaken for live. Persistent, in the chrome, on
           // every page — not a badge tucked into one panel.

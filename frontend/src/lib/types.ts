@@ -283,6 +283,8 @@ export interface StationStatus {
   version: string
   environment: string
   mode: string
+  /** True when this process is an interactive test run with lowered buffer targets. */
+  test_mode: boolean
   started_at: string | null
   uptime_seconds: number
   tracks_played: number
