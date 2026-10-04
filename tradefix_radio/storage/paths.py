@@ -38,19 +38,60 @@ _SAFE_TRACK_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
 class FileRole(str, Enum):
-    """What a file is for. Mirrors ``track_files.role``."""
+    """What a file is for. Mirrors ``track_files.role``.
 
-    RAW = "raw"
-    """Unprocessed provider output. Deletable as soon as a master exists."""
+    The single authority on what a station-owned artifact *is*. `TrackStage` in
+    :mod:`tradefix_radio.generation.storage` used to carry an overlapping version of the
+    same idea for the filesystem's benefit; it is now a placement detail with no say in
+    ownership or retention, because two enums answering "what is this file" is how a
+    retention engine ends up disagreeing with the library about what may be deleted.
+
+    Values are the strings already in ``track_files.role``. ``RAW_GENERATION`` keeps the
+    value ``"raw"`` deliberately: the name was wrong, the stored data was not.
+    """
+
+    RAW_GENERATION = "raw"
+    """Unprocessed provider output. Deletable once a verified master exists."""
 
     MASTER = "master"
-    """The mastered file that actually airs."""
+    """The mastered file that actually airs. The authoritative audio for a track."""
 
-    ARTWORK = "artwork"
-    """Procedurally generated cover art (§54)."""
+    REJECTED_RAW = "rejected_raw"
+    """Provider output for a track post-production refused. Kept briefly, for triage."""
+
+    QUARANTINE = "quarantine"
+    """Audio that failed verification or decoded wrongly. Never queued, kept as evidence."""
+
+    EMERGENCY = "emergency"
+    """Tier 2 reserve audio (§33). Held back from normal scheduling and never swept."""
 
     STATION_ID = "station_id"
     """A station identifier clip (§31)."""
+
+    ARTWORK = "artwork"
+    """Procedurally generated cover art (§54). Not audio; tracked for the same reasons."""
+
+    @property
+    def is_audio(self) -> bool:
+        """Whether the bytes are playable audio, as opposed to a cover image."""
+        return self is not FileRole.ARTWORK
+
+    @property
+    def is_airable(self) -> bool:
+        """Whether a file in this role may legitimately reach the queue.
+
+        Quarantine is the case this exists for: it is audio, it is on disk, it has a
+        track id, and it must never be broadcast.
+        """
+        return self in _AIRABLE_ROLES
+
+
+#: Roles the playout path may draw from. Deliberately a small, explicit allowlist rather
+#: than "everything except quarantine": a role added later should have to argue its way
+#: onto the air rather than arrive there by default.
+_AIRABLE_ROLES = frozenset(
+    {FileRole.MASTER, FileRole.EMERGENCY, FileRole.STATION_ID}
+)
 
 
 def validate_track_id(track_id: str) -> str:
@@ -94,6 +135,53 @@ class StoragePaths:
     def artwork(self, track_id: str, when: datetime) -> Path:
         validate_track_id(track_id)
         return self._paths.artwork_dir / _date_partition(when) / f"{track_id}.png"
+
+    def rejected_audio(self, track_id: str, when: datetime, extension: str = "wav") -> Path:
+        """Raw output for a track post-production refused (§36 debug retention)."""
+        validate_track_id(track_id)
+        directory = self._paths.generated_dir / "rejected" / _date_partition(when)
+        return directory / f"{track_id}.raw.{extension.lstrip('.')}"
+
+    def quarantine_audio(
+        self, track_id: str, when: datetime, extension: str = "wav"
+    ) -> Path:
+        """Audio that failed verification. Kept as evidence, never queued."""
+        validate_track_id(track_id)
+        directory = self._paths.generated_dir / "quarantine" / _date_partition(when)
+        return directory / f"{track_id}.{extension.lstrip('.')}"
+
+    def staging(self, track_id: str, suffix: str) -> Path:
+        """A temp path beside the final destination, for the write-then-rename dance.
+
+        Beside, not in a system temp directory: a rename across filesystems is a copy and
+        is not atomic, which would defeat the point. The ``.partial`` marker is what makes
+        a crashed staging file identifiable afterwards instead of looking like real audio.
+        """
+        validate_track_id(track_id)
+        directory = self._paths.generated_dir / "staging"
+        return directory / f"{track_id}{suffix}.partial"
+
+    @property
+    def staging_dir(self) -> Path:
+        return self._paths.generated_dir / "staging"
+
+    def path_for(self, role: FileRole, track_id: str, when: datetime, **kwargs: str) -> Path:
+        """Where a file in this role belongs. One switch, so callers never compose paths."""
+        if role is FileRole.RAW_GENERATION:
+            return self.raw_audio(track_id, when, **kwargs)
+        if role is FileRole.MASTER:
+            return self.master_audio(track_id, when, **kwargs)
+        if role is FileRole.REJECTED_RAW:
+            return self.rejected_audio(track_id, when, **kwargs)
+        if role is FileRole.QUARANTINE:
+            return self.quarantine_audio(track_id, when, **kwargs)
+        if role is FileRole.EMERGENCY:
+            return self.emergency_reserve(track_id, **kwargs)
+        if role is FileRole.STATION_ID:
+            return self.station_id(track_id, **kwargs)
+        if role is FileRole.ARTWORK:
+            return self.artwork(track_id, when)
+        raise ValueError(f"no path rule for role {role!r}")
 
     # -- emergency reserve -------------------------------------------------
 

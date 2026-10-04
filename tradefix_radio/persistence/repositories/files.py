@@ -147,6 +147,7 @@ class TrackFileRepository(Repository):
                 TrackFile.deleted_at,
                 Track.state,
                 Track.last_played_at,
+                Track.provenance,
                 in_queue.label("in_queue"),
             )
             .join(Track, Track.track_id == TrackFile.track_id)
@@ -176,6 +177,7 @@ class TrackFileRepository(Repository):
                     track_state=TrackState(row.state),
                     last_played_at=row.last_played_at,
                     retain_forever=bool(row.retain_forever),
+                    provenance=row.provenance or "unknown",
                     in_queue=bool(row.in_queue),
                     already_deleted=row.deleted_at is not None,
                 )

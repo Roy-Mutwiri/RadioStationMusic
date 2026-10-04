@@ -29,6 +29,8 @@ from tradefix_radio.core.clock import UTC, SystemClock
 from tradefix_radio.core.state_machine import TrackState
 from tradefix_radio.persistence.database import Database
 from tradefix_radio.persistence.models import Track
+from tradefix_radio.persistence.repositories.files import TrackFileRepository
+from tradefix_radio.storage.paths import FileRole
 from tradefix_radio.persistence.repositories import (
     OriginalityRepository,
     TrackRepository,
@@ -286,7 +288,18 @@ async def test_a_clean_track_does_reach_ready_through_the_station(
     assert entry.audio_path is not None
     # The queue points at the *master*, not the raw render: playing the unmastered file would
     # make every loudness guarantee in §6.9 cosmetic.
-    assert "mastered" in entry.audio_path
+    #
+    # Asserted against `track_files` rather than against a substring of the path. This used
+    # to check for "mastered" in the path, which encoded the pre-B5 directory layout
+    # (`generated/mastered/`); masters now live at the date-partitioned location
+    # `StoragePaths.master_audio` gives them. The intent was never the directory — it was
+    # "the queue resolves the authoritative master", and that is now directly checkable.
+    async with database.session() as session:
+        master = await TrackFileRepository(session).get("TF-GOOD", FileRole.MASTER)
+        raw = await TrackFileRepository(session).get("TF-GOOD", FileRole.RAW_GENERATION)
+    assert master is not None, "no MASTER file was registered for an approved track"
+    assert Path(entry.audio_path) == Path(master.path)
+    assert raw is not None and Path(entry.audio_path) != Path(raw.path)
     async with database.session() as session:
         track = await session.get(Track, "TF-GOOD")
         assert track is not None

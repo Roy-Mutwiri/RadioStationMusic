@@ -988,8 +988,57 @@ class RetentionSettings(Section):
     #: Keep this many played masters regardless of age, as a listening archive.
     keep_recent_masters: int = Field(default=200, ge=0, le=100_000)
 
+    #: Days of audio to keep, by the provenance of the track that owns it (B5).
+    #:
+    #: Provenance rather than one global number because the classes are not comparable:
+    #: a simulation render is disposable the moment it has been looked at, while a track
+    #: the station actually broadcast is the listening archive. A single
+    #: `audio_retention_days` had to be set for the most precious case and therefore kept
+    #: everything, which is how `generated/` reached 8.68 GB.
+    #:
+    #: ``unknown`` is deliberately absent, and its absence is load-bearing: a file whose
+    #: provenance could not be established is never auto-deleted. Legacy assets from
+    #: before provenance existed are ambiguous, not expendable, and the conservative
+    #: reading is the only safe one.
+    provenance_retention_days: dict[str, float] = Field(
+        default_factory=lambda: {
+            "production_radio": 60.0,
+            "engineering_test": 2.0,
+            "manual_lab": 14.0,
+            "simulation": 0.5,
+        }
+    )
+
+    #: Days to keep audio by file role, independent of provenance.
+    #:
+    #: Applied as the *tighter* of the two bounds. Raw output is redundant once a master
+    #: exists; rejected output is triage evidence with a short useful life; quarantine is
+    #: a bug report and outlives both because a broken render is the rarest artefact here.
+    role_retention_days: dict[str, float] = Field(
+        default_factory=lambda: {
+            "raw": 2.0,
+            "rejected_raw": 7.0,
+            "quarantine": 30.0,
+        }
+    )
+
+    #: Free space below which the pressure sweep may run at all.
+    critical_free_gb: float = Field(default=10.0, ge=0.5, le=10_000.0)
+
     @model_validator(mode="after")
     def _ordered(self) -> RetentionSettings:
+        if self.critical_free_gb > self.min_free_gb:
+            raise ValueError(
+                "retention.critical_free_gb must be at or below min_free_gb; the "
+                "pressure sweep is a last resort, not the normal threshold "
+                f"({self.critical_free_gb} > {self.min_free_gb})"
+            )
+        if "unknown" in self.provenance_retention_days:
+            raise ValueError(
+                "retention.provenance_retention_days must not contain 'unknown': audio "
+                "whose provenance could not be established is treated conservatively and "
+                "never auto-deleted"
+            )
         if self.alert_free_gb < self.min_free_gb:
             raise ValueError(
                 "retention.alert_free_gb must be at or above min_free_gb so the "

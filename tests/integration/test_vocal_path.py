@@ -14,12 +14,14 @@ the thing under test — what the provider is *told* — is never simulated.
 
 from __future__ import annotations
 
+import asyncio
 import random
 from collections.abc import AsyncIterator
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 
 from tradefix_radio.audio.sinks import NullSink
 from tradefix_radio.config.schema import AppSettings
@@ -39,6 +41,7 @@ from tradefix_radio.generation.provider import (
     ProgressCallback,
 )
 from tradefix_radio.persistence.database import Database
+from tradefix_radio.persistence.models import TrackFile
 from tradefix_radio.persistence.repositories import (
     LyricsRepository,
     PlayEventRepository,
@@ -48,6 +51,7 @@ from tradefix_radio.radio.emergency import EmergencyManager, ProceduralSource
 from tradefix_radio.radio.station import RadioStation
 from tradefix_radio.radio.station_ids import StationIdLibrary, default_library
 from tradefix_radio.runtime.coordinator import RuntimeCoordinator
+from tradefix_radio.storage.paths import FileRole
 from tests.conftest import FIXED_NOW
 from tests.integration.test_phase4_gates import Harness, market
 from tests.unit.test_library import CONFIG_DIR
@@ -484,3 +488,63 @@ async def test_emergency_audio_is_recorded_as_airtime_too(vocal: Harness) -> Non
     # generated track was ready. If only scheduled airtime is present the tiers are not
     # being recorded, which is the defect rather than a very fast generator.
     assert "procedural" in by_tier or "scheduled" in by_tier
+
+
+# ------------------------------------------------------ storage ownership (B5)
+
+
+async def test_generated_audio_is_registered_before_anything_consumes_it(
+    vocal: Harness, tmp_path: Path
+) -> None:
+    """B5 gates A and B: raw and master both produce authoritative metadata.
+
+    Asserted on `track_files` rather than on the filesystem, because the whole defect was
+    bytes existing with nothing recording them. 328 files and 8.68 GB accumulated that
+    way before this.
+    """
+    await vocal.station.start()
+    await vocal.advance(240)
+
+    async with vocal.database.read_session() as session:
+        rows = list((await session.execute(select(TrackFile))).scalars())
+
+    assert rows, "audio was generated and no track_files row was written"
+
+    roles = {row.role for row in rows}
+    assert FileRole.RAW_GENERATION.value in roles, "no raw generation was registered"
+
+    for row in rows:
+        assert row.sha256, "a registered file has no checksum"
+        assert row.size_bytes > 0
+        assert row.deleted_at is None
+        assert await asyncio.to_thread(Path(row.path).is_file), (
+            f"row {row.id} claims audio at {row.path} that is not there"
+        )
+        # Registration measures the file rather than trusting the request.
+        if FileRole(row.role).is_audio:
+            assert row.sample_rate and row.sample_rate > 0
+            assert row.channels and row.channels >= 1
+
+
+async def test_a_ready_track_has_an_authoritative_master(vocal: Harness) -> None:
+    """B5 gate C: what the queue references is a registered file, not a derived path."""
+    await vocal.station.start()
+    await vocal.advance(240)
+
+    ready = [entry for entry in vocal.station._queue if entry.audio_path]
+    if not ready:
+        pytest.skip("no track reached READY inside the window")
+
+    async with vocal.database.read_session() as session:
+        rows = list((await session.execute(select(TrackFile))).scalars())
+    def _key(value: str) -> str:
+        return str(Path(value).resolve()).casefold()
+
+    owned = await asyncio.to_thread(lambda: {_key(row.path) for row in rows})
+
+    for entry in ready:
+        resolved = await asyncio.to_thread(_key, entry.audio_path)
+        assert resolved in owned, (
+            f"{entry.track_id} is queued against {entry.audio_path}, which no "
+            "track_files row owns"
+        )

@@ -15,9 +15,11 @@ subsystem that does not exist, which is exactly the fabrication §86 forbids.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import structlog
@@ -465,27 +467,85 @@ async def get_library_track(track_id: str, view: ViewDep) -> dict[str, object]:
         # Audio lives in ``track_files``, and ADR-07 makes the bytes expendable while the
         # metadata is permanent — so a track row existing says nothing about whether the file
         # does. The UI needs to know whether a player can be offered at all.
-        audio_count = await session.scalar(
-            select(func.count())
-            .select_from(TrackFile)
-            .where(TrackFile.track_id == track_id, TrackFile.deleted_at.is_(None))
+        audio_rows = list(
+            (
+                await session.execute(
+                    select(TrackFile).where(TrackFile.track_id == track_id)
+                )
+            ).scalars()
         )
         lyrics = await LyricsRepository(session).get(track_id)
         submission = await ProviderSubmissionsRepository(session).latest_for_track(
             track_id
         )
+    audio = await asyncio.to_thread(_audio_panel, audio_rows)
     return {
         "summary": summary,
         "blueprint": payload,
-        # The count, deliberately **not** the path. §68: internal file paths are not exposed
-        # unnecessarily, and the browser could not read one anyway.
-        "has_audio": bool(audio_count),
+        # Per role, with the filesystem actually consulted. This used to be
+        # `bool(count_of_rows)`, and since nothing ever wrote a row it rendered
+        # "Audio on disk: No" for all 247 tracks — including ones whose masters were
+        # sitting on disk. A count of rows is not a statement about bytes.
+        "audio": audio,
+        # Kept for callers that only want the one question, now answered honestly: there
+        # is a live row *and* the file it names exists.
+        "has_audio": any(item["status"] == "present" for item in audio.values()),
         "lyrics": None if lyrics is None else _lyrics_panel(lyrics),
         # What the model was actually told, beside what the station decided. A vocal track
         # that went out instrumental is invisible from the blueprint alone — the blueprint
         # records the intent, and the intent was honoured right up to the provider.
         "submission": None if submission is None else _submission_panel(submission),
     }
+
+
+def _audio_panel(rows: list[TrackFile]) -> dict[str, dict[str, object]]:
+    """Per-role audio status, with the filesystem consulted (§46, B5).
+
+    Four states, because "no" was hiding three different situations an operator needs to
+    tell apart:
+
+    * ``present``  — a live row and the bytes are there.
+    * ``deleted``  — retention reclaimed the bytes on purpose. Expected, not a fault.
+    * ``missing``  — a live row says the file exists and it does not. A real defect, and
+      the one case that must never read as a bland "no".
+    * ``unknown``  — no row at all. True of every pre-B5 track, whose bytes may well be on
+      disk unowned; claiming "no audio" would be as wrong as claiming "yes".
+
+    Paths are deliberately not returned (§68); the browser could not read one anyway.
+    """
+    panel: dict[str, dict[str, object]] = {}
+    for row in sorted(rows, key=lambda r: r.role):
+        if row.deleted_at is not None:
+            status = "deleted"
+        elif Path(row.path).is_file():
+            status = "present"
+        else:
+            status = "missing"
+        panel[row.role] = {
+            "status": status,
+            "size_bytes": row.size_bytes,
+            "format": row.file_format,
+            "sample_rate": row.sample_rate,
+            "channels": row.channels,
+            "created_at": row.created_at.isoformat(),
+            "deleted_at": None if row.deleted_at is None else row.deleted_at.isoformat(),
+            "retained_forever": bool(row.retain_forever),
+        }
+    for role in ("raw", "master"):
+        panel.setdefault(
+            role,
+            {
+                "status": "unknown",
+                "size_bytes": None,
+                "format": None,
+                "sample_rate": None,
+                "channels": None,
+                "created_at": None,
+                "deleted_at": None,
+                "retained_forever": False,
+            },
+        )
+    return panel
 
 
 def _lyrics_panel(row: Lyrics) -> dict[str, object]:

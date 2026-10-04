@@ -59,6 +59,7 @@ def candidate(
     already_deleted: bool = False,
     protected_location: bool = False,
     created_days_ago: float = 40.0,
+    provenance: str = "production_radio",
 ) -> RetentionCandidate:
     return RetentionCandidate(
         file_id=file_id,
@@ -73,6 +74,7 @@ def candidate(
         in_queue=in_queue,
         already_deleted=already_deleted,
         protected_location=protected_location,
+        provenance=provenance,
     )
 
 
@@ -168,7 +170,7 @@ def test_guards_outrank_disk_pressure() -> None:
 def test_raw_output_is_reclaimed_first() -> None:
     """Raw provider output is redundant once a master exists."""
     plan = plan_retention(
-        [candidate(role=FileRole.RAW, played_days_ago=0.1)], settings(), now=NOW
+        [candidate(role=FileRole.RAW_GENERATION, played_days_ago=0.1)], settings(), now=NOW
     )
     assert len(plan.deletions) == 1
     assert plan.deletions[0].action is RetentionAction.DELETE_RAW
@@ -345,7 +347,7 @@ def test_every_candidate_gets_exactly_one_decision() -> None:
     """No candidate may be silently dropped from the plan."""
     candidates = [
         candidate(1, in_queue=True),
-        candidate(2, role=FileRole.RAW),
+        candidate(2, role=FileRole.RAW_GENERATION),
         candidate(3, played_days_ago=100.0),
         candidate(4, played_days_ago=1.0),
         candidate(5, track_state=TrackState.REJECTED),
@@ -360,7 +362,7 @@ def test_every_decision_carries_a_human_readable_reason() -> None:
     """The sweep log must explain itself; §36 behaviour has to be auditable."""
     candidates = [
         candidate(1, in_queue=True),
-        candidate(2, role=FileRole.RAW),
+        candidate(2, role=FileRole.RAW_GENERATION),
         candidate(3, played_days_ago=100.0),
     ]
     plan = plan_retention(candidates, settings(), now=NOW)
@@ -370,7 +372,7 @@ def test_every_decision_carries_a_human_readable_reason() -> None:
 
 
 def test_plan_summary_counts_actions() -> None:
-    candidates = [candidate(1, role=FileRole.RAW), candidate(2, in_queue=True)]
+    candidates = [candidate(1, role=FileRole.RAW_GENERATION), candidate(2, in_queue=True)]
     summary = plan_retention(candidates, settings(), now=NOW).summary()
     assert summary[RetentionAction.DELETE_RAW.value] == 1
     assert summary[RetentionAction.KEEP_QUEUED.value] == 1
@@ -378,7 +380,7 @@ def test_plan_summary_counts_actions() -> None:
 
 def test_reclaimable_bytes_sums_only_deletions() -> None:
     candidates = [
-        candidate(1, role=FileRole.RAW, size_mb=10),
+        candidate(1, role=FileRole.RAW_GENERATION, size_mb=10),
         candidate(2, in_queue=True, size_mb=1_000),
     ]
     plan = plan_retention(candidates, settings(), now=NOW)
@@ -419,6 +421,7 @@ def test_execute_plan_deletes_real_files(tmp_path: Path) -> None:
                 created_at=NOW - timedelta(days=60),
                 track_state=TrackState.PLAYED,
                 last_played_at=NOW - timedelta(days=40),
+                provenance="production_radio",
             )
         ],
         settings(),
@@ -444,6 +447,7 @@ def test_dry_run_deletes_nothing(tmp_path: Path) -> None:
                 created_at=NOW - timedelta(days=60),
                 track_state=TrackState.PLAYED,
                 last_played_at=NOW - timedelta(days=40),
+                provenance="production_radio",
             )
         ],
         settings(),
@@ -467,6 +471,7 @@ def test_missing_file_is_counted_separately_not_as_an_error(tmp_path: Path) -> N
                 created_at=NOW - timedelta(days=60),
                 track_state=TrackState.PLAYED,
                 last_played_at=NOW - timedelta(days=40),
+                provenance="production_radio",
             )
         ],
         settings(),
@@ -482,3 +487,80 @@ def test_execute_plan_on_an_empty_plan_is_a_no_op() -> None:
     result = execute_plan(plan_retention([], settings(), now=NOW))
     assert result.files_deleted == 0
     assert result.bytes_reclaimed == 0
+
+
+# ------------------------------------------------- provenance policy (B5)
+
+
+def test_unknown_provenance_is_never_reclaimed() -> None:
+    """The 8.68 GB legacy corpus, stated as a rule.
+
+    Files that predate provenance cannot be proven disposable, and a retention engine
+    that treats "I do not know what this is" as "delete it" is one bad migration away
+    from erasing the station's catalogue. Ambiguity is conservative here, always.
+    """
+    plan = plan_retention(
+        [candidate(1, provenance="unknown", created_days_ago=900.0,
+                   played_days_ago=900.0)],
+        settings(),
+        now=NOW,
+    )
+    assert plan.deletions == []
+    assert "provenance is unknown" in plan.decisions[0].reason
+
+
+def test_a_simulation_render_is_reclaimed_quickly() -> None:
+    """Very short retention: a simulation never aired to anyone."""
+    plan = plan_retention(
+        [candidate(1, role=FileRole.RAW_GENERATION, provenance="simulation",
+                   created_days_ago=3.0)],
+        settings(),
+        now=NOW,
+    )
+    assert plan.deletions, "a three-day-old simulation render was kept"
+
+
+def test_a_fresh_engineering_render_is_still_inside_its_allowance() -> None:
+    """Short, but not zero: the point of engineering output is to be listened to."""
+    plan = plan_retention(
+        [candidate(1, role=FileRole.RAW_GENERATION, provenance="engineering_test",
+                   created_days_ago=0.5)],
+        settings(),
+        now=NOW,
+    )
+    assert plan.deletions == []
+    assert "allowance" in plan.decisions[0].reason
+
+
+def test_the_tighter_of_role_and_provenance_wins() -> None:
+    """A raw render of a production track is still a raw render.
+
+    Provenance says 60 days, the raw role says 2. Keeping it for 60 because the *track*
+    is precious would defeat the point: the master is what is precious, and the raw file
+    is the input that produced it.
+    """
+    plan = plan_retention(
+        [candidate(1, role=FileRole.RAW_GENERATION, provenance="production_radio",
+                   created_days_ago=10.0)],
+        settings(),
+        now=NOW,
+    )
+    assert plan.deletions, "a 10-day-old raw file survived on its track's provenance"
+
+
+def test_quarantine_outlives_rejected_output() -> None:
+    """A broken render is the rarest artefact here; triage evidence is not."""
+    kept = plan_retention(
+        [candidate(1, role=FileRole.QUARANTINE, provenance="production_radio",
+                   created_days_ago=10.0)],
+        settings(),
+        now=NOW,
+    )
+    assert kept.deletions == []
+    gone = plan_retention(
+        [candidate(2, role=FileRole.REJECTED_RAW, provenance="production_radio",
+                   created_days_ago=10.0)],
+        settings(),
+        now=NOW,
+    )
+    assert gone.deletions, "week-old triage output was kept"

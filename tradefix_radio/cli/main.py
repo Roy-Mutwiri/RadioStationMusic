@@ -566,6 +566,9 @@ def build_parser() -> argparse.ArgumentParser:
         station as station_cli,
     )
     from tradefix_radio.cli import (
+        storage as storage_cli,
+    )
+    from tradefix_radio.cli import (
         visual as visual_cli,
     )
 
@@ -595,6 +598,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     audio_cli.register(sub)
     sub.choices["audio"].set_defaults(handler=_with_settings(audio_cli.command))
+
+    storage_cli.register(sub)
+    sub.choices["storage"].set_defaults(handler=_with_settings(storage_cli.command))
 
     visual_cli.register(sub)
     sub.choices["visual"].set_defaults(handler=_with_settings(visual_cli.command))

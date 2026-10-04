@@ -263,9 +263,30 @@ export interface ProviderSubmission {
   vocals_downgraded: boolean
 }
 
+/** One role's audio, with the filesystem actually consulted (B5). */
+export interface AudioFile {
+  /**
+   * `present` — a live row and the bytes are there.
+   * `deleted` — retention reclaimed them on purpose. Expected, not a fault.
+   * `missing` — a row says the file exists and it does not. A real defect.
+   * `unknown` — no row at all; true of every pre-B5 track.
+   */
+  status: 'present' | 'deleted' | 'missing' | 'unknown'
+  size_bytes: number | null
+  format: string | null
+  sample_rate: number | null
+  channels: number | null
+  created_at: string | null
+  deleted_at: string | null
+  retained_forever: boolean
+}
+
 export interface TrackDetail {
   summary: TrackSummary
   blueprint: Record<string, unknown> | null
+  /** Keyed by file role: `raw`, `master`, and any others the track owns. */
+  audio: Record<string, AudioFile>
+  /** True only when some role is `present`. Was `bool(row_count)`, which was always false. */
   has_audio: boolean
   /** Null for a genuine instrumental, or when composition failed. */
   lyrics: TrackLyrics | null

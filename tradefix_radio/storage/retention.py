@@ -42,6 +42,7 @@ from pathlib import Path
 import structlog
 
 from tradefix_radio.config.schema import RetentionSettings
+from tradefix_radio.contracts.enums import TrackProvenance
 from tradefix_radio.core.state_machine import TrackState
 from tradefix_radio.storage.paths import FileRole
 
@@ -101,6 +102,8 @@ class RetentionCandidate:
     already_deleted: bool = False
     #: Path lies under a protected directory (emergency tree).
     protected_location: bool = False
+    #: Provenance of the owning track (B5). ``unknown`` is never auto-deleted.
+    provenance: str = "unknown"
 
 
 @dataclass(frozen=True)
@@ -190,6 +193,32 @@ def _is_protected(candidate: RetentionCandidate) -> RetentionDecision | None:
     return None
 
 
+def _allowance_days(
+    candidate: RetentionCandidate, settings: RetentionSettings
+) -> float | None:
+    """How many days this file is kept, or ``None`` when no policy names it.
+
+    The *tighter* of the provenance and role allowances. They answer different
+    questions — "how precious is the track" and "how redundant is this particular file" —
+    and a raw render of a production track is still a raw render.
+    """
+    role_days = settings.role_retention_days.get(candidate.role.value)
+    provenance_days = settings.provenance_retention_days.get(candidate.provenance)
+
+    if (
+        candidate.role is FileRole.MASTER
+        and candidate.provenance == TrackProvenance.PRODUCTION_RADIO.value
+    ):
+        # A production master is the listening archive, and the archive already has an
+        # authority: `keep_recent_masters` plus `audio_retention_days` below. Adding a
+        # second number here would be the two-authorities mistake B5 exists to remove,
+        # so the provenance allowance deliberately abstains for this one combination.
+        return role_days
+
+    present = [value for value in (role_days, provenance_days) if value is not None]
+    return min(present) if present else None
+
+
 def plan_retention(
     candidates: list[RetentionCandidate],
     settings: RetentionSettings,
@@ -253,9 +282,36 @@ def plan_retention(
             plan.decisions.append(guard)
             continue
 
+        # Provenance decides how long anything is kept, and an unprovable provenance
+        # decides nothing at all (B5). A legacy asset from before provenance existed is
+        # ambiguous rather than expendable, and the station has 8.68 GB of exactly that.
+        if candidate.provenance == TrackProvenance.UNKNOWN.value:
+            plan.decisions.append(
+                RetentionDecision(
+                    candidate,
+                    RetentionAction.KEEP_WITHIN_RETENTION,
+                    "provenance is unknown; conservative policy keeps it",
+                )
+            )
+            continue
+
+        allowance = _allowance_days(candidate, settings)
+        if allowance is not None:
+            age_days = (now - candidate.created_at).total_seconds() / 86_400.0
+            if age_days < allowance:
+                plan.decisions.append(
+                    RetentionDecision(
+                        candidate,
+                        RetentionAction.KEEP_WITHIN_RETENTION,
+                        f"{age_days:.1f}d old, inside the {allowance:.1f}d allowance for "
+                        f"{candidate.provenance}/{candidate.role.value}",
+                    )
+                )
+                continue
+
         # Raw provider output is redundant the moment a master exists, and is the
         # cheapest, safest space to reclaim. Taken first for that reason.
-        if candidate.role is FileRole.RAW:
+        if candidate.role is FileRole.RAW_GENERATION:
             plan.decisions.append(
                 RetentionDecision(
                     candidate,

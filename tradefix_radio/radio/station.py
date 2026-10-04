@@ -36,7 +36,6 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tradefix_radio.audio.analysis import EMBEDDING_VERSION
-from tradefix_radio.audio.io import read_info
 from tradefix_radio.audio.sinks import AudioSink
 from tradefix_radio.config.schema import AppSettings
 from tradefix_radio.contracts.enums import (
@@ -67,7 +66,6 @@ from tradefix_radio.contracts.music import MusicBlueprintV1
 from tradefix_radio.contracts.queue import QueueLockLevel
 from tradefix_radio.core.clock import Clock, SystemClock
 from tradefix_radio.core.errors import (
-    AudioError,
     IllegalTransitionError,
     PersistenceError,
 )
@@ -91,6 +89,7 @@ from tradefix_radio.persistence.repositories import (
     PlayEventRepository,
     ProviderSubmissionsRepository,
     RadioMemoryRepository,
+    TrackFileRepository,
     TrackRepository,
 )
 from tradefix_radio.persistence.repositories.queue import (
@@ -106,6 +105,12 @@ from tradefix_radio.radio.queue import QueueEntry, RadioQueue, ReadinessState
 from tradefix_radio.radio.scheduler import Scheduler
 from tradefix_radio.radio.station_ids import StationIdCategory, StationIdLibrary
 from tradefix_radio.runtime.coordinator import RuntimeCoordinator
+from tradefix_radio.storage.paths import FileRole, StoragePaths
+from tradefix_radio.storage.registrar import (
+    FileRegistrar,
+    RegisteredFile,
+    StorageError,
+)
 
 _log = structlog.get_logger(__name__)
 
@@ -441,6 +446,10 @@ class RadioStation:
         self._tier_since = 0.0
         # Finished tracks waiting to be written. Bounded: an unbounded queue would turn a
         # database stall into unbounded memory growth over a week-long run.
+        #: Owns every audio file the station keeps (B5). Always present: a station that
+        #: writes audio nobody recorded is the defect this replaces.
+        self._storage = FileRegistrar(StoragePaths(settings.paths))
+
         #: When the item currently on air started. Stamped by `_on_track_started`.
         self._airing_started_at: datetime | None = None
 
@@ -1157,6 +1166,68 @@ class RadioStation:
                 error=str(error),
             )
 
+    async def _register_raw(self, outcome: GenerationOutcome) -> RegisteredFile | None:
+        """Take provider output into station ownership, or quarantine it.
+
+        Returns ``None`` when the track cannot proceed, having already marked the slot
+        unavailable. The caller treats that as "this track is over", which is the same
+        thing the old unreadable-audio branch did — the difference is that the bytes are
+        now kept as evidence under `quarantine/` instead of left in place looking like a
+        normal render.
+        """
+        result = outcome.result
+        if result is None:
+            return None
+        track_id = outcome.track_id
+        now = self._clock.now()
+        try:
+            async with self._database.session() as session:
+                return await self._storage.register(
+                    repository=TrackFileRepository(session),
+                    track_id=track_id,
+                    role=FileRole.RAW_GENERATION,
+                    source=Path(result.audio_path),
+                    now=now,
+                )
+        except StorageError as error:
+            _log.error(
+                "station.raw_registration_failed",
+                track_id=track_id,
+                error=str(error),
+                path=str(result.audio_path),
+            )
+            await self._quarantine(track_id, Path(result.audio_path), now=now)
+            with _reporting("mark slot unavailable", track_id=track_id):
+                self._queue.mark_unavailable(
+                    track_id, reason="generated audio could not be taken into storage"
+                )
+            return None
+
+    async def _quarantine(self, track_id: str, source: Path, *, now: datetime) -> None:
+        """Move suspect audio somewhere it can be studied and never played.
+
+        Best effort by design: quarantine is a diagnostic, and failing to file the
+        evidence must not add a second failure on top of the one being recorded. A file
+        that has already been consumed by the staging step simply is not there, which is
+        why a missing source is not an error here.
+        """
+        if not await asyncio.to_thread(source.is_file):
+            return
+        try:
+            async with self._database.session() as session:
+                await self._storage.register(
+                    repository=TrackFileRepository(session),
+                    track_id=track_id,
+                    role=FileRole.QUARANTINE,
+                    source=source,
+                    now=now,
+                    verify_audio=False,
+                )
+        except (StorageError, Exception) as error:  # noqa: BLE001 - diagnostics never raise
+            _log.warning(
+                "station.quarantine_failed", track_id=track_id, error=str(error)
+            )
+
     async def _accept_generated(self, outcome: GenerationOutcome) -> None:
         result = outcome.result
         track_id = outcome.track_id
@@ -1167,17 +1238,20 @@ class RadioStation:
         # given is most worth having in exactly the cases that return early below.
         await self._record_submission(outcome)
 
-        try:
-            measured = read_info(result.audio_path).duration_seconds
-        except AudioError as error:
-            _log.error(
-                "station.generated_audio_unreadable",
-                track_id=track_id,
-                error=str(error),
-            )
-            with _reporting("mark slot unavailable", track_id=track_id):
-                self._queue.mark_unavailable(track_id, reason="unreadable after generation")
+        # Take ownership before anything downstream reads the file (B5).
+        #
+        # This both verifies the audio and records it. The two used to be separate: the
+        # station called `read_info` to check the file decoded and then left it wherever
+        # the provider had written it, with no row anywhere. 328 files and 8.68 GB
+        # accumulated that way, none of them owned, which is why retention could not run
+        # and why the library reported "Audio on disk" for tracks whose bytes it had never
+        # heard of.
+        registered = await self._register_raw(outcome)
+        if registered is None:
             return
+        measured = registered.duration_seconds or 0.0
+        result = replace(result, audio_path=registered.path)
+        outcome = replace(outcome, result=result)
 
         # §6.14: the generator producing a file is not the same thing as the station having a
         # playable track, and the distinction is enforced here rather than trusted. Without a
@@ -1357,13 +1431,56 @@ class RadioStation:
             (TrackState.APPROVED, TrackState.MASTERING),
             reason="post-production approved",
         )
-        master_path = pipeline_outcome.master_path or result.audio_path
         duration = (
             pipeline_outcome.features.duration_seconds
             if pipeline_outcome.features is not None
             else measured
         )
-        return master_path, duration, pipeline_outcome.novelty_score or 1.0
+
+        # Take the master into ownership before the queue is told it exists (B5).
+        #
+        # The order is the point. `mark_ready` is what makes a track airable, and it must
+        # not happen until there is a row saying which bytes will air. Registering after
+        # would leave a window where the queue references audio the database does not
+        # know about -- which is the state the whole station was in before B5.
+        produced = pipeline_outcome.master_path
+        if produced is None:
+            # Mastering declined but post-production approved: the raw file airs. It is
+            # already registered as RAW_GENERATION, so the queue still references owned
+            # bytes and nothing further is needed.
+            return Path(result.audio_path), duration, pipeline_outcome.novelty_score or 1.0
+
+        try:
+            async with self._database.session() as session:
+                registered = await self._storage.register(
+                    repository=TrackFileRepository(session),
+                    track_id=track_id,
+                    role=FileRole.MASTER,
+                    source=Path(produced),
+                    now=self._clock.now(),
+                )
+        except StorageError as error:
+            # An unusable master is a post-production failure, not a storage footnote:
+            # the one file the station was going to broadcast did not survive
+            # verification.
+            _log.error(
+                "station.master_registration_failed",
+                track_id=track_id,
+                error=str(error),
+                path=str(produced),
+            )
+            await self._quarantine(track_id, Path(produced), now=self._clock.now())
+            with _reporting("mark slot unavailable", track_id=track_id):
+                self._queue.mark_unavailable(
+                    track_id, reason="master could not be taken into storage"
+                )
+            return None
+
+        return (
+            registered.path,
+            registered.duration_seconds or duration,
+            pipeline_outcome.novelty_score or 1.0,
+        )
 
     async def _duplicate_hash_owner(self, canonical_hash: str) -> str | None:
         """Which track already owns this exact audio (§6.3).

@@ -47,6 +47,7 @@ import {
   Panel,
   Row,
 } from '../components/primitives'
+import type { AudioFile } from '../lib/api'
 import { api, CapabilityUnavailable } from '../lib/api'
 import {
   ABSENT,
@@ -489,6 +490,44 @@ export function GenerationPage() {
  * and then jumps to 1.0 — so a bar would spend most of a 45-second generation claiming 10%.
  * The elapsed seconds are real and are what is shown instead.
  */
+/**
+ * Audio presence for one role, told truthfully (B5).
+ *
+ * This replaced `has_audio ? 'Yes' : 'No'`, which rendered "No" for all 247 tracks
+ * because it counted `track_files` rows and nothing ever wrote one — including for
+ * tracks whose masters were sitting on disk the whole time. "No" was also hiding three
+ * different situations: reclaimed on purpose, genuinely lost, and never recorded. An
+ * operator needs to tell those apart, so each gets its own word and its own colour.
+ */
+function AudioState({ file }: { file?: AudioFile }): JSX.Element {
+  if (!file || file.status === 'unknown') {
+    return <span className="text-ink-600">Not recorded</span>
+  }
+  if (file.status === 'missing') {
+    return (
+      <span className="text-status-bad" title="A database row names this file and it is not on disk.">
+        Missing file
+      </span>
+    )
+  }
+  if (file.status === 'deleted') {
+    return (
+      <span className="text-ink-500" title="Reclaimed by retention. The metadata is kept.">
+        Reclaimed{file.deleted_at ? ` · ${file.deleted_at.slice(0, 10)}` : ''}
+      </span>
+    )
+  }
+  const mb = file.size_bytes ? `${(file.size_bytes / 1e6).toFixed(1)} MB` : null
+  return (
+    <span className="text-status-ok">
+      Present
+      {mb ? <span className="text-ink-500"> · {mb}</span> : null}
+      {file.format ? <span className="text-ink-500"> · {file.format}</span> : null}
+      {file.retained_forever ? <span className="text-ink-500"> · pinned</span> : null}
+    </span>
+  )
+}
+
 function ProviderPanel() {
   const provider = useQuery({
     queryKey: ['provider-status'],
@@ -886,7 +925,12 @@ export function LibraryPage() {
                 <Row label="State">{titleCase(detail.data.summary.state)}</Row>
                 <Row label="Regime">{titleCase(detail.data.summary.planned_regime)}</Row>
                 <Row label="Energy">{decimal(detail.data.summary.planned_energy, 0)}</Row>
-                <Row label="Audio on disk">{detail.data.has_audio ? 'Yes' : 'No'}</Row>
+                <Row label="Master">
+                  <AudioState file={detail.data.audio?.master} />
+                </Row>
+                <Row label="Raw">
+                  <AudioState file={detail.data.audio?.raw} />
+                </Row>
               </div>
               <details className="border-t hairline pt-2">
                 <summary className="label cursor-pointer text-gold-500/80">
