@@ -92,6 +92,15 @@ def register(subparsers: object) -> None:
         ),
     )
     start.add_argument(
+        "--provider",
+        default=None,
+        choices=("mock", "ace_step"),
+        help=(
+            "override generation.provider for this run. Development mode ships `mock` so "
+            "the stack runs without a GPU; a real listening test needs `ace_step`."
+        ),
+    )
+    start.add_argument(
         "--open",
         action="store_true",
         help="open the Control Center in the default browser once it is serving",
@@ -112,16 +121,31 @@ def _apply_overrides(settings: AppSettings, args: argparse.Namespace) -> AppSett
             update={"audio": settings.audio.model_copy(update=audio_updates)}
         )
 
-    if args.test_mode:
+    if getattr(args, "provider", None):
         settings = settings.model_copy(
             update={
+                "generation": settings.generation.model_copy(
+                    update={"provider": args.provider}
+                )
+            }
+        )
+
+    if args.test_mode:
+        # Buffer targets only. Nothing here reaches a QC, originality or mastering
+        # threshold, and nothing here touches the lock rules or the retry policy — test
+        # mode shortens the wait before playback starts, and that is the whole of what it
+        # is allowed to do. `test_mode` itself travels so the Control Center can label the
+        # run rather than leaving a 12-minute target looking like a misconfiguration.
+        settings = settings.model_copy(
+            update={
+                "test_mode": True,
                 "radio": settings.radio.model_copy(
                     update={
                         "minimum_buffer_minutes": TEST_MODE_MINIMUM_MINUTES,
                         "target_buffer_minutes": TEST_MODE_TARGET_MINUTES,
                         "maximum_buffer_minutes": TEST_MODE_MAXIMUM_MINUTES,
                     }
-                )
+                ),
             }
         )
     return settings

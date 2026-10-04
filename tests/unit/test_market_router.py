@@ -470,3 +470,49 @@ def test_acquiring_a_market_does_not_bypass_later_hysteresis(
     )
     assert not decision.changed
     assert router.pending_symbol == FALLBACK
+
+
+# ------------------------------------- the simulator must not mask what it tests
+
+
+def test_forcing_a_market_open_does_not_hide_a_dead_feed() -> None:
+    """The override that made the mandatory station test unrunnable.
+
+    `force_open` exists so the "open market, silent feed" case can be staged at a weekend,
+    when the calendar says gold is shut. The first implementation applied the override by
+    rewriting a CLOSED assessment to OPEN *after* `assess_availability` returned — but the
+    calendar branch returns early, so everything below it, staleness included, had never
+    run. A symbol forced open with a feed that had been dead for five minutes reported
+    OPEN and healthy, which is precisely the reading the subsystem exists to prevent.
+
+    Overriding the calendar input rather than the assessment output keeps the ordering
+    intact: forced open means "ignore the calendar", never "ignore the data".
+    """
+    assessment = assess_availability(
+        symbol=PRIMARY,
+        now=WEEKEND,
+        settings=_default_symbol_settings(),
+        data_age_seconds=400.0,
+        feed_status=FeedStatus.LIVE,
+        bars_processed=42,
+        calendar_open_override=True,
+    )
+    assert assessment.state is MarketAvailability.UNAVAILABLE
+    assert assessment.feed_degraded is True
+    assert assessment.state is not MarketAvailability.CLOSED
+    assert assessment.calendar_open is True
+
+
+def test_forcing_a_market_open_still_reports_a_healthy_feed_as_open() -> None:
+    """The other half: the override must actually work when the data is fine."""
+    assessment = assess_availability(
+        symbol=PRIMARY,
+        now=WEEKEND,
+        settings=_default_symbol_settings(),
+        data_age_seconds=1.0,
+        feed_status=FeedStatus.LIVE,
+        bars_processed=42,
+        calendar_open_override=True,
+    )
+    assert assessment.state is MarketAvailability.OPEN
+    assert assessment.feed_degraded is False

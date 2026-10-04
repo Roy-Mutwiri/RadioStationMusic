@@ -366,6 +366,72 @@ async def check_gpu(clock: Clock, settings: AppSettings) -> ComponentHealthV1:
 # ---------------------------------------------------------------- integrations
 
 
+async def check_market_routing(clock: Clock, settings: AppSettings) -> ComponentHealthV1:
+    """Which markets are configured, and whether the routing policy is coherent.
+
+    A configuration check, like its neighbours — whether routing *can* work here, not
+    whether data is flowing. Per-symbol liveness is a runtime concern and belongs on the
+    Market page, which reports it continuously.
+
+    It is in the table at all because the single "Market Feed" line stopped being the whole
+    answer once the station could programme against more than one market: an operator
+    reading that line alone cannot tell whether a fallback exists, and discovering on a
+    Saturday that `markets.fallback` is empty is discovering it too late.
+    """
+    routing = settings.markets
+    symbols = routing.symbols_in_order
+
+    if not routing.fallback:
+        return unhealthy(
+            "market_routing",
+            HealthStatus.DEGRADED,
+            f"{routing.primary} has no fallback; the station has nothing to "
+            "programme against while it is closed",
+            clock=clock,
+            remediation=(
+                "Set markets.fallback to a continuously traded symbol (BTCUSD). Without "
+                "one the station falls to emergency programming every weekend."
+            ),
+        )
+
+    # The asymmetry is the anti-flap measure, and getting it backwards is silent: the
+    # station would return to a reopening market faster than it left a closing one, and
+    # cross the boundary repeatedly.
+    if routing.reopen_confirmation_seconds < routing.switch_confirmation_seconds:
+        return unhealthy(
+            "market_routing",
+            HealthStatus.DEGRADED,
+            (
+                f"reopen confirmation ({routing.reopen_confirmation_seconds:.0f}s) is "
+                f"shorter than switch confirmation "
+                f"({routing.switch_confirmation_seconds:.0f}s); the station will return to "
+                "a reopening market faster than it leaves a closing one"
+            ),
+            clock=clock,
+            remediation=(
+                "Set markets.reopen_confirmation_seconds above "
+                "markets.switch_confirmation_seconds. Returning early on a straggling "
+                "pre-open tick makes the station cross the boundary repeatedly."
+            ),
+        )
+
+    thresholds = ", ".join(
+        f"{symbol} stale>{routing.for_symbol(symbol).stale_after_seconds:.0f}s"
+        for symbol in symbols
+    )
+    return healthy(
+        "market_routing",
+        clock=clock,
+        detail=(
+            f"primary {routing.primary}, fallback {'/'.join(routing.fallback)}; "
+            f"leave {routing.switch_confirmation_seconds:.0f}s / "
+            f"return {routing.reopen_confirmation_seconds:.0f}s / "
+            f"dwell {routing.minimum_active_market_seconds:.0f}s; {thresholds}"
+        ),
+        measurements={"configured_symbols": float(len(symbols))},
+    )
+
+
 async def check_market_feed(clock: Clock, settings: AppSettings) -> ComponentHealthV1:
     """Whether the configured feed *can* work, not whether data is flowing.
 
@@ -875,6 +941,7 @@ __all__ = [
     "check_generation_provider",
     "check_gpu",
     "check_market_feed",
+    "check_market_routing",
     "check_node",
     "check_python",
     "is_required",

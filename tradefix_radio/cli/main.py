@@ -64,10 +64,12 @@ _LABELS = {
     "config": "Configuration",
     "directories": "Directories",
     "database": "Database",
+    "migrations": "Migrations",
     "gpu": "GPU",
     "ace_step_environment": "ACE-Step toolchain",
     "ace_step_models": "ACE-Step models",
     "generation_provider": "Generation provider",
+    "market_routing": "Market routing",
     "market_feed": "Market Feed",
     "obs": "OBS WebSocket",
     "audio_device": "Audio Device",
@@ -153,6 +155,66 @@ async def _check_database(clock: Clock, settings: AppSettings) -> ComponentHealt
         await database.disconnect()
 
 
+async def _check_migrations(clock: Clock, settings: AppSettings) -> ComponentHealthV1:
+    """Whether the database is at the migration head the code expects.
+
+    Distinct from the database check, which asks whether a schema exists at all. This asks
+    whether it is the *current* one. The failure it catches is the quiet kind: a schema one
+    revision behind has every table the station opens with, and breaks on the first write
+    that touches a column added since — which, in a radio station, is several minutes after
+    launch and sounds like the generator dying.
+    """
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import text
+
+    from tradefix_radio.persistence.database import Database
+
+    def _head() -> str | None:
+        # Off the event loop: reading the migration scripts touches the filesystem
+        # repeatedly, and `check_directories` already sets the precedent of probing in a
+        # worker rather than blocking the loop the other checks share.
+        config = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
+        return ScriptDirectory.from_config(config).get_current_head()
+
+    try:
+        head = await asyncio.to_thread(_head)
+    except Exception as error:  # noqa: BLE001 - a missing/broken config is the finding
+        return unhealthy(
+            "migrations",
+            HealthStatus.DEGRADED,
+            f"could not read the migration scripts: {type(error).__name__}: {error}",
+            clock=clock,
+            remediation="Run `tradefix doctor` from the repository root.",
+        )
+
+    database = Database(settings.database)
+    try:
+        await database.connect()
+        async with database.read_session() as session:
+            current = await session.scalar(text("SELECT version_num FROM alembic_version"))
+    except Exception as error:  # noqa: BLE001 - reported, not raised
+        return unhealthy(
+            "migrations",
+            HealthStatus.CRITICAL,
+            f"could not read the applied revision: {type(error).__name__}: {error}",
+            clock=clock,
+            remediation="Run `tradefix migrate` to create or upgrade the schema.",
+        )
+    finally:
+        await database.disconnect()
+
+    if current != head:
+        return unhealthy(
+            "migrations",
+            HealthStatus.CRITICAL,
+            f"database is at {current or 'nothing'}, code expects {head}",
+            clock=clock,
+            remediation="Run `tradefix migrate` to upgrade the schema.",
+        )
+    return healthy("migrations", clock=clock, detail=f"at head {head}")
+
+
 async def _check_config(clock: Clock, settings: AppSettings) -> ComponentHealthV1:
     """Configuration already validated by the time we get here.
 
@@ -185,10 +247,12 @@ def _build_registry(settings: AppSettings, clock: Clock) -> HealthRegistry:
     add("config", lambda: _check_config(clock, settings))
     add("directories", lambda: env_checks.check_directories(clock, settings))
     add("database", lambda: _check_database(clock, settings))
+    add("migrations", lambda: _check_migrations(clock, settings))
     add("gpu", lambda: env_checks.check_gpu(clock, settings))
     add("ace_step_environment", lambda: env_checks.check_ace_step_environment(clock))
     add("ace_step_models", lambda: env_checks.check_ace_step_models(clock, settings))
     add("generation_provider", lambda: env_checks.check_generation_provider(clock, settings))
+    add("market_routing", lambda: env_checks.check_market_routing(clock, settings))
     add("market_feed", lambda: env_checks.check_market_feed(clock, settings))
     add("obs", lambda: env_checks.check_obs(clock, settings))
     add("audio_device", lambda: env_checks.check_audio_device(clock, settings))

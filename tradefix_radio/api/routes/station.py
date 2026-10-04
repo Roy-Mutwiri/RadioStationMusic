@@ -24,12 +24,12 @@ worse than its absence, and the UI renders those actions as unavailable with a r
 
 from __future__ import annotations
 
-from datetime import timedelta
-from typing import Annotated, Literal
+from datetime import datetime, timedelta
+from typing import Annotated, Final, Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from tradefix_radio.api.capabilities import Capability
 from tradefix_radio.api.deps import get_view
@@ -56,6 +56,7 @@ from tradefix_radio.api.snapshot import (
     status_to_dto,
 )
 from tradefix_radio.contracts.queue import QueueLockLevel
+from tradefix_radio.core.clock import UTC
 
 _log = structlog.get_logger(__name__)
 
@@ -70,6 +71,21 @@ _WINDOWS: dict[str, timedelta] = {
     "4h": timedelta(hours=4),
     "session": timedelta(hours=8),
 }
+
+
+def _require_database(view: RuntimeView) -> object:
+    """The same guard `engineering.py` applies, stated here rather than imported.
+
+    Routers do not import each other: a cross-module import between two route files is the
+    start of a cycle, and the guard is four lines.
+    """
+    database = view.database
+    if database is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No database is attached to this API process.",
+        )
+    return database
 
 
 def _require_station(view: RuntimeView) -> object:
@@ -412,12 +428,30 @@ async def post_simulation_regime(
 
 
 class MarketClosureRequestV1(BaseModel):
-    """Simulator control: force a symbol closed, or release it."""
+    """Simulator control: override a symbol's calendar verdict, or release it.
+
+    ``state`` is the expressive form. ``closed`` is kept because it was the original shape
+    of this endpoint and is the common case; the two must not both be sent.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     symbol: str = Field(min_length=1, max_length=32)
-    closed: bool = True
+    #: ``open`` | ``closed`` | ``auto``. ``auto`` clears the override.
+    state: Literal["open", "closed", "auto"] | None = None
+    closed: bool | None = None
+
+    @model_validator(mode="after")
+    def _one_form(self) -> MarketClosureRequestV1:
+        if self.state is not None and self.closed is not None:
+            raise ValueError("send either `state` or `closed`, not both")
+        return self
+
+    @property
+    def resolved(self) -> str:
+        if self.state is not None:
+            return self.state
+        return "auto" if self.closed is False else "closed"
 
 
 def _require_routing(view: RuntimeView) -> object:
@@ -477,9 +511,180 @@ async def post_market_closure(
             detail=f"{symbol!r} is not a configured market. Configured: {sorted(known)}.",
         )
 
-    routing.force_closed(symbol, closed=request.closed)  # type: ignore[attr-defined]
+    wanted = request.resolved
+    if wanted == "closed":
+        routing.force_closed(symbol)  # type: ignore[attr-defined]
+    elif wanted == "open":
+        routing.force_open(symbol)  # type: ignore[attr-defined]
+    else:
+        # Clearing is expressed through either method; both drop the entry.
+        routing.force_closed(symbol, closed=False)  # type: ignore[attr-defined]
     await routing.evaluate()  # type: ignore[attr-defined]
-    _log.info("api.market_closure", symbol=symbol, closed=request.closed)
+    _log.info("api.market_override", symbol=symbol, state=wanted)
+    dto = routing_to_dto(view)
+    assert dto is not None
+    return dto
+
+
+# ------------------------------------------------------------ human feedback
+
+
+#: The shorthand reasons the UI offers. Free text is accepted in ``note`` instead.
+#:
+#: A fixed list because an operator rating a track every three minutes will not type, and
+#: because counting "boring" across a session is only possible if everyone spells it the
+#: same way. ``note`` carries anything the list does not.
+FEEDBACK_REASONS: Final = (
+    "great",
+    "boring",
+    "wrong_genre",
+    "wrong_energy",
+    "bad_vocals",
+    "bad_lyrics",
+    "too_repetitive",
+    "distorted",
+    "transition_bad",
+    "transition_good",
+    "branding_awkward",
+    "excellent",
+)
+
+
+class FeedbackRequestV1(BaseModel):
+    """One human verdict on one track."""
+
+    model_config = ConfigDict(frozen=True)
+
+    track_id: str = Field(min_length=1, max_length=64)
+    verdict: Literal["good", "bad", "skip"]
+    reason: str | None = Field(default=None, max_length=48)
+    note: str | None = Field(default=None, max_length=500)
+    #: Seconds into the track, if the UI knows. Never invented server-side.
+    elapsed_seconds: float | None = Field(default=None, ge=0.0)
+
+
+class FeedbackResultV1(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    recorded: bool
+    track_id: str
+    verdict: str
+    message: str
+    reasons: tuple[str, ...] = ()
+
+
+@router.get("/radio/feedback/reasons", response_model=FeedbackResultV1)
+async def get_feedback_reasons(view: ViewDep) -> FeedbackResultV1:
+    """The shorthand vocabulary, so the UI does not hard-code it."""
+    _require_database(view)
+    return FeedbackResultV1(
+        recorded=False,
+        track_id="",
+        verdict="",
+        message="Offered reasons for operator feedback.",
+        reasons=FEEDBACK_REASONS,
+    )
+
+
+@router.post("/radio/feedback", response_model=FeedbackResultV1)
+async def post_feedback(request: FeedbackRequestV1, view: ViewDep) -> FeedbackResultV1:
+    """Record a human verdict on a track that aired.
+
+    Stored and nothing more. It does not change QC thresholds, does not influence the
+    director, and does not cause a skip — a ``skip`` verdict *records* that the operator
+    skipped, and the skip itself is the separate playout control. Preference feeding back
+    into the technical gates automatically is exactly what must not happen: a run of
+    "boring" would start moving thresholds that exist to catch clipping and silence.
+    """
+    database = _require_database(view)
+    market = None
+    service = view.market_service
+    if service is not None:
+        market = service.current_state  # type: ignore[attr-defined]
+
+    reason = request.reason
+    if reason is not None and reason not in FEEDBACK_REASONS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Unknown reason {reason!r}. Offered: {', '.join(FEEDBACK_REASONS)}. "
+                "Use `note` for anything else."
+            ),
+        )
+
+    from tradefix_radio.persistence.models import OperatorFeedback  # noqa: PLC0415
+
+    async with database.session() as session:  # type: ignore[attr-defined]
+        session.add(
+            OperatorFeedback(
+                at=datetime.now(tz=UTC),
+                track_id=request.track_id,
+                verdict=request.verdict,
+                reason=reason,
+                note=request.note,
+                symbol=None if market is None else market.symbol,
+                market_regime=None if market is None else market.regime.value,
+                elapsed_seconds=request.elapsed_seconds,
+            )
+        )
+
+    _log.info(
+        "api.operator_feedback",
+        track_id=request.track_id,
+        verdict=request.verdict,
+        reason=reason,
+        symbol=None if market is None else market.symbol,
+    )
+    return FeedbackResultV1(
+        recorded=True,
+        track_id=request.track_id,
+        verdict=request.verdict,
+        message=f"Recorded {request.verdict} for {request.track_id}.",
+        reasons=FEEDBACK_REASONS,
+    )
+
+
+class FeedFaultRequestV1(BaseModel):
+    """Simulator control: stop or restart one symbol's market feed."""
+
+    model_config = ConfigDict(frozen=True)
+
+    symbol: str = Field(min_length=1, max_length=32)
+    #: False stops the feed (simulating a broker outage); True restarts it.
+    enabled: bool
+
+
+@router.post("/simulation/feed-fault", response_model=ActiveMarketV1)
+async def post_feed_fault(request: FeedFaultRequestV1, view: ViewDep) -> ActiveMarketV1:
+    """Break or restore a market feed, without touching the calendar.
+
+    Distinct from the closure override on purpose, and the distinction is the point: this
+    endpoint makes a market's *data* stop while the market remains open, which must leave
+    the station exactly where it is. An operator who could only simulate closures could
+    never check that.
+    """
+    report = view.capabilities.get(Capability.SIMULATION)
+    if report is None or not report.is_ready:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                report.detail
+                if report
+                else "Simulation controls are not available in this run mode."
+            ),
+        )
+    routing = _require_routing(view)
+    symbol = request.symbol.upper()
+    known = {name.upper() for name in routing.services}  # type: ignore[attr-defined]
+    if symbol not in known:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{symbol!r} is not a configured market. Configured: {sorted(known)}.",
+        )
+
+    await routing.set_feed_enabled(symbol, enabled=request.enabled)  # type: ignore[attr-defined]
+    await routing.evaluate()  # type: ignore[attr-defined]
+    _log.warning("api.feed_fault", symbol=symbol, enabled=request.enabled)
     dto = routing_to_dto(view)
     assert dto is not None
     return dto

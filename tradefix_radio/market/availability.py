@@ -129,6 +129,7 @@ def assess_availability(
     feed_status: FeedStatus,
     bars_processed: int,
     feed_reported_closed: bool | None = None,
+    calendar_open_override: bool | None = None,
 ) -> AvailabilityAssessment:
     """Decide one symbol's availability from everything we know about it.
 
@@ -138,9 +139,19 @@ def assess_availability(
     ``feed_reported_closed`` is the provider's own answer when it has one — MetaTrader can
     say a symbol's session is shut. It outranks the calendar, because a venue knows its own
     holidays and our calendar deliberately does not model them.
+
+    ``calendar_open_override`` replaces the calendar verdict and nothing else. It exists for
+    the simulator, and it is applied *here* rather than by rewriting the result afterwards
+    for a reason worth stating: the calendar branch returns early, so patching its output
+    later discards every check that sits below it. An override applied after the fact made
+    a symbol with a dead feed report OPEN all weekend — masking exactly the staleness the
+    override was added to let someone test.
     """
     continuous = _is_continuous(symbol)
-    calendar_open = True if continuous else is_market_open(now)
+    if calendar_open_override is not None:
+        calendar_open = calendar_open_override
+    else:
+        calendar_open = True if continuous else is_market_open(now)
 
     def build(
         state: MarketAvailability, reason: str, *, degraded: bool = False

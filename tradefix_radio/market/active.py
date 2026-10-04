@@ -80,8 +80,17 @@ class ActiveMarketService:
         self._clock: Clock = clock or SystemClock()
         self._router = router or MarketRouter(settings.markets, clock=self._clock)
         self._previous_states: dict[str, MarketAvailability] = {}
-        #: Operator/simulator override: symbols forced closed for testing (§Simulator).
-        self._forced_closed: set[str] = set()
+        #: Operator/simulator override, per symbol: ``True`` forced open, ``False`` forced
+        #: closed, absent means "believe the feed and the calendar".
+        #:
+        #: Both directions are needed to exercise routing on a real station. A closure can
+        #: be simulated on a trading day by forcing closed, but the reverse — testing the
+        #: *reopen* path at a weekend, when the calendar says gold is shut — is impossible
+        #: without being able to say "treat this as trading". A one-directional override
+        #: can only be rehearsed two days a week.
+        self._overrides: dict[str, bool] = {}
+        #: Symbols whose feed is simulated as faulted. They are not polled at all.
+        self._faulted: set[str] = set()
 
     # ------------------------------------------------------------ inspection
 
@@ -190,6 +199,12 @@ class ActiveMarketService:
         return self.current_state
 
     async def _poll_safely(self, symbol: str) -> None:
+        if symbol.upper() in self._faulted:
+            # A faulted feed is simply not polled. Stopping the service is not enough on
+            # its own: the station drives polling from its own loop and calls straight
+            # through to every service, so a service whose internal task is cancelled goes
+            # right on producing bars. Skipping here is what "no data is arriving" means.
+            return
         service = self._services[symbol]
         try:
             await service.poll_once()
@@ -204,26 +219,95 @@ class ActiveMarketService:
     # -------------------------------------------------------------- routing
 
     def force_closed(self, symbol: str, *, closed: bool = True) -> None:
-        """Simulator/operator override: treat a symbol as closed (§Simulator).
+        """Simulator/operator override: treat a symbol as closed, or clear the override.
 
         Exists so the market-switch path can be exercised on a Wednesday afternoon without
-        waiting for Friday. It overrides the *calendar*, not the feed: a symbol forced
-        closed is reported CLOSED with a reason that names the override, so nobody reading
-        the Market page mistakes a test for a real closure.
+        waiting for Friday. It overrides the *calendar*, never the feed: a symbol forced
+        closed is reported CLOSED with a reason naming the override, so nobody reading the
+        Market page mistakes a test for a real closure — and, critically, it never sets
+        `feed_degraded`, so the closed-versus-broken distinction survives simulation.
+
+        ``closed=False`` clears the override and returns the symbol to whatever the feed
+        and the calendar actually say. See :meth:`force_open` to assert the opposite.
         """
         if closed:
-            self._forced_closed.add(symbol.upper())
+            self._overrides[symbol.upper()] = False
         else:
-            self._forced_closed.discard(symbol.upper())
+            self._overrides.pop(symbol.upper(), None)
         _log.info(
-            "market.forced_closed" if closed else "market.forced_open",
+            "market.forced_closed" if closed else "market.override_cleared",
             symbol=symbol,
             detail="operator/simulator override",
         )
 
+    def force_open(self, symbol: str, *, open_: bool = True) -> None:
+        """Simulator/operator override: treat a symbol as trading.
+
+        The mirror of :meth:`force_closed`, and it exists for one reason: the reopen path
+        cannot otherwise be tested at a weekend. Gold is shut from Friday evening to Sunday
+        evening, so for most of any testing window "wait for it to reopen" is not a thing
+        that can be made to happen.
+
+        It overrides the calendar only. A symbol forced open whose feed has stopped still
+        goes STALE and then UNAVAILABLE, still reports `feed_degraded`, and still does not
+        authorise a fallback — which is exactly the scenario this override exists to let
+        someone stage on a Saturday.
+        """
+        if open_:
+            self._overrides[symbol.upper()] = True
+        else:
+            self._overrides.pop(symbol.upper(), None)
+        _log.info(
+            "market.forced_open" if open_ else "market.override_cleared",
+            symbol=symbol,
+            detail="operator/simulator override",
+        )
+
+    async def set_feed_enabled(self, symbol: str, *, enabled: bool) -> bool:
+        """Stop or restart one symbol's feed, simulating a broker outage.
+
+        The control that makes the most important routing property testable on a running
+        station. "The market is closed" can be staged by overriding the calendar; "the feed
+        has died while the market is trading" cannot be staged any other way, and it is the
+        case the whole subsystem exists to handle correctly — a silent feed must never be
+        read as a closure.
+
+        Stopping the service rather than muting the feed is deliberate: it is what a broker
+        disconnect actually looks like from here. The service stops polling, its data ages,
+        and the availability assessment reaches STALE and then UNAVAILABLE on its own,
+        through exactly the code path a real outage would take.
+        """
+        service = self._services.get(symbol.upper())
+        if service is None:
+            return False
+        if enabled:
+            self._faulted.discard(symbol.upper())
+            await service.start()
+        else:
+            # Both: stop the service's own polling task *and* mark it faulted so the
+            # station's loop stops calling into it. Either alone leaves data flowing.
+            self._faulted.add(symbol.upper())
+            await service.stop()
+        _log.warning(
+            "market.feed_restarted" if enabled else "market.feed_stopped_by_operator",
+            symbol=symbol,
+            detail="operator/simulator override; this is a feed fault, not a closure",
+        )
+        return True
+
+    @property
+    def faulted_feeds(self) -> frozenset[str]:
+        """Symbols whose feed is simulated as broken."""
+        return frozenset(self._faulted)
+
+    @property
+    def overrides(self) -> dict[str, bool]:
+        """Per-symbol overrides: True forced open, False forced closed."""
+        return dict(self._overrides)
+
     @property
     def forced_closed(self) -> frozenset[str]:
-        return frozenset(self._forced_closed)
+        return frozenset(s for s, is_open in self._overrides.items() if not is_open)
 
     async def evaluate(self) -> RoutingDecision:
         """Assess every symbol, route, and publish whatever changed."""
@@ -231,7 +315,7 @@ class ActiveMarketService:
         assessments: dict[str, AvailabilityAssessment] = {}
 
         for symbol, service in self._services.items():
-            forced = symbol.upper() in self._forced_closed
+            override = self._overrides.get(symbol.upper())
             assessment = assess_availability(
                 symbol=symbol,
                 now=now,
@@ -241,9 +325,14 @@ class ActiveMarketService:
                 ),
                 feed_status=service.feed_status,
                 bars_processed=service.bars_processed,
-                feed_reported_closed=True if forced else None,
+                # Forced *closed* is expressed as the provider reporting a closure, which
+                # is the highest-priority branch. Forced *open* overrides only the calendar
+                # verdict, so every staleness rule below it still runs — which is the whole
+                # point of the override: it is what lets "open market, dead feed" be staged.
+                feed_reported_closed=True if override is False else None,
+                calendar_open_override=True if override is True else None,
             )
-            if forced:
+            if override is False:
                 assessment = AvailabilityAssessment(
                     symbol=assessment.symbol,
                     state=MarketAvailability.CLOSED,
@@ -253,7 +342,23 @@ class ActiveMarketService:
                     calendar_open=assessment.calendar_open,
                     assessed_at=now,
                     feed_degraded=False,
-                    extras={"forced": True},
+                    extras={"forced": "closed"},
+                )
+            elif override is True:
+                # The assessment already ran with the calendar forced open, so its state is
+                # whatever the feed's health actually warrants — OPEN, STALE or UNAVAILABLE.
+                # Only the reason is annotated, so the Market page says why the calendar was
+                # ignored without overwriting what the data says.
+                assessment = AvailabilityAssessment(
+                    symbol=assessment.symbol,
+                    state=assessment.state,
+                    reason=f"{assessment.reason} (calendar forced open by operator)",
+                    data_age_seconds=assessment.data_age_seconds,
+                    feed_status=assessment.feed_status,
+                    calendar_open=True,
+                    assessed_at=now,
+                    feed_degraded=assessment.feed_degraded,
+                    extras={**assessment.extras, "forced": "open"},
                 )
             assessments[symbol] = assessment
 
