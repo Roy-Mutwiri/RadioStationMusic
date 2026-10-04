@@ -283,6 +283,7 @@ exports a clean interface, and nothing calls it.**
 | `GenerationResult.detail["prompt"]` | written every generation, never read — fixed here |
 | `profile_for_buffer()` + `ace_step.buffer_aware_profile` | no production caller; the setting does nothing |
 | `TrackFileRepository` | no production caller — `has_audio` always false, §36 retention never deletes (**B5**) |
+| `PlayEvent` / `play_events` | contract, model, table and five indexes; **no writer**. 85 tracks played, 1577 state transitions recorded, zero play events |
 
 Each is invisible to tests that exercise the component, and invisible to tests that exercise
 the caller, because the defect is in the *absence* of an edge between them. The tests added
@@ -350,6 +351,23 @@ Rows marked `unrecorded`/`unknown` predate `provider_submissions` and are not ba
 inventing prompts for historical tracks would corrupt the one table meant to record what
 truly went to the model.
 
+### Similarity distribution, re-run with vocal tracks present
+
+226 entries with full evidence (up from the 154 B2 was designed against), 25,425 pairs. The
+B2 conclusions hold and are sharper on the larger corpus:
+
+| component | all pairs | genre delta | BPM delta | duplication authority |
+|---|---|---|---|---|
+| fingerprint | 0.511 ±0.021 | **+0.005** | **+0.002** | genre-blind — the only real one |
+| mfcc | 0.973 ±0.023 | +0.005 | +0.002 | saturated; returns the same answer for everything |
+| chroma | 0.284 ±0.270 | +0.070 | +0.027 | weak |
+| tempo | 0.386 ±0.354 | **+0.413** | **+0.554** | measures tempo, not identity |
+
+Tempo at 0.774 within a genre against 0.361 across genres, and 0.861 within 4 BPM against
+0.307 beyond it, is a measurement of *production family*. Treating it as duplication
+evidence is what made the station reject its own catalogue for sounding like itself. This is
+T1's input.
+
 ### Lyric yield
 
 120 randomised vocal blueprints across six vocal styles and five durations, through the real
@@ -386,6 +404,30 @@ in another terminal and `tests/unit/test_visual_renderer.py` currently fails to 
 - **B5** (`TrackFileRepository` unwired, so `has_audio` is always false and §36 retention
   never deletes) is visible in this run: the two acceptance tracks have no `track_files`
   rows despite their masters existing on disk. Next task, not this one.
+
+### Two B3 items are unmeasurable until `play_events` has a writer
+
+The **ready-buffer test** ("3+ approved tracks, ideally 10–15 minutes, before Tier 3") and
+the **transition listening review** both need per-airing data: which tier produced each
+block, what transition was used, whether the track completed, how long it actually played.
+
+`play_events` is exactly that table, and nothing writes to it. `tracks.play_count` and
+`last_played_at` are denormalised separately and *are* populated — which is why rotation
+works and why the gap is invisible until you ask a question only the event rows can answer.
+I tried to answer the ready-buffer question from the acceptance run and found an empty table.
+
+I did **not** wire it, deliberately, on two grounds:
+
+1. Everything needed is available at `_record_finished` *except* elapsed seconds, which
+   would have to be threaded out of the playout engine. That is the one loop in the station
+   that must never stop, and changing it after B3 was already verified green is the wrong
+   order of operations.
+2. The alternative — recording `played_seconds = duration if completed else 0.0` — is a
+   fabricated metric, which §86 forbids. An empty table is honest; a table of invented
+   numbers is worse than no table.
+
+So these two items are **not done and not fakeable**. They need `play_events` wired first,
+and whether that goes before or after B5 is the operator's call, not mine to assume.
 
 ### The UI requirement, honestly
 
