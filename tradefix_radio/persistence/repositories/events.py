@@ -17,7 +17,13 @@ from typing import Any
 from sqlalchemy import delete, func, select
 
 from tradefix_radio.contracts.enums import HealthStatus
-from tradefix_radio.persistence.models import HealthEvent, MetricSample, SystemEvent
+from tradefix_radio.persistence.models import (
+    EmergencySession,
+    HealthEvent,
+    MetricSample,
+    StartupSession,
+    SystemEvent,
+)
 from tradefix_radio.persistence.repositories.base import Repository, affected_rows
 
 
@@ -214,9 +220,175 @@ class MetricRepository(Repository):
         return affected_rows(result)
 
 
+class EmergencySessionRepository(Repository):
+    """Procedural audio session records for forensic reproducibility (§FSP)."""
+
+    async def start_session(
+        self,
+        *,
+        session_id: str,
+        initial_seed: int,
+        started_at: datetime,
+        reason: str,
+        startup_mode: str,
+        active_symbol: str | None = None,
+    ) -> EmergencySession:
+        row = EmergencySession(
+            session_id=session_id,
+            initial_seed=initial_seed,
+            started_at=started_at,
+            reason=reason,
+            startup_mode=startup_mode,
+            active_symbol=active_symbol,
+            blocks_played=0,
+            seconds_played=0.0,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def end_session(
+        self,
+        session_id: str,
+        *,
+        ended_at: datetime,
+        blocks_played: int,
+        seconds_played: float,
+    ) -> None:
+        result = await self._session.execute(
+            select(EmergencySession).where(EmergencySession.session_id == session_id)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            row.ended_at = ended_at
+            row.blocks_played = blocks_played
+            row.seconds_played = seconds_played
+
+    async def get(self, session_id: str) -> EmergencySession | None:
+        result = await self._session.execute(
+            select(EmergencySession).where(EmergencySession.session_id == session_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def recent(self, limit: int = 10) -> list[EmergencySession]:
+        result = await self._session.execute(
+            select(EmergencySession)
+            .order_by(EmergencySession.started_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars())
+
+
+class StartupSessionRepository(Repository):
+    """Station startup session records (§FSP)."""
+
+    async def start_session(
+        self,
+        *,
+        startup_id: str,
+        mode: str,
+        process_started_at: datetime,
+        active_symbol: str | None = None,
+    ) -> StartupSession:
+        row = StartupSession(
+            startup_id=startup_id,
+            mode=mode,
+            process_started_at=process_started_at,
+            active_symbol=active_symbol,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def update_market_acquired(
+        self, startup_id: str, *, at: datetime, symbol: str
+    ) -> None:
+        result = await self._session.execute(
+            select(StartupSession).where(StartupSession.startup_id == startup_id)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            row.market_acquired_at = at
+            row.active_symbol = symbol
+
+    async def update_generator_ready(self, startup_id: str, *, at: datetime) -> None:
+        result = await self._session.execute(
+            select(StartupSession).where(StartupSession.startup_id == startup_id)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            row.generator_ready_at = at
+
+    async def update_first_fresh_track(
+        self, startup_id: str, *, at: datetime
+    ) -> None:
+        result = await self._session.execute(
+            select(StartupSession).where(StartupSession.startup_id == startup_id)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            row.first_fresh_track_ready_at = at
+
+    async def update_ready_to_air(
+        self,
+        startup_id: str,
+        *,
+        at: datetime,
+        fresh_tracks_count: int,
+        fresh_minutes: float,
+    ) -> None:
+        result = await self._session.execute(
+            select(StartupSession).where(StartupSession.startup_id == startup_id)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            row.ready_to_air_at = at
+            row.fresh_tracks_count = fresh_tracks_count
+            row.fresh_minutes = fresh_minutes
+
+    async def update_on_air(
+        self,
+        startup_id: str,
+        *,
+        at: datetime,
+        first_track_id: str | None,
+        first_track_previous_play_count: int | None,
+        used_reserve: bool,
+        used_tier3: bool,
+        emergency_session_id: str | None = None,
+    ) -> None:
+        result = await self._session.execute(
+            select(StartupSession).where(StartupSession.startup_id == startup_id)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            row.on_air_at = at
+            row.first_track_id = first_track_id
+            row.first_track_previous_play_count = first_track_previous_play_count
+            row.used_reserve = used_reserve
+            row.used_tier3 = used_tier3
+            row.emergency_session_id = emergency_session_id
+
+    async def get(self, startup_id: str) -> StartupSession | None:
+        result = await self._session.execute(
+            select(StartupSession).where(StartupSession.startup_id == startup_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def recent(self, limit: int = 10) -> list[StartupSession]:
+        result = await self._session.execute(
+            select(StartupSession)
+            .order_by(StartupSession.process_started_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars())
+
+
 __all__ = [
+    "EmergencySessionRepository",
     "HealthEventRepository",
     "MetricPoint",
     "MetricRepository",
+    "StartupSessionRepository",
     "SystemEventRepository",
 ]

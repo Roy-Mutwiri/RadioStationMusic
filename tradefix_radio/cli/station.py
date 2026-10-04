@@ -27,7 +27,7 @@ import argparse
 import asyncio
 from typing import TYPE_CHECKING
 
-from tradefix_radio.contracts.enums import RunMode
+from tradefix_radio.contracts.enums import RunMode, StartupMode
 from tradefix_radio.market.simulation import Scenario
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -104,6 +104,25 @@ def register(subparsers: object) -> None:
         "--open",
         action="store_true",
         help="open the Control Center in the default browser once it is serving",
+    )
+    # Fresh start programming (§FSP)
+    startup_group = start.add_mutually_exclusive_group()
+    startup_group.add_argument(
+        "--wait-for-fresh",
+        action="store_true",
+        default=True,
+        help=(
+            "wait for fresh tracks before audible playout (default). "
+            "Ensures the listener hears never-before-played music from track 1."
+        ),
+    )
+    startup_group.add_argument(
+        "--immediate",
+        action="store_true",
+        help=(
+            "start playout immediately with emergency fallback if needed. "
+            "Use for live recovery where dead air is worse than temporary fallback."
+        ),
     )
 
 
@@ -189,6 +208,20 @@ def _banner(settings: AppSettings, args: argparse.Namespace, url: str) -> str:
                 "   *** Shipped production defaults are NOT modified.              ***",
             ]
         )
+    if getattr(args, "immediate", False):
+        lines.extend(
+            [
+                "",
+                "   *** LIVE RECOVERY MODE: playout starts immediately with fallback. ***",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "",
+                "   *** FRESH START: waiting for fresh tracks before audible playout. ***",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -241,11 +274,18 @@ async def command(args: argparse.Namespace, settings: AppSettings) -> int:
 
         asyncio.create_task(_open_later())  # noqa: RUF006 - fire and forget by design
 
+    # Determine startup mode from CLI flags
+    startup_mode = (
+        StartupMode.LIVE_RECOVERY if getattr(args, "immediate", False)
+        else StartupMode.CONTROLLED_START
+    )
+
     await serve(
         settings,
         host=args.host,
         port=args.port,
         scenario=Scenario(args.scenario),
         seed=args.seed,
+        startup_mode=startup_mode,
     )
     return 0

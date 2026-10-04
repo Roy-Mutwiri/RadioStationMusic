@@ -113,6 +113,9 @@ class PlayoutStats:
     seconds_on_air: float = 0.0
     #: The headline invariant: any period where the engine wanted audio and had none.
     unintended_silence_seconds: float = 0.0
+    #: Intentional startup hold (§FSP): time spent waiting for fresh tracks in controlled
+    #: start mode. NOT counted as unintended silence — this is deliberate priming.
+    startup_hold_seconds: float = 0.0
     underruns: int = 0
     sink_errors: int = 0
     sink_reopens: int = 0
@@ -369,8 +372,13 @@ class PlayoutEngine:
 
         if tier is PlayoutTier.PROCEDURAL:
             block = self._emergency.next_procedural_block()
+            # Include session ID in track name for forensic identification
+            # Each startup has a unique session, so procedural-abc123-000001 is distinct
+            # from procedural-def456-000001 in a different session
+            session_id = self._emergency.procedural_session_id
+            block_num = self._emergency.stats.tier3_blocks_played
             return PlayingItem(
-                track_id=f"procedural-{self._emergency.stats.tier3_blocks_played:06d}",
+                track_id=f"procedural-{session_id}-{block_num:06d}",
                 audio=conform(block, sample_rate=self._sample_rate, channels=self._channels),
                 tier=PlayoutTier.PROCEDURAL,
             )

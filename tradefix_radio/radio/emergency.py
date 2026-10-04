@@ -27,6 +27,8 @@ status, it keeps procedural noise on air while a finished track waits. See :meth
 from __future__ import annotations
 
 import math
+import time
+import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -41,6 +43,27 @@ from tradefix_radio.contracts.enums import PlayoutTier
 from tradefix_radio.core.errors import AudioError
 
 _log = structlog.get_logger(__name__)
+
+
+def _derive_session_seed() -> int:
+    """Derive a unique seed for this session that never repeats across startups.
+
+    The procedural audio must not sound identical across startups. This combines
+    multiple entropy sources to guarantee uniqueness:
+    - Current wall-clock time in nanoseconds
+    - Process-level monotonic counter
+    - Random UUID bits
+
+    The seed is NOT persisted - each session gets a fresh seed, ensuring
+    procedural audio never starts from the same point twice.
+    """
+    now_ns = time.time_ns()
+    monotonic_ns = int(time.monotonic_ns())
+    uuid_bits = uuid.uuid4().int & 0xFFFFFFFF
+
+    # Mix the bits using XOR and shifts for good distribution
+    seed = ((now_ns ^ (monotonic_ns << 20) ^ uuid_bits) & 0x7FFFFFFF)
+    return seed if seed > 0 else 1  # Ensure non-zero
 
 #: Length of one procedurally generated block.
 #:
@@ -89,6 +112,21 @@ class EmergencyStats:
         self.by_reason[reason] = self.by_reason.get(reason, 0) + 1
 
 
+@dataclass
+class ProceduralBlockSpec:
+    """Record of a procedural block's creative choices, for history tracking."""
+
+    block_index: int
+    seed: int
+    key: str
+    bpm: int
+    sections: tuple[str, ...]
+    rhythm_density: float
+    bass_intensity: float
+    drum_intensity: float
+    melodic_complexity: float
+
+
 class ProceduralSource:
     """Tier 3: synthesised audio that never repeats (§33).
 
@@ -100,6 +138,10 @@ class ProceduralSource:
     fourth, density follows a slow sine, and the section list alternates. The result is not
     good music. It is audio that a listener recognises as "the station is in a quiet mode"
     rather than as "the station is stuck".
+
+    **CRITICAL**: The base seed is derived from a session-unique source (time + UUID), NOT
+    from a fixed value. This ensures that every station startup produces different procedural
+    audio, eliminating the recognizable "startup sound" problem.
     """
 
     def __init__(
@@ -108,17 +150,44 @@ class ProceduralSource:
         sample_rate: int = PLAYOUT_SAMPLE_RATE,
         channels: int = PLAYOUT_CHANNELS,
         block_seconds: float = PROCEDURAL_BLOCK_SECONDS,
-        seed: int = 0,
+        seed: int | None = None,
+        session_id: str | None = None,
     ) -> None:
         self._sample_rate = sample_rate
         self._channels = channels
         self._block_seconds = block_seconds
-        self._seed = seed
+        # CRITICAL: Derive a unique session seed if none provided.
+        # This ensures procedural audio never starts from the same point twice.
+        self._seed = seed if seed is not None else _derive_session_seed()
+        self._session_id = session_id or str(uuid.uuid4())[:8]
         self._block_index = 0
+        # Track recent procedural choices for diversity checking
+        self._recent_specs: list[ProceduralBlockSpec] = []
+        self._max_history = 20  # Keep last 20 blocks for pattern avoidance
+
+        _log.info(
+            "procedural.session_started",
+            session_id=self._session_id,
+            seed=self._seed,
+            detail="unique session seed derived from time + UUID",
+        )
 
     @property
     def blocks_rendered(self) -> int:
         return self._block_index
+
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+
+    @property
+    def base_seed(self) -> int:
+        return self._seed
+
+    @property
+    def recent_history(self) -> list[ProceduralBlockSpec]:
+        """Recent procedural block specs for diversity analysis."""
+        return list(self._recent_specs)
 
     def next_block(self, *, energy: float = 0.25) -> AudioBuffer:
         """Render the next block. Never the same as the last.
@@ -131,41 +200,86 @@ class ProceduralSource:
         self._block_index += 1
 
         # Four cycles at different periods, so the combination does not recur quickly.
-        key = _PROCEDURAL_ROOTS[(index // 4) % len(_PROCEDURAL_ROOTS)]
-        drift = 0.5 + 0.5 * _sine(index, period=7.0)
-        sections = (
-            ("intro", "verse", "bridge", "outro")
-            if index % 2 == 0
-            else ("intro", "passage", "verse", "outro")
-        )
+        # Add session seed offset to the rotation to vary starting points
+        key_offset = (self._seed % len(_PROCEDURAL_ROOTS))
+        key = _PROCEDURAL_ROOTS[((index // 4) + key_offset) % len(_PROCEDURAL_ROOTS)]
+
+        # Vary the drift phase by session seed
+        phase_offset = (self._seed % 100) / 100.0
+        drift = 0.5 + 0.5 * _sine(index, period=7.0, phase=phase_offset)
+
+        # Alternate section structures with session-based variation
+        section_variants = [
+            ("intro", "verse", "bridge", "outro"),
+            ("intro", "passage", "verse", "outro"),
+            ("intro", "verse", "passage", "bridge", "outro"),
+            ("intro", "build", "verse", "outro"),
+        ]
+        section_offset = self._seed % len(section_variants)
+        sections = section_variants[(index + section_offset) % len(section_variants)]
+
         held = max(0.05, min(0.45, energy))
+
+        # Calculate parameters with session-based variation
+        bpm = int(64 + 18 * drift)
+        rhythm_density = 0.12 + 0.28 * drift
+        bass_intensity = 0.30 + 0.25 * (1.0 - drift)
+        drum_intensity = 0.10 + 0.25 * drift
+        melodic_complexity = 0.18 + 0.30 * _sine(index, period=5.0, phase=phase_offset)
+
+        # The actual seed combines base session seed with block index
+        block_seed = self._seed + index * 7919
+
+        # Record this block's spec for history
+        spec_record = ProceduralBlockSpec(
+            block_index=index,
+            seed=block_seed,
+            key=key,
+            bpm=bpm,
+            sections=sections,
+            rhythm_density=rhythm_density,
+            bass_intensity=bass_intensity,
+            drum_intensity=drum_intensity,
+            melodic_complexity=melodic_complexity,
+        )
+        self._recent_specs.append(spec_record)
+        if len(self._recent_specs) > self._max_history:
+            self._recent_specs.pop(0)
 
         spec = SynthesisSpec(
             duration_seconds=self._block_seconds,
-            # A slow tempo band: Tier 3 should read as ambient, not as a track.
-            bpm=int(64 + 18 * drift),
+            bpm=bpm,
             key=key,
             energy=held,
-            rhythm_density=0.12 + 0.28 * drift,
-            bass_intensity=0.30 + 0.25 * (1.0 - drift),
-            drum_intensity=0.10 + 0.25 * drift,
-            # Below the synthesiser's 0.25 lead threshold half the time, so the melodic layer
-            # itself comes and goes rather than being present in every block.
-            melodic_complexity=0.18 + 0.30 * _sine(index, period=5.0),
+            rhythm_density=rhythm_density,
+            bass_intensity=bass_intensity,
+            drum_intensity=drum_intensity,
+            melodic_complexity=melodic_complexity,
             sample_rate=self._sample_rate,
             channels=self._channels,
             sections=sections,
-            seed=self._seed + index * 7919,
+            seed=block_seed,
         )
         return render(spec)
 
     def reset(self) -> None:
+        """Reset block index but keep session seed.
+
+        Note: This preserves the session identity - the blocks will still be
+        different from other sessions even after reset.
+        """
         self._block_index = 0
+        self._recent_specs.clear()
 
 
-def _sine(index: int, *, period: float) -> float:
-    """0–1 sine over ``period`` blocks. Keeps the drift smooth rather than random."""
-    return 0.5 + 0.5 * math.sin(2.0 * math.pi * index / period)
+def _sine(index: int, *, period: float, phase: float = 0.0) -> float:
+    """0–1 sine over ``period`` blocks with optional phase offset.
+
+    The phase parameter (0.0–1.0) shifts the starting point of the sine wave,
+    allowing different sessions to have different drift patterns even at the
+    same block index.
+    """
+    return 0.5 + 0.5 * math.sin(2.0 * math.pi * (index / period + phase))
 
 
 class EmergencyManager:
@@ -213,6 +327,16 @@ class EmergencyManager:
     @property
     def reserve_remaining(self) -> int:
         return max(0, len(self._reserve) - self._reserve_index)
+
+    @property
+    def procedural_session_id(self) -> str:
+        """Current procedural session ID for track naming and forensics."""
+        return self._procedural.session_id
+
+    @property
+    def procedural_seed(self) -> int:
+        """Current procedural base seed for forensic reproducibility."""
+        return self._procedural.base_seed
 
     @property
     def is_degraded(self) -> bool:
@@ -366,6 +490,9 @@ class EmergencyManager:
             "tier": self._tier.value,
             "reserve_index": self._reserve_index,
             "procedural_blocks": self._procedural.blocks_rendered,
+            # Session info for diagnostics - NOT restored, each session gets a fresh seed
+            "procedural_session_id": self._procedural.session_id,
+            "procedural_seed": self._procedural.base_seed,
         }
 
     def restore_state(self, state: dict[str, object]) -> None:
@@ -376,6 +503,10 @@ class EmergencyManager:
         persisted tier would mean starting in Tier 3 because the station was in Tier 3 when it
         died, even though the queue recovered. The reserve position *is* restored, because
         replaying reserve tracks already used is exactly the repetition §33 is avoiding.
+
+        **The procedural session seed is NEVER restored.** Each session derives a fresh seed
+        from time + UUID, ensuring procedural audio never sounds identical across startups.
+        This is the critical fix for the "recognizable startup sound" problem.
         """
         index = state.get("reserve_index")
         if isinstance(index, bool) or not isinstance(index, int) or index < 0:
@@ -399,11 +530,25 @@ class EmergencyManager:
                 reserve_size=len(self._reserve),
                 detail="reserve shrank between runs; starting from the beginning",
             )
-        blocks = state.get("procedural_blocks")
-        if isinstance(blocks, int) and blocks >= 0:
-            # Continue the seed progression rather than restarting it, so a station that
-            # restarts during an outage does not replay the same ambient it just played.
-            self._procedural._block_index = blocks
+
+        # Log the previous session for diagnostics
+        prev_session = state.get("procedural_session_id")
+        prev_seed = state.get("procedural_seed")
+        if prev_session or prev_seed:
+            _log.info(
+                "emergency.previous_session",
+                previous_session_id=prev_session,
+                previous_seed=prev_seed,
+                new_session_id=self._procedural.session_id,
+                new_seed=self._procedural.base_seed,
+                detail="new session seed derived; procedural audio will differ",
+            )
+
+        # NOTE: We deliberately do NOT restore procedural_blocks anymore.
+        # Each session starts fresh with a unique seed, so block indices don't matter.
+        # The old code tried to continue block_index, but with a fixed seed=0 that meant
+        # every session eventually cycled back to the same patterns. With unique session
+        # seeds, starting at block 0 is fine - it produces completely different audio.
 
 
 def reserve_from_directory(
@@ -443,6 +588,7 @@ __all__ = [
     "EmergencyManager",
     "EmergencyStats",
     "EmergencyTrack",
+    "ProceduralBlockSpec",
     "ProceduralSource",
     "reserve_from_directory",
 ]

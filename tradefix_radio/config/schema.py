@@ -528,6 +528,16 @@ class RadioSettings(Section):
     #: §33 Tier 2 reserve size, in minutes of approved audio held back.
     emergency_reserve_minutes: float = Field(default=30.0, ge=0.0, le=600.0)
 
+    # -- Fresh start programming (§FSP) --
+    #: Whether to prime fresh tracks before audible playout in controlled start.
+    prime_enabled: bool = True
+    #: Minimum number of never-played tracks required before READY_TO_AIR.
+    minimum_fresh_tracks: int = Field(default=2, ge=1, le=10)
+    #: Target fresh audio in minutes before READY_TO_AIR.
+    target_fresh_minutes: float = Field(default=8.0, ge=1.0, le=30.0)
+    #: Require tracks to have never been played (play_count=0).
+    require_unplayed: bool = True
+
     @model_validator(mode="after")
     def _check(self) -> RadioSettings:
         ordered = (

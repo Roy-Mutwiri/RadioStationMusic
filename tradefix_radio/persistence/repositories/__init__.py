@@ -7,9 +7,11 @@ span several repositories atomically. See :mod:`.base`.
 
 from tradefix_radio.persistence.repositories.base import Repository
 from tradefix_radio.persistence.repositories.events import (
+    EmergencySessionRepository,
     HealthEventRepository,
     MetricPoint,
     MetricRepository,
+    StartupSessionRepository,
     SystemEventRepository,
 )
 from tradefix_radio.persistence.repositories.files import TrackFileRepository
@@ -42,6 +44,7 @@ from tradefix_radio.persistence.repositories.tracks import (
 
 __all__ = [
     "DEFAULT_LIBRARY_LIMIT",
+    "EmergencySessionRepository",
     "GenerationJobRepository",
     "HealthEventRepository",
     "JobRecord",
@@ -55,6 +58,7 @@ __all__ = [
     "QueueRepository",
     "RadioMemoryRepository",
     "Repository",
+    "StartupSessionRepository",
     "StoredQcCheck",
     "StoredQcResult",
     "SystemEventRepository",

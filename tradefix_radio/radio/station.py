@@ -42,6 +42,8 @@ from tradefix_radio.contracts.enums import (
     MarketRegime,
     PlayoutTier,
     RunMode,
+    StartupMode,
+    StartupState,
     TrackProvenance,
     TransitionType,
 )
@@ -103,6 +105,11 @@ from tradefix_radio.radio.emergency import EmergencyManager
 from tradefix_radio.radio.playout import AiredPlay, PlayingItem, PlayoutEngine
 from tradefix_radio.radio.queue import QueueEntry, RadioQueue, ReadinessState
 from tradefix_radio.radio.scheduler import Scheduler
+from tradefix_radio.radio.startup import (
+    StartupProgrammingPlanner,
+    StartupProgress,
+    StartupRequirements,
+)
 from tradefix_radio.radio.station_ids import StationIdCategory, StationIdLibrary
 from tradefix_radio.runtime.coordinator import RuntimeCoordinator
 from tradefix_radio.storage.paths import FileRole, StoragePaths
@@ -358,6 +365,7 @@ class RadioStation:
         audio_dir: Path | None = None,
         playout_block_seconds: float = 1.0,
         post_production: PostProductionPipeline | None = None,
+        startup_mode: StartupMode = StartupMode.CONTROLLED_START,
     ) -> None:
         self._settings = settings
         self._database = database
@@ -432,6 +440,13 @@ class RadioStation:
             on_track_finished=self._on_track_finished,
         )
 
+        # Fresh start programming (§FSP): ensure the station sounds fresh from track 1
+        self._startup_mode = startup_mode
+        self._startup = StartupProgrammingPlanner(
+            StartupRequirements.from_settings(settings.radio),
+            mode=startup_mode,
+        )
+
         self._stats = StationStats()
         self._market: MarketStateV1 | None = None
         self._history: list[HistoryEntry] = []
@@ -482,6 +497,26 @@ class RadioStation:
         return self._stats
 
     @property
+    def startup_progress(self) -> StartupProgress:
+        """Current startup progress for Control Center display."""
+        return self._startup.progress
+
+    @property
+    def startup_state(self) -> StartupState:
+        """Current startup state."""
+        return self._startup.state
+
+    @property
+    def is_priming(self) -> bool:
+        """Whether the station is still in startup priming phase."""
+        return self._startup.state in (
+            StartupState.BOOTING,
+            StartupState.MARKET_ACQUIRE,
+            StartupState.GENERATOR_WARMING,
+            StartupState.PRIMING,
+        )
+
+    @property
     def market(self) -> MarketStateV1 | None:
         return self._market
 
@@ -503,6 +538,10 @@ class RadioStation:
             self._pending_market_switch = (previous.symbol, state.symbol)
         self._market = state
 
+        # Notify startup planner when market is first acquired (§FSP)
+        if previous is None and state is not None and self.is_priming:
+            self._startup.on_market_acquired(state.symbol)
+
     def assess_buffer(self) -> BufferAssessment:
         return self._buffer.assess(
             ready_seconds=self._queue.ready_seconds(),
@@ -517,18 +556,52 @@ class RadioStation:
     # -- lifecycle ---------------------------------------------------------
 
     async def start(self) -> None:
+        """Start the station with fresh-start programming (§FSP).
+
+        In CONTROLLED_START mode, playout is held until priming requirements are met.
+        This ensures the listener hears fresh, never-before-played tracks from track 1.
+
+        In LIVE_RECOVERY mode, playout starts immediately with emergency fallback
+        while fresh tracks are generated - dead air is worse than temporary fallback.
+        """
+        self._startup.transition_to(StartupState.BOOTING)
         await self._coordinator.start()
         await self.recover()
-        await self._playout.start()
-        self._coordinator.spawn("playout", self._playout_loop)
+
+        # Start generation and scheduling immediately - we need fresh tracks
+        self._startup.transition_to(StartupState.MARKET_ACQUIRE)
         self._coordinator.spawn("generation-worker", self._generation_worker)
         self._coordinator.spawn("scheduler", self._scheduler_loop)
         self._coordinator.spawn("persistence", self._persistence_worker)
+
+        # In live recovery, start playout immediately - dead air is worse than fallback
+        if self._startup_mode is StartupMode.LIVE_RECOVERY:
+            self._startup.transition_to(StartupState.ON_AIR)
+            await self._playout.start()
+            self._coordinator.spawn("playout", self._playout_loop)
+            _log.info(
+                "station.started_live_recovery",
+                queue_depth=len(self._queue),
+                ready_minutes=round(self._queue.ready_seconds() / 60, 1),
+                detail="live recovery mode: playout started immediately",
+            )
+            return
+
+        # Controlled start: wait for priming before playout
+        # Generator warming will be signaled when ACE-Step is ready
+        self._startup.transition_to(StartupState.GENERATOR_WARMING)
+
+        # Note: Actual priming progress is tracked in _on_track_ready callbacks
+        # The _startup_priming_loop monitors progress and starts playout when ready
+        self._coordinator.spawn("startup-priming", self._startup_priming_loop)
+
         _log.info(
-            "station.started",
+            "station.started_controlled",
             queue_depth=len(self._queue),
             ready_minutes=round(self._queue.ready_seconds() / 60, 1),
             reserve_minutes=round(self._emergency.reserve_minutes, 1),
+            startup_mode=self._startup_mode.value,
+            priming_enabled=self._startup.progress.fresh_tracks_required > 0,
         )
 
     async def stop(self) -> None:
@@ -776,6 +849,56 @@ class RadioStation:
                 # Sleep a block rather than spinning, so a persistent fault does not become a
                 # busy loop that starves whatever might fix it.
                 await self._clock.sleep(self._playout_block_seconds)
+
+    async def _startup_priming_loop(self) -> None:
+        """Monitor startup priming progress and start playout when ready (§FSP).
+
+        In CONTROLLED_START mode, this loop:
+        1. Waits for the generator to be ready
+        2. Monitors fresh track generation progress
+        3. Starts playout only when priming requirements are met
+
+        This ensures the listener hears fresh music from track 1, never the same
+        recognizable startup sound.
+        """
+        # Wait a moment for generator to initialize
+        await self._clock.sleep(1.0)
+
+        # Signal generator warming (ACE-Step should be loading)
+        self._startup.on_generator_ready()
+
+        # Monitor priming progress
+        check_interval = 2.0  # Check every 2 seconds
+        while not self._coordinator.should_stop:
+            if self._startup.state is StartupState.READY_TO_AIR:
+                # Priming complete! Start playout
+                await self._playout.start()
+                self._coordinator.spawn("playout", self._playout_loop)
+                self._startup.transition_to(StartupState.ON_AIR)
+                _log.info(
+                    "station.priming_complete",
+                    fresh_tracks=self._startup.progress.fresh_tracks_ready,
+                    fresh_minutes=round(self._startup.progress.fresh_minutes_ready, 1),
+                    time_to_ready=round(self._startup.progress.time_to_ready or 0, 1),
+                    detail="listener-facing playout started with fresh programming",
+                )
+                return
+
+            if self._startup.state is StartupState.ON_AIR:
+                # Already on air (shouldn't happen in this loop but guard against it)
+                return
+
+            # Log priming progress
+            progress = self._startup.progress
+            _log.debug(
+                "station.priming_progress",
+                state=self._startup.state.value,
+                fresh_tracks=f"{progress.fresh_tracks_ready}/{progress.fresh_tracks_required}",
+                fresh_minutes=f"{progress.fresh_minutes_ready:.1f}/{progress.fresh_minutes_target:.1f}",
+                progress_pct=round(progress.priming_progress_fraction * 100, 0),
+            )
+
+            await self._clock.sleep(check_interval)
 
     async def _scheduler_loop(self) -> None:
         """Schedule and maintain on a timer, well away from the audio path.
@@ -1294,6 +1417,17 @@ class RadioStation:
             # never recorded as READY while the queue has refused it.
             await self._advance_track(
                 track_id, (TrackState.READY,), reason="post-production approved"
+            )
+
+        # Notify startup planner about fresh track for §FSP priming
+        # A newly generated track has never been played (play_count=0), so it qualifies as fresh
+        if self.is_priming:
+            blueprint = self._blueprint_for(track_id)
+            self._startup.on_fresh_track_ready(
+                track_id=track_id,
+                duration_seconds=measured,
+                genre=blueprint.composition.genre if blueprint else "unknown",
+                persona_id=blueprint.persona_id if blueprint else None,
             )
 
         now = self._clock.now()

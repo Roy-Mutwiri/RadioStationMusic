@@ -258,6 +258,55 @@ class PlayoutTier(str, enum.Enum):
     """Not a tier so much as a failure to be alerted on loudly (§57)."""
 
 
+class StartupState(str, enum.Enum):
+    """Station startup states for fresh-start programming.
+
+    TRADE FIX RADIO MUST SOUND FRESH FROM THE FIRST AUDIBLE TRACK. These states
+    distinguish between the station process running and the station being ready
+    for listener-facing playout.
+    """
+
+    BOOTING = "booting"
+    """Process starting, subsystems initializing."""
+
+    MARKET_ACQUIRE = "market_acquire"
+    """Waiting for MarketRouter to establish active symbol (XAUUSD/BTCUSD)."""
+
+    GENERATOR_WARMING = "generator_warming"
+    """ACE-Step model loading and warming up."""
+
+    PRIMING = "priming"
+    """Building fresh startup buffer before listener-facing playout."""
+
+    READY_TO_AIR = "ready_to_air"
+    """Fresh tracks ready, station can begin audible programming."""
+
+    ON_AIR = "on_air"
+    """Normal operation with listener-facing playout active."""
+
+
+class StartupMode(str, enum.Enum):
+    """How the station should handle startup audio.
+
+    The critical distinction: audience continuity requirement.
+    """
+
+    CONTROLLED_START = "controlled_start"
+    """No audience yet. Prime fresh tracks BEFORE audible playout.
+
+    This is the normal case for `tradefix station start`. The user waits
+    while fresh music is generated, then hears never-before-played tracks.
+    """
+
+    LIVE_RECOVERY = "live_recovery"
+    """Audience is already live. Emergency audio prevents dead air while rebuilding.
+
+    Used when a 24/7 stream crashes and restarts. Dead air is worse than
+    temporary fallback, so play emergency audio immediately while fresh
+    generation rebuilds the buffer.
+    """
+
+
 __all__ = [
     "FeedStatus",
     "GenerationPriority",
@@ -267,6 +316,8 @@ __all__ = [
     "NoveltyVerdict",
     "PlayoutTier",
     "RunMode",
+    "StartupMode",
+    "StartupState",
     "TradingSession",
     "TransitionType",
     "VocalStyle",

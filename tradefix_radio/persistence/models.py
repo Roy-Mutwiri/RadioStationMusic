@@ -952,9 +952,79 @@ class MetricSample(Base):
     )
 
 
+# ============================================================ startup and emergency sessions
+
+
+class EmergencySession(Base):
+    """A Tier 3 procedural audio session (§FSP).
+
+    Each activation of procedural audio gets a unique session with a unique seed.
+    This enables forensic reproducibility of what actually played - "this emergency
+    session used seed 787417552 starting at block 0".
+    """
+
+    __tablename__ = "emergency_sessions"
+
+    session_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    initial_seed: Mapped[int] = mapped_column(Integer, index=True)
+    started_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
+    ended_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
+    #: Why this session started: "scheduled queue and reserve are both unavailable", etc.
+    reason: Mapped[str] = mapped_column(String(256))
+    #: ``controlled_start`` or ``live_recovery``
+    startup_mode: Mapped[str] = mapped_column(String(32), index=True)
+    #: Active market when session started, if known
+    active_symbol: Mapped[str | None] = mapped_column(String(32), index=True, default=None)
+    #: Number of blocks played in this session
+    blocks_played: Mapped[int] = mapped_column(Integer, default=0)
+    #: Seconds of procedural audio in this session
+    seconds_played: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class StartupSession(Base):
+    """A station startup session (§FSP).
+
+    Records the full startup sequence to enable measurement of time-to-first-fresh-track
+    and verification that the first track was indeed fresh (play_count=0).
+    """
+
+    __tablename__ = "startup_sessions"
+
+    startup_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    #: ``controlled_start`` or ``live_recovery``
+    mode: Mapped[str] = mapped_column(String(32), index=True)
+    process_started_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
+    market_acquired_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
+    generator_ready_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
+    first_fresh_track_ready_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
+    ready_to_air_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
+    on_air_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
+    #: The first scheduled track that aired
+    first_track_id: Mapped[str | None] = mapped_column(String(64), default=None)
+    #: Verify it was actually fresh (should be 0)
+    first_track_previous_play_count: Mapped[int | None] = mapped_column(Integer, default=None)
+    #: Whether unseen reserve was used for instant start
+    used_reserve: Mapped[bool] = mapped_column(Boolean, default=False)
+    #: Whether Tier 3 was activated during startup
+    used_tier3: Mapped[bool] = mapped_column(Boolean, default=False)
+    #: Emergency session ID if Tier 3 was used
+    emergency_session_id: Mapped[str | None] = mapped_column(String(16), default=None)
+    #: Active market for this startup
+    active_symbol: Mapped[str | None] = mapped_column(String(32), index=True, default=None)
+    #: Fresh tracks ready when READY_TO_AIR was reached
+    fresh_tracks_count: Mapped[int | None] = mapped_column(Integer, default=None)
+    #: Fresh minutes ready when READY_TO_AIR was reached
+    fresh_minutes: Mapped[float | None] = mapped_column(Float, default=None)
+
+    __table_args__ = (
+        Index("ix_startup_sessions_started", "process_started_at"),
+    )
+
+
 __all__ = [
     "AudioFingerprint",
     "Base",
+    "EmergencySession",
     "GenerationJob",
     "HealthEvent",
     "Lyrics",
@@ -966,6 +1036,7 @@ __all__ = [
     "RadioMemory",
     "SettingOverride",
     "SimilarityResult",
+    "StartupSession",
     "StateTransitionRow",
     "StationId",
     "SystemEvent",

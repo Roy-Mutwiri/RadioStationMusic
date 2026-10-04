@@ -368,6 +368,57 @@ class TrackRepository(Repository):
         )
         await self._session.flush()
 
+    # -- startup reserve (§FSP) --------------------------------------------
+
+    async def find_unplayed_ready(
+        self,
+        *,
+        market_symbol: str | None = None,
+        limit: int = 10,
+    ) -> list[Track]:
+        """Find ready tracks that have never been played (§FSP reserve).
+
+        These are real ACE-Step tracks that passed Phase 6 but have never aired.
+        They form the instant-start reserve for fresh startup programming.
+
+        If ``market_symbol`` is provided, only tracks generated for that market
+        (or neutral tracks) are returned. This ensures BTC tracks don't play
+        during a gold session.
+        """
+        # READY or QUEUED tracks that have never played
+        statement = (
+            select(Track)
+            .where(
+                Track.state.in_([TrackState.READY.value, TrackState.QUEUED.value]),
+                Track.play_count == 0,
+            )
+            .order_by(Track.created_at.desc())
+            .limit(limit)
+        )
+        if market_symbol:
+            # Match the exact market or neutral (though currently no tracks are neutral)
+            statement = statement.where(
+                Track.symbol_at_generation.in_([market_symbol, "NEUTRAL"])
+            )
+        result = await self._session.execute(statement)
+        return list(result.scalars())
+
+    async def count_unplayed_ready_by_market(self) -> dict[str, int]:
+        """Count unplayed ready tracks grouped by market symbol.
+
+        For the Control Center startup panel: shows reserve depth per market.
+        """
+        statement = (
+            select(Track.symbol_at_generation, func.count())
+            .where(
+                Track.state.in_([TrackState.READY.value, TrackState.QUEUED.value]),
+                Track.play_count == 0,
+            )
+            .group_by(Track.symbol_at_generation)
+        )
+        result = await self._session.execute(statement)
+        return dict(result.all())  # type: ignore[arg-type]
+
     # -- maintenance -------------------------------------------------------
 
     async def reset_stuck_active_tracks(

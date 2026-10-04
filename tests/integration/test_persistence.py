@@ -14,7 +14,7 @@ the ones that silently break in production rather than in a unit test:
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -1185,3 +1185,142 @@ async def test_a_first_stage_decision_records_no_resolution(database: Database) 
             )
         ).first()
     assert row == (None, None, None)
+
+
+# --------------------------------------------------------- startup reserve (§FSP)
+
+
+async def _transition_to_ready(repo: TrackRepository, track_id: str, now: datetime) -> None:
+    """Helper to transition a track through the full lifecycle to READY."""
+    for state in (
+        TrackState.GENERATING,
+        TrackState.GENERATED,
+        TrackState.ANALYZING,
+        TrackState.APPROVED,
+        TrackState.MASTERING,
+        TrackState.READY,
+    ):
+        await repo.transition(track_id, state, now=now, reason="test_reserve")
+
+
+async def test_find_unplayed_ready_returns_unplayed_tracks(database: Database) -> None:
+    """Unplayed READY tracks are returned for the startup reserve."""
+    async with database.session() as session:
+        repo = TrackRepository(session)
+        # Create a track in READY state with play_count=0
+        blueprint = make_blueprint(track_id="TF-RESERVE-001", symbol="BTCUSD")
+        await repo.create(
+            blueprint=blueprint,
+            now=FIXED_NOW,
+            provider="ace-step",
+            model_identifier="test",
+            provenance="candidate",
+        )
+        await _transition_to_ready(repo, "TF-RESERVE-001", FIXED_NOW)
+
+        # Should find this track
+        found = await repo.find_unplayed_ready(limit=10)
+        assert len(found) == 1
+        assert found[0].track_id == "TF-RESERVE-001"
+        assert found[0].play_count == 0
+
+
+async def test_find_unplayed_ready_excludes_played_tracks(database: Database) -> None:
+    """Played tracks (play_count > 0) are excluded from the reserve."""
+    async with database.session() as session:
+        repo = TrackRepository(session)
+        # Create a READY track that has been played
+        blueprint = make_blueprint(track_id="TF-PLAYED", symbol="BTCUSD")
+        await repo.create(
+            blueprint=blueprint,
+            now=FIXED_NOW,
+            provider="ace-step",
+            model_identifier="test",
+            provenance="candidate",
+        )
+        await _transition_to_ready(repo, "TF-PLAYED", FIXED_NOW)
+        # Mark as played
+        track = await repo.get("TF-PLAYED")
+        assert track is not None
+        track.play_count = 1
+
+    async with database.session() as session:
+        repo = TrackRepository(session)
+        # Should not find the played track
+        found = await repo.find_unplayed_ready(limit=10)
+        played_ids = [t.track_id for t in found]
+        assert "TF-PLAYED" not in played_ids
+
+
+async def test_find_unplayed_ready_filters_by_market(database: Database) -> None:
+    """Reserve query filters by market symbol."""
+    async with database.session() as session:
+        repo = TrackRepository(session)
+        # Create BTC track
+        btc_blueprint = make_blueprint(track_id="TF-BTC", symbol="BTCUSD")
+        await repo.create(
+            blueprint=btc_blueprint,
+            now=FIXED_NOW,
+            provider="ace-step",
+            model_identifier="test",
+            provenance="candidate",
+        )
+        await _transition_to_ready(repo, "TF-BTC", FIXED_NOW)
+
+        # Create XAUUSD track
+        gold_blueprint = make_blueprint(track_id="TF-GOLD", symbol="XAUUSD")
+        await repo.create(
+            blueprint=gold_blueprint,
+            now=FIXED_NOW,
+            provider="ace-step",
+            model_identifier="test",
+            provenance="candidate",
+        )
+        await _transition_to_ready(repo, "TF-GOLD", FIXED_NOW)
+
+    async with database.session() as session:
+        repo = TrackRepository(session)
+        # Query for BTC tracks only
+        btc_tracks = await repo.find_unplayed_ready(market_symbol="BTCUSD", limit=10)
+        assert len(btc_tracks) == 1
+        assert btc_tracks[0].track_id == "TF-BTC"
+
+        # Query for gold tracks only
+        gold_tracks = await repo.find_unplayed_ready(market_symbol="XAUUSD", limit=10)
+        assert len(gold_tracks) == 1
+        assert gold_tracks[0].track_id == "TF-GOLD"
+
+
+async def test_count_unplayed_ready_by_market(database: Database) -> None:
+    """Count unplayed ready tracks per market for the Control Center."""
+    async with database.session() as session:
+        repo = TrackRepository(session)
+        # Create 2 BTC tracks
+        for i in range(2):
+            btc_bp = make_blueprint(track_id=f"TF-BTC-{i}", symbol="BTCUSD")
+            await repo.create(
+                blueprint=btc_bp,
+                now=FIXED_NOW,
+                provider="ace-step",
+                model_identifier="test",
+                provenance="candidate",
+            )
+            await _transition_to_ready(repo, f"TF-BTC-{i}", FIXED_NOW)
+
+        # Create 3 gold tracks
+        for i in range(3):
+            gold_bp = make_blueprint(track_id=f"TF-GOLD-{i}", symbol="XAUUSD")
+            await repo.create(
+                blueprint=gold_bp,
+                now=FIXED_NOW,
+                provider="ace-step",
+                model_identifier="test",
+                provenance="candidate",
+            )
+            await _transition_to_ready(repo, f"TF-GOLD-{i}", FIXED_NOW)
+
+    async with database.session() as session:
+        repo = TrackRepository(session)
+        counts = await repo.count_unplayed_ready_by_market()
+        assert counts.get("BTCUSD", 0) == 2
+        assert counts.get("XAUUSD", 0) == 3

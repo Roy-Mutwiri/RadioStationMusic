@@ -33,7 +33,7 @@ from tradefix_radio.api.capabilities import detect_capabilities, gpu_is_present
 from tradefix_radio.api.snapshot import RuntimeView
 from tradefix_radio.audio.factory import build_sink, describe_sink
 from tradefix_radio.config.schema import AppSettings, RunMode
-from tradefix_radio.contracts.enums import MarketRegime
+from tradefix_radio.contracts.enums import MarketRegime, StartupMode
 from tradefix_radio.core.clock import UTC, SystemClock
 from tradefix_radio.director.library import load_content_library
 from tradefix_radio.director.music_director import MusicDirector
@@ -192,10 +192,12 @@ class ControlCenterRunner:
         *,
         scenario: Scenario = Scenario.RANDOM_WALK,
         seed: int = 2026,
+        startup_mode: StartupMode = StartupMode.CONTROLLED_START,
     ) -> None:
         self._settings = settings
         self._scenario = scenario
         self._seed = seed
+        self._startup_mode = startup_mode
         self._clock = SystemClock()
         self._database: Database | None = None
         self._station: RadioStation | None = None
@@ -295,6 +297,7 @@ class ControlCenterRunner:
             audio_dir=settings.paths.generated_dir,
             playout_block_seconds=1.0,
             post_production=post_production,
+            startup_mode=self._startup_mode,
         )
         # Pay the cold start here rather than on the first scheduled track. §7.6 keeps the
         # model loaded across tracks; this is where the first load happens, alongside the
@@ -493,9 +496,10 @@ async def serve(
     port: int = 8000,
     scenario: Scenario = Scenario.RANDOM_WALK,
     seed: int = 2026,
+    startup_mode: StartupMode = StartupMode.CONTROLLED_START,
 ) -> None:
     """Run the station and serve the Control Center until interrupted."""
-    runner = ControlCenterRunner(settings, scenario=scenario, seed=seed)
+    runner = ControlCenterRunner(settings, scenario=scenario, seed=seed, startup_mode=startup_mode)
     view = await runner.start()
     app = create_app(view)
 
