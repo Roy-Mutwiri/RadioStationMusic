@@ -1,0 +1,2596 @@
+{
+  "identity": {
+    "test": "world_marker_identity",
+    "pass": true,
+    "centerPixel": {
+      "r": 255,
+      "g": 255,
+      "b": 0,
+      "a": 255
+    },
+    "coloredPixelCount": 5,
+    "consoleMessages": [
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      },
+      {
+        "type": "startGroup",
+        "text": "[IDENTITY_TEST] Drawing with identity viewProj"
+      },
+      {
+        "type": "log",
+        "text": "IDENTITY TEST: PASS - shader works!"
+      }
+    ]
+  },
+  "world_marker": {
+    "test": "world_marker",
+    "pass": true,
+    "centerPixel": {
+      "r": 0,
+      "g": 255,
+      "b": 255,
+      "a": 255
+    },
+    "coloredPixelCount": 39,
+    "consoleMessages": [
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      },
+      {
+        "type": "startGroup",
+        "text": "[GPU_AUDIT] World Marker Draw"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] HEAD_CYAN"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] MONITOR_RED"
+      },
+      {
+        "type": "startGroup",
+        "text": "[MARKER] BACKWALL_MAGENTA"
+      },
+      {
+        "type": "log",
+        "text": "[WORLD_MARKER] Total draw calls: 3"
+      }
+    ]
+  },
+  "room_clip": {
+    "test": "room_clip",
+    "pass": false,
+    "centerPixel": {
+      "r": 0,
+      "g": 0,
+      "b": 0,
+      "a": 0
+    },
+    "coloredPixelCount": 0,
+    "consoleMessages": []
+  }
+}

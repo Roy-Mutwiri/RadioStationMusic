@@ -313,6 +313,8 @@ class BehaviorDirector:
         )
         #: The last camera decision, for the control page and the soak.
         self.last_camera_decision: CameraDecision | None = None
+        #: Why the last operator trigger was refused, if it was. See :meth:`trigger`.
+        self.last_trigger_block: str | None = None
 
         self.character_state = CharacterState.IDLE_FOCUS
         self._state_until = 0.0
@@ -434,14 +436,31 @@ class BehaviorDirector:
 
         Locks are **still respected**. Bypassing them would let a console click produce
         the floating mug every structural guarantee in this package exists to prevent.
+
+        On a refusal, :attr:`last_trigger_block` carries the *conflicting* lock rather
+        than everything currently held. A control panel that reported the whole held set
+        would tell an operator which body parts are busy but not which one stopped the
+        action they pressed — and the second is the question they are asking.
         """
         action = spec(action_id)
+        self.last_trigger_block = None
         if self._object_conflict(action):
+            held = ", ".join(
+                sorted(
+                    lock.value
+                    for lock in self.locks.held
+                    if lock in {InteractionLock.COFFEE, InteractionLock.PEN}
+                )
+            )
+            self.last_trigger_block = (
+                f"an object is already in hand ({held}) — the one-object rule"
+            )
             _log.info("visual.trigger_blocked", action=action_id, reason="object_in_hand")
             return None
         if not self.locks.permits(action):
-            held = self.locks.blocked_by(action.effective_locks)
-            blocked = ", ".join(sorted(lock.value for lock in held))
+            conflicting = self.locks.blocked_by(action.effective_locks)
+            blocked = ", ".join(sorted(lock.value for lock in conflicting))
+            self.last_trigger_block = f"{blocked} in use"
             _log.info("visual.trigger_blocked", action=action_id, locks=blocked)
             return None
         self.cooldowns.force_ready(action_id)
@@ -1041,8 +1060,11 @@ class BehaviorDirector:
         Last on purpose: it reads the behaviour that has already been settled this tick,
         so a cut cannot be chosen against an action the director is about to replace.
         """
-        if not self.camera.auto:
-            self.last_camera_decision = None
+        if not self.camera.auto and not self.camera_director.has_pending_request:
+            # Manual mode: no automatic cuts. An explicit operator request still goes
+            # through — and still queues behind the safety vetoes — because "lock the
+            # selected camera" means the one the operator selected, not whichever
+            # happened to be live when they took control.
             return
         decision = self.camera_director.tick(
             now=now,

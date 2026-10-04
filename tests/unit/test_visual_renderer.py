@@ -451,10 +451,29 @@ def test_the_runtime_javascript_parses() -> None:
 
 
 def test_the_placeholder_is_labelled_unmissably() -> None:
-    """This page must never be mistaken for the product."""
+    """This page must never be mistaken for the product.
+
+    The wording moved when proof art landed — `PLACEHOLDER` became `TEMP_PROOF`, because
+    the page now shows a recognisable trader in a recognisable office and "placeholder"
+    understated what it was claiming not to be. The guarantee is unchanged and asserted
+    on both the markup and the mode-dependent strings `app.js` sets: whatever is on
+    screen, the page says what it is.
+    """
     html = (RUNTIME_DIR / "index.html").read_text(encoding="utf-8")
-    assert html.count("PLACEHOLDER") >= 2
-    assert "NOT FINAL ARTWORK" in html
+    assert "TEMP_PROOF" in html
+    assert "NOT APPROVED ARTWORK" in html
+    assert 'id="stamp"' in html
+    assert 'id="banner"' in html
+
+    source = (RUNTIME_DIR / "app.js").read_text(encoding="utf-8")
+    # Every art mode must carry its own honest badge; none may be unlabelled.
+    for mode, claim in (
+        ("proof", "NOT APPROVED ARTWORK"),
+        ("blockout", "NOT ARTWORK"),
+        ("final", "procedural fallback"),
+    ):
+        assert f"{mode}: [" in source, mode
+        assert claim in source, f"{mode} has no honest badge"
 
 
 def test_the_runtime_targets_1920x1080_and_caps_frames() -> None:

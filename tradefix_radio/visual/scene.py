@@ -28,7 +28,15 @@ from typing import Any, Final
 
 from tradefix_radio.visual.assets import parallax_from_depth
 from tradefix_radio.visual.camera import CAMERA_METADATA
-from tradefix_radio.visual.geometry import Blockout, Point, default_blockout
+from tradefix_radio.visual.geometry import (
+    GEOMETRY_CONTRACT,
+    Blockout,
+    Point,
+    default_blockout,
+)
+from tradefix_radio.visual.geometry import (
+    vec as _vec,
+)
 
 #: Palette keys the runtime resolves to the Trade Fix tokens. Named rather than
 #: hex-coded so the placeholder cannot drift from `tailwind.config.js`.
@@ -156,13 +164,14 @@ class SceneDescription:
                 "transforms are genuinely verified. Replaced wholesale by painted layer "
                 "stacks; nothing in the runtime depends on these shapes."
             ),
-            "room": {"x": self.room[0], "y": self.room[1], "z": self.room[2]},
+            "geometry_contract": GEOMETRY_CONTRACT,
+            "room": _vec(self.room),
             "palette": self.palette,
             "boxes": [
                 {
                     "id": box.box_id,
-                    "min": list(box.minimum),
-                    "max": list(box.maximum),
+                    "min": _vec(box.minimum),
+                    "max": _vec(box.maximum),
                     "colour": box.colour,
                     "order": box.order,
                     "filled": box.filled,
@@ -174,7 +183,7 @@ class SceneDescription:
             "quads": [
                 {
                     "id": quad.quad_id,
-                    "centre": list(quad.centre),
+                    "centre": _vec(quad.centre),
                     "width": quad.width,
                     "height": quad.height,
                     "yaw": quad.yaw,
@@ -190,9 +199,9 @@ class SceneDescription:
                 {
                     "id": joint.joint_id,
                     "parent": joint.parent,
-                    "position": list(joint.position),
+                    "position": _vec(joint.position),
                     "shape": joint.shape,
-                    "size": list(joint.size),
+                    "size": _vec(joint.size),
                     "colour": joint.colour,
                     "order": joint.order,
                     "dof": list(joint.dof),
@@ -203,8 +212,8 @@ class SceneDescription:
                 {
                     "id": camera.camera_id,
                     "name": camera.name,
-                    "position": list(camera.position),
-                    "target": list(camera.target),
+                    "position": _vec(camera.position),
+                    "target": _vec(camera.target),
                     "vfov": round(camera.vfov, 4),
                     "hfov": round(camera.hfov, 4),
                     "focal_mm_35eq": camera.focal_mm_35eq,
@@ -213,9 +222,13 @@ class SceneDescription:
                 }
                 for camera in self.cameras
             ],
-            "anchors": {name: list(point) for name, point in sorted(self.anchors.items())},
+            "anchors": {
+                name: _vec(point)
+                for name, point in sorted(self.anchors.items())
+            },
             "gaze_targets": {
-                name: list(point) for name, point in sorted(self.gaze_targets.items())
+                name: _vec(point)
+                for name, point in sorted(self.gaze_targets.items())
             },
             "parallax_reference_mm": 2248.0,
         }
@@ -406,6 +419,12 @@ def _distance(a: Point, b: Point) -> float:
 CHART_BARS: Final = 26
 #: `app.js` `_drawBoxes` draws five of six faces; the sixth is never camera-facing.
 BOX_FACES: Final = 5
+#: `app.js` `_drawRoomShell` — floor, back wall, two side walls. Without them the office
+#: reads as furniture floating in black rather than as a room with depth.
+ROOM_SHELL_QUADS: Final = 4
+#: `app.js` `_drawCharacter` draws the limb segments between joints, so an arm follows its
+#: own hand. Four arm segments plus spine, neck and head.
+LIMB_SEGMENTS: Final = 7
 #: centre, size, basisX, basisY, parallax, colour, shape, edge.
 UNIFORMS_PER_QUAD: Final = 8
 VERTICES_PER_QUAD: Final = 6
@@ -428,15 +447,24 @@ def frame_workload() -> dict[str, object]:
     panel_calls = len(scene.quads)
     chart_calls = sum(CHART_BARS for quad in scene.quads if quad.live)
     joint_calls = len(scene.joints)  # lids drop out while open; worst case counted
-    calls = box_calls + panel_calls + chart_calls + joint_calls
+    calls = (
+        ROOM_SHELL_QUADS
+        + box_calls
+        + panel_calls
+        + chart_calls
+        + joint_calls
+        + LIMB_SEGMENTS
+    )
 
     return {
         "draw_calls_per_frame": calls,
         "breakdown": {
+            "room_shell": ROOM_SHELL_QUADS,
             "boxes": box_calls,
             "panels": panel_calls,
             "chart_marks": chart_calls,
             "character_joints": joint_calls,
+            "limb_segments": LIMB_SEGMENTS,
         },
         "uniform_updates_per_frame": calls * UNIFORMS_PER_QUAD,
         "vertices_per_frame": calls * VERTICES_PER_QUAD,
@@ -455,7 +483,13 @@ def frame_workload() -> dict[str, object]:
 
 
 __all__ = [
+    "BOX_FACES",
+    "CHART_BARS",
+    "LIMB_SEGMENTS",
     "PALETTE",
+    "ROOM_SHELL_QUADS",
+    "UNIFORMS_PER_QUAD",
+    "VERTICES_PER_QUAD",
     "SceneBox",
     "SceneCamera",
     "SceneDescription",

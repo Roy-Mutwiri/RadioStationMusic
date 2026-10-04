@@ -26,6 +26,7 @@ from __future__ import annotations
 import functools
 import json
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final
@@ -73,6 +74,50 @@ _GAZE_SURFACE: Final[dict[GazeTarget, str]] = {
 }
 
 Point = tuple[float, float, float]
+
+#: The one serialisation contract for every geometry vector crossing into the browser.
+#:
+#: Declared in the payloads themselves so the renderer asserts on it rather than inferring
+#: the shape from whichever field it happened to read first.
+GEOMETRY_CONTRACT: Final = "vectors are JSON arrays: Vec2 [x, y], Vec3 [x, y, z]"
+
+
+def vec(point: Sequence[float]) -> list[float]:
+    """Serialise a geometry vector. **The only producer** — deliberately.
+
+    Every vector that crosses the Python → browser boundary goes through here, because
+    exactly one that did not caused a total loss of picture.
+
+    `SceneDescription.to_json` serialised twenty-one vectors as JSON arrays and one —
+    `room` — as ``{"x": …, "y": …, "z": …}``. The renderer's `_drawRoomShell`
+    destructured it with ``const [rw, rd, rh] = scene.room``, which on an object throws
+
+        TypeError: object is not iterable
+                   (cannot read property Symbol(Symbol.iterator))
+
+    `_drawRoomShell` is the first draw call of every frame, so the renderer died on frame
+    zero and nothing was ever drawn. One inconsistent field.
+
+    Lives in `geometry.py` rather than in either consumer so that `scene.py` and
+    `assets.py` share one implementation: a copy in each is how the two drift apart again.
+    `test_every_scene_vector_is_an_array` enforces the result on the payload, so a future
+    field that bypasses this function fails a test rather than a stream.
+    """
+    if isinstance(point, Mapping):
+        raise TypeError(
+            "a geometry vector must be a sequence, not a mapping — "
+            f"{dict(point)!r} would serialise as its keys. This is the exact mistake "
+            "that produced `object is not iterable` in the renderer."
+        )
+    values = [float(value) for value in point]
+    if not 2 <= len(values) <= 3:
+        raise ValueError(
+            f"a geometry vector must be Vec2 or Vec3, got {len(values)} components"
+        )
+    for value in values:
+        if not math.isfinite(value):
+            raise ValueError(f"a geometry vector may not contain {value}")
+    return values
 
 
 @dataclass(frozen=True, slots=True)

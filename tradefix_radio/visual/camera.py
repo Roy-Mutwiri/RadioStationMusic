@@ -174,6 +174,18 @@ CAMERA_METADATA: Final[dict[str, CameraMetadata]] = {
     ),
 }
 
+#: Human-readable shot names, matching `CAMERA_PLAN.md` §3. Used by the HUD and the demo
+#: control panel, so a viewer reads "HANDS / DESK" rather than "CAM_6".
+CAMERA_NAMES: Final[dict[str, str]] = {
+    "CAM_1": "HERO FRONT",
+    "CAM_2": "SIDE PROFILE",
+    "CAM_3": "OVER SHOULDER",
+    "CAM_4": "FACE CLOSE-UP",
+    "CAM_5": "WIDE OFFICE",
+    "CAM_6": "HANDS / DESK",
+    "CAM_7": "THREE-QUARTER HERO",
+}
+
 #: The home shot. What should be on screen when someone arrives for the first time.
 #:
 #: `CAM_1`, the hero front — the composition every plate is graded against
@@ -266,6 +278,7 @@ def validate_metadata(blockout: Blockout) -> list[str]:
 
 __all__ = [
     "CAMERA_METADATA",
+    "CAMERA_NAMES",
     "DEFAULT_CAMERA",
     "TRANSITION_CROSSFADE",
     "TRANSITION_CUT",

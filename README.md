@@ -248,3 +248,82 @@ And one trade-off made knowingly:
   is a string an author wrote and marked with a certainty level, which turns §14 from
   a hope into an invariant. It is also offline, free, instant, and deterministic from
   a seed.
+
+---
+
+## Visual System
+
+Trade Fix Radio includes a real-time 3D visual system that renders an animated radio studio with an AI DJ character. The visual output is designed for broadcast via OBS.
+
+### Studio Preview
+
+| Room Geometry | Desk Setup |
+|---------------|------------|
+| ![Room](docs/images/room_cam5.png) | ![Desk](docs/images/desk_cam6.png) |
+
+### AI DJ Character
+
+| Front View | Wide Shot | Hands Close-up |
+|------------|-----------|----------------|
+| ![Front](docs/images/character_cam_1.png) | ![Wide](docs/images/character_cam_4.png) | ![Hands](docs/images/character_cam_6.png) |
+
+### Features
+
+- **7 Camera Angles**: Hero shots, wide angles, close-ups, and overhead views
+- **Intelligent Camera Director**: Automatically switches shots based on market energy and music
+- **WebGL2 Rendering**: Hardware-accelerated graphics with SDF shaders
+- **Real-time Sync**: WebSocket bridge keeps visuals synchronized with audio playback
+- **Diagnostic Mode**: Built-in render tests verify all scene elements
+
+### Quick Start
+
+```powershell
+# Start the visual server
+.\.venv\Scripts\tradefix visual --port 8766
+
+# Open in browser
+start http://localhost:8766
+```
+
+Full documentation: [`docs/VISUAL_SYSTEM.md`](docs/VISUAL_SYSTEM.md)
+
+---
+
+## Project Structure
+
+```
+tradefix_radio/
+├── api/                 # FastAPI endpoints and WebSocket handlers
+├── audio/               # Audio processing, mixing, and mastering
+├── broadcast/           # OBS integration and stream management
+├── cli/                 # Command-line interface
+├── config/              # Configuration management
+├── core/                # Core domain models and contracts
+├── database/            # SQLite/PostgreSQL persistence
+├── diversity/           # Track variety and repetition prevention
+├── events/              # Event bus and state management
+├── generation/          # Music generation engine interface
+├── health/              # Health checks and monitoring
+├── lyrics/              # Lyric composition and validation
+├── market/              # Market data feeds and regime classification
+├── music/               # Music direction and blueprint creation
+├── playout/             # Scheduler, queue, and playback
+├── quality/             # Audio QC and fingerprinting
+├── ui/                  # Control center and overlays
+└── visual/              # 3D visual rendering system
+
+visual/
+├── assets/              # Textures and art assets
+├── debug/               # Diagnostic scripts
+└── runtime/             # WebGL renderer (app.js, index.html)
+
+frontend/                # React control center UI
+docs/                    # Documentation and phase reports
+tests/                   # Unit, integration, and renderer tests
+```
+
+---
+
+## License
+
+This project is proprietary software. All rights reserved.

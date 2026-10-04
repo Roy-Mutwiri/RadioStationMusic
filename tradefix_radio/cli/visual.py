@@ -1,12 +1,13 @@
 """``tradefix visual`` — behaviour simulation, asset manifest, and self-checks.
 
-Six subcommands. The first four run **without artwork and without the station**:
+Seven subcommands. The first four run **without artwork and without the station**:
 
     tradefix visual simulate    run the behaviour director for simulated hours
     tradefix visual timeline     print a human-readable action timeline
     tradefix visual manifest     show or write the art asset contract
     tradefix visual doctor       validate the catalogue against frozen V1 geometry
     tradefix visual serve        serve the placeholder renderer and push commands
+    tradefix visual demo         VISUAL DEMO MODE — watch the engine live in Chrome
     tradefix visual benchmark    measure what a browser reports rendering it
 
 ``simulate`` is the one that matters. It is the whole argument for the director living
@@ -20,10 +21,13 @@ import argparse
 import asyncio
 import contextlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 from tradefix_radio.config.schema import AppSettings
+from tradefix_radio.visual.art import status as art_status
+from tradefix_radio.visual.art import validate as art_validate
 from tradefix_radio.visual.assets import AssetManifest, manifest_path, write_manifest
 from tradefix_radio.visual.bridge import StationLink, default_station_url
 from tradefix_radio.visual.camera import validate_metadata
@@ -34,6 +38,7 @@ from tradefix_radio.visual.catalog import (
     validate_catalog,
 )
 from tradefix_radio.visual.contracts import ActionCategory
+from tradefix_radio.visual.demo import CYCLE_SECONDS, DEMO_TIMELINE, DemoStateSource
 from tradefix_radio.visual.director import TICK_SECONDS
 from tradefix_radio.visual.geometry import default_blockout, load_blockout
 from tradefix_radio.visual.scene import frame_workload
@@ -128,6 +133,43 @@ def register(subparsers: Any) -> None:
         help=f"station WebSocket (default {default_station_url()})",
     )
 
+    assets = inner.add_parser(
+        "assets", help="inspect and validate imported art"
+    )
+    assets_inner = assets.add_subparsers(dest="assets_command", required=True)
+    assets_validate = assets_inner.add_parser(
+        "validate",
+        help="check imported art against the required dimensions, alpha and pivots",
+    )
+    assets_validate.add_argument(
+        "--json", action="store_true", help="emit machine-readable output"
+    )
+    assets_inner.add_parser("status", help="summarise what is imported")
+
+    demo = inner.add_parser(
+        "demo",
+        help="VISUAL DEMO MODE — run the engine live in Chrome until Ctrl+C",
+    )
+    demo.add_argument("--host", default="127.0.0.1")
+    demo.add_argument("--port", type=int, default=DEFAULT_PORT)
+    demo.add_argument(
+        "--fps", type=int, default=30, choices=(30, 60),
+        help="frame cap. 30 by default: measured as sufficient, and ACE-Step owns the GPU",
+    )
+    demo.add_argument(
+        "--hud", action="store_true", default=True,
+        help="show the HUD and the control panel (default)",
+    )
+    demo.add_argument(
+        "--no-hud", dest="hud", action="store_false",
+        help="hide the HUD, for looking at the picture alone",
+    )
+    demo.add_argument(
+        "--debug", action="store_true",
+        help="also draw anchors, gaze targets and the eye/hand debug lines",
+    )
+    demo.add_argument("--seed", type=int, default=7, help="makes the show reproducible")
+
     benchmark = inner.add_parser(
         "benchmark",
         help="serve the runtime, then summarise the frame timings a browser reports",
@@ -155,6 +197,8 @@ async def command(args: argparse.Namespace, _settings: AppSettings) -> int:
     """
     if args.visual_command == "serve":
         return await _serve(args)
+    if args.visual_command == "demo":
+        return await _demo(args)
     if args.visual_command == "benchmark":
         return await _benchmark(args)
     handler = {
@@ -162,6 +206,7 @@ async def command(args: argparse.Namespace, _settings: AppSettings) -> int:
         "timeline": _timeline,
         "manifest": _manifest,
         "doctor": _doctor,
+        "assets": _assets,
     }[args.visual_command]
     return handler(args)
 
@@ -476,6 +521,130 @@ async def _serve(args: argparse.Namespace) -> int:
         app, host=args.host, port=args.port, log_level="info", access_log=False
     )
     await uvicorn.Server(config).serve()
+    return 0
+
+
+# ------------------------------------------------------------------ assets
+
+
+def _assets(args: argparse.Namespace) -> int:
+    """Inspect imported art.
+
+    Absent files are reported but do not fail: no artwork exists yet, and failing every
+    run on that would train everyone to ignore the output. A file that is *present and
+    unusable* fails, because that is the case a human needs to act on.
+    """
+    report = art_status()
+
+    if getattr(args, "json", False):
+        print(json.dumps(report, indent=2))
+        return 0 if not report["problems"] else 1
+
+    character = report["character"]
+    environment = report["environment"]
+    motion = report["motion_layers"]
+
+    print(f"\n  source      {report['source_root']}")
+    print(f"  guide       {report['import_guide']}\n")
+
+    print(f"  CHARACTER   {character['required_valid']} / "
+          f"{character['required']} required valid "
+          f"({character['present']} of {character['total']} files present)")
+    print(f"  ENVIRONMENT {environment['required_valid']} / "
+          f"{environment['required']} required valid "
+          f"({environment['present']} of {environment['total']} files present)")
+    print(f"  MOTION      {motion['valid']} / {motion['required']} layers")
+    served = report["cameras_with_art"]
+    print(f"  CAMERAS     {', '.join(served) if served else 'none — all procedural'}")
+    print()
+
+    if args.assets_command == "status":
+        if not report["any_art_present"]:
+            print("  No art imported. The demo renders procedural TEMP_PROOF shapes.")
+            print(f"  Put approved files in {report['source_root']} — see the guide.\n")
+        return 0
+
+    ok, lines = art_validate()
+    print("\n".join(lines))
+
+    if not report["any_art_present"]:
+        print("  No art imported, so nothing to validate.")
+        print("  The demo renders procedural TEMP_PROOF shapes until files arrive.")
+        print(f"\n  ART FILES REQUIRED -> {report['source_root']}")
+        print(f"  Exact filenames and sizes: {report['import_guide']}\n")
+        return 0
+
+    if ok:
+        print("  every imported file is usable\n")
+        return 0
+
+    print(f"  {len(report['problems'])} imported file(s) are unusable; "
+          "the renderer will fall back to procedural proof for those layers\n")
+    return 1
+
+
+# ------------------------------------------------------------------ demo
+
+
+async def _demo(args: argparse.Namespace) -> int:
+    """VISUAL DEMO MODE. Runs until Ctrl+C.
+
+    Everything a viewer sees is produced by the real director, the real camera director
+    and the real renderer, from the real frozen geometry. Demo mode supplies the *market
+    and music state* and nothing else — there are no scripted movements, because a
+    scripted movement would demonstrate the script rather than the engine.
+    """
+    import uvicorn  # noqa: PLC0415 - only this path needs a server
+
+    if not RUNTIME_DIR.is_dir():
+        print(f"  runtime not found at {RUNTIME_DIR}")
+        return 1
+
+    runtime = VisualRuntime(seed=args.seed, demo=DemoStateSource(seed=args.seed))
+    app = create_app(runtime)
+    query = f"?fps={args.fps}&hud={'1' if args.hud else '0'}&demo=1"
+    if args.debug:
+        query += "&debug=1"
+    url = f"{runtime_url(args.host, args.port)}{query}"
+
+    rule = "=" * 68
+    print(f"\n{rule}")
+    print("  VISUAL DEMO MODE")
+    print(rule)
+    print("\n  OPEN IN CHROME:\n")
+    print(f"      {url}\n")
+    print(f"  frame cap           {args.fps} fps")
+    print(f"  HUD                 {'on' if args.hud else 'off'}"
+          f"{' + debug overlay' if args.debug else ''}")
+    print(f"  seed                {args.seed}  (the show is reproducible)")
+    print(f"  cycle               {CYCLE_SECONDS:.0f} s, then deterministic variation")
+    print("\n  TIMELINE")
+    offset = 0.0
+    for phase in DEMO_TIMELINE:
+        end = offset + phase.seconds
+        print(
+            f"      {offset:>3.0f}-{end:<4.0f}s  {phase.scenario.symbol:<7} "
+            f"{phase.label:<19} energy {phase.scenario.market_energy:>5.1f}  "
+            f"{phase.scenario.bpm:>3} bpm"
+        )
+        offset = end
+    print("\n  The control panel in the page triggers actions, markets, symbols, music")
+    print("  and cameras through the same interfaces production uses. A blocked action")
+    print("  reports BLOCKED: <reason> rather than doing nothing.")
+    print("\n  Ctrl+C to stop.")
+    print(f"{rule}\n")
+    # Flushed explicitly: this banner carries the URL the operator needs, and stdout is
+    # block-buffered whenever it is not a terminal. A URL that appears after the server
+    # exits is a URL nobody used.
+    sys.stdout.flush()
+
+    config = uvicorn.Config(
+        app, host=args.host, port=args.port, log_level="warning", access_log=False
+    )
+    server = uvicorn.Server(config)
+    with contextlib.suppress(KeyboardInterrupt, asyncio.CancelledError):
+        await server.serve()
+    print("\n  demo stopped.")
     return 0
 
 

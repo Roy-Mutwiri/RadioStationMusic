@@ -2,14 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>TRADE FIX VISUAL — PLACEHOLDER RUNTIME</title>
+<!-- VISUAL DEMO MODE page. The HUD is DOM rather than drawn so `get_page_text` and a
+     screen reader can both read the runtime's state without a screenshot — the only way
+     this page can be verified when no GPU is in the loop. -->
+<title>TRADE FIX RADIO — VISUAL DEMO</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   /* 1920x1080 is the target. The canvas is letterboxed into whatever it is given, so
      an OBS browser source at any size shows the same framing. */
   :root {
     --ink-950: #07080a; --ink-900: #0c0e12; --ink-800: #151922; --ink-700: #232935;
-    --ink-500: #444d5d; --ink-400: #6b7383; --ink-300: #9aa1ad; --ink-100: #e6e8ec;
+    --ink-600: #2f3744; --ink-500: #444d5d; --ink-400: #6b7383; --ink-300: #9aa1ad;
+    --ink-100: #e6e8ec;
     --gold-500: #c9a227; --gold-400: #d9b949; --blue: #4a7fc2;
     --green: #4f9d69; --red: #c2504a;
   }
@@ -20,9 +24,17 @@
   #stage { position: fixed; inset: 0; display: grid; place-items: center; }
   canvas { display: block; background: var(--ink-950); }
 
-  /* The HUD is DOM rather than drawn, so `get_page_text` and a screen reader can both
-     read the runtime's state without a screenshot. That is the only way this page can
-     be verified without a GPU in the loop. */
+  /* Debug overlay: projected labels and the eye/hand sight lines. SVG rather than GL
+     because a line is one element here and a whole extra draw path there, and this is a
+     verification aid rather than part of the picture. */
+  #overlay { position: fixed; inset: 0; pointer-events: none; }
+  #overlay.off { display: none; }
+  #overlay text {
+    font: 10px 'JetBrains Mono', Consolas, ui-monospace, monospace;
+    fill: var(--ink-400); paint-order: stroke; stroke: rgba(7,8,10,.85); stroke-width: 3px;
+  }
+  #overlay text.live { fill: var(--gold-400); }
+
   #hud {
     position: fixed; inset: 0; pointer-events: none;
     font-size: 11px; line-height: 1.45; color: var(--ink-300);
@@ -30,28 +42,79 @@
   }
   #hud.off { display: none; }
   .panel {
-    position: absolute; background: rgba(7,8,10,.72); border: 1px solid var(--ink-700);
-    padding: 8px 10px; border-radius: 3px; min-width: 210px;
+    position: absolute; background: rgba(7,8,10,.78); border: 1px solid var(--ink-700);
+    padding: 8px 10px; border-radius: 3px; min-width: 232px;
   }
-  #perf  { top: 12px; left: 12px; }
-  #char  { top: 12px; right: 12px; }
-  #cam   { bottom: 12px; left: 12px; }
-  #market{ bottom: 12px; right: 12px; }
+  #perf   { top: 12px; left: 12px; }
+  #char   { top: 12px; right: 12px; }
+  #cam    { bottom: 12px; left: 12px; }
+  #market { bottom: 12px; right: 12px; }
+  #music  { bottom: 12px; right: 258px; }
+  #repeat { top: 12px; left: 258px; min-width: 206px; }
+  #demo   { top: 42%; left: 12px; min-width: 206px; }
+  #art    { top: 62%; left: 12px; min-width: 206px; }
   .panel h2 {
     font-size: 9px; letter-spacing: .12em; color: var(--gold-500);
     text-transform: uppercase; margin-bottom: 5px; font-weight: 600;
   }
   .row { display: flex; justify-content: space-between; gap: 14px; }
   .row span:first-child { color: var(--ink-500); }
-  .row span:last-child { color: var(--ink-100); }
+  .row span:last-child { color: var(--ink-100); text-align: right; }
+  .wide span:last-child {
+    max-width: 142px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   .warn { color: var(--gold-400) !important; }
   .bad  { color: var(--red) !important; }
   .ok   { color: var(--green) !important; }
+  .dim  { color: var(--ink-500) !important; }
 
+  /* ---- the development control panel ---------------------------------------
+     Every button posts to the same endpoints a production operator would use. It is
+     pointer-events: auto inside an otherwise inert HUD, and it is gated on ?demo=1 so a
+     broadcast browser source can never show it. */
+  #controls {
+    position: fixed; top: 50%; right: 12px; transform: translateY(-50%);
+    width: 236px; max-height: 94vh; overflow-y: auto;
+    background: rgba(7,8,10,.9); border: 1px solid var(--ink-600);
+    border-radius: 3px; padding: 9px; pointer-events: auto;
+    font-family: 'JetBrains Mono', Consolas, ui-monospace, monospace; font-size: 10px;
+  }
+  #controls.off { display: none; }
+  #controls h2 {
+    font-size: 9px; letter-spacing: .12em; color: var(--gold-500);
+    text-transform: uppercase; margin: 7px 0 4px; font-weight: 600;
+  }
+  #controls h2:first-child { margin-top: 0; }
+  #controls .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+  #controls .grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  #controls button {
+    font: inherit; color: var(--ink-300); background: var(--ink-800);
+    border: 1px solid var(--ink-600); border-radius: 2px; padding: 4px 2px;
+    cursor: pointer; text-align: center; letter-spacing: .02em;
+  }
+  #controls button:hover { background: var(--ink-700); color: var(--ink-100); }
+  #controls button:active { background: var(--gold-500); color: var(--ink-950); }
+  #controls button.active {
+    border-color: var(--gold-500); color: var(--gold-400); background: #1b1a12;
+  }
+  #result {
+    margin-top: 7px; padding: 5px 6px; border-radius: 2px; min-height: 30px;
+    background: var(--ink-900); border: 1px solid var(--ink-700);
+    color: var(--ink-400); line-height: 1.4; word-break: break-word;
+  }
+  #result.ok { color: var(--green); border-color: #24402f; }
+  #result.blocked { color: var(--red); border-color: #46201e; }
+
+  /* A corner badge, not a watermark across the picture.
+     The giant centred PLACEHOLDER was honest but it dominated the frame, which made it
+     impossible to judge the composition it was stamped over. The claim still has to be
+     unmissable, so it moved rather than softened. */
   #stamp {
-    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    font-size: 54px; letter-spacing: .3em; font-weight: 700;
-    color: rgba(201,162,39,.085); pointer-events: none; white-space: nowrap;
+    position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: .26em; font-weight: 700;
+    color: var(--gold-500); background: rgba(7,8,10,.72);
+    border: 1px solid rgba(201,162,39,.35); border-radius: 3px; padding: 4px 12px;
+    pointer-events: none; white-space: nowrap;
   }
   #banner {
     position: fixed; top: 0; left: 0; right: 0; text-align: center;
@@ -64,14 +127,117 @@
     text-align: center; padding: 40px; line-height: 1.7;
   }
   #fault.shown { display: grid; }
+
+  /* ---- the missing-art notice ------------------------------------------------
+     Full screen, centred, unmissable. The user looked at a dark frame and could not
+     tell whether the renderer was broken or the art was absent. It was the art. This
+     makes that distinction impossible to miss, and it disappears by itself the moment
+     the first valid plate loads. */
+  #noart {
+    position: fixed; inset: 0; display: none; pointer-events: none;
+    place-items: center; text-align: center;
+    background: radial-gradient(ellipse at center,
+                rgba(7,8,10,.62) 0%, rgba(7,8,10,.88) 70%);
+    font-family: 'JetBrains Mono', Consolas, ui-monospace, monospace;
+  }
+  #noart.shown { display: grid; }
+  #noart .inner {
+    border: 1px solid rgba(201,162,39,.4); border-radius: 4px;
+    background: rgba(7,8,10,.82); padding: 26px 40px; max-width: 760px;
+  }
+  #noart h1 {
+    font-size: 26px; letter-spacing: .22em; color: var(--gold-400);
+    font-weight: 700; margin-bottom: 4px;
+  }
+  #noart .sub {
+    font-size: 11px; letter-spacing: .14em; color: var(--ink-400);
+    margin-bottom: 20px;
+  }
+  #noart .counts {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    margin-bottom: 18px;
+  }
+  #noart .count {
+    border: 1px solid var(--ink-700); border-radius: 3px; padding: 10px 6px;
+    background: rgba(12,14,18,.8);
+  }
+  #noart .count .label {
+    font-size: 9px; letter-spacing: .16em; color: var(--ink-500); margin-bottom: 5px;
+  }
+  #noart .count .value { font-size: 21px; font-weight: 700; color: var(--red); }
+  #noart .count .value.part { color: var(--gold-400); }
+  #noart .count .value.done { color: var(--green); }
+  #noart .where {
+    font-size: 11px; line-height: 1.7; color: var(--ink-300);
+    border-top: 1px solid var(--ink-700); padding-top: 14px;
+  }
+  #noart .where code {
+    color: var(--gold-400); background: rgba(201,162,39,.08);
+    padding: 1px 5px; border-radius: 2px;
+  }
+  #noart .problem { color: var(--red); margin-top: 8px; font-size: 10px; }
+
+  /* A camera with no plate of its own, once real art is live. */
+  #nocam {
+    position: fixed; inset: 0; display: none; place-items: center;
+    pointer-events: none; background: rgba(7,8,10,.86); text-align: center;
+    font-family: 'JetBrains Mono', Consolas, ui-monospace, monospace;
+  }
+  #nocam.shown { display: grid; }
+  #nocam .inner { border: 1px solid var(--ink-600); border-radius: 4px;
+                  padding: 22px 34px; background: rgba(12,14,18,.9); }
+  #nocam h1 { font-size: 17px; letter-spacing: .18em; color: var(--gold-400); }
+  #nocam p { font-size: 11px; color: var(--ink-400); margin-top: 10px; line-height: 1.6; }
 </style>
 </head>
 <body>
-<div id="stage"><canvas id="gl" width="1920" height="1080"></canvas></div>
 
-<!-- Unmissable, and deliberately so. This page must never be mistaken for the product. -->
-<div id="stamp">PLACEHOLDER</div>
-<div id="banner">PLACEHOLDER RUNTIME &middot; BLOCKOUT GEOMETRY &middot; NOT FINAL ARTWORK</div>
+<div id="stage"><canvas id="gl" width="1920" height="1080"></canvas></div>
+<svg id="overlay" class="off"></svg>
+
+<!-- RENDER PIPELINE DIAGNOSTIC: Step 1 - DOM visibility test -->
+<div id="dom-test" style="
+  display: none;
+  position: fixed;
+  top: 25%;
+  left: 25%;
+  width: 50%;
+  height: 50%;
+  background: magenta;
+  z-index: 99999;
+  color: white;
+  font-size: 48px;
+  font-weight: bold;
+  text-align: center;
+  padding-top: 20%;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+">
+  DOM VISIBLE<br>
+  <span style="font-size: 24px;">This is not WebGL.<br>If you see this, DOM/CSS is working.</span>
+</div>
+
+<!-- RENDER PIPELINE DIAGNOSTIC: Debug info panel -->
+<div id="render-debug" style="
+  display: none;
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.9);
+  color: lime;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 10px;
+  z-index: 100000;
+  max-width: 80%;
+  white-space: pre-wrap;
+  border: 2px solid lime;
+"></div>
+
+<!-- Badge and banner set by app.js to match the live art mode. -->
+<div id="stamp">PROCEDURAL</div>
+<div id="banner">PROCEDURAL ANIME &middot; RUNTIME GENERATED &middot; TRADE FIX RADIO</div>
 
 <div id="hud">
   <div class="panel" id="perf">
@@ -81,21 +247,34 @@
     <div class="row"><span>frame p95</span><span id="p-p95">—</span></div>
     <div class="row"><span>dropped</span><span id="p-drop">0</span></div>
     <div class="row"><span>draw calls</span><span id="p-draws">—</span></div>
-    <div class="row"><span>layers</span><span id="p-layers">—</span></div>
+    <div class="row"><span>active layers</span><span id="p-layers">—</span></div>
     <div class="row"><span>gl memory</span><span id="p-mem">n/a</span></div>
     <div class="row"><span>cap</span><span id="p-cap">30</span></div>
     <div class="row"><span>socket</span><span id="p-sock">connecting</span></div>
+    <div class="row"><span>state feed</span><span id="p-state">—</span></div>
+  </div>
+
+  <div class="panel" id="repeat">
+    <h2>Anti-repeat</h2>
+    <div class="row"><span>recent actions</span><span id="r-actions">—</span></div>
+    <div class="row wide"><span>last</span><span id="r-last">—</span></div>
+    <div class="row"><span>recent cameras</span><span id="r-cams">—</span></div>
+    <div class="row wide"><span>sequence</span><span id="r-seq">—</span></div>
   </div>
 
   <div class="panel" id="char">
     <h2>Character</h2>
     <div class="row"><span>state</span><span id="c-state">—</span></div>
-    <div class="row"><span>action</span><span id="c-action">—</span></div>
+    <div class="row wide"><span>action</span><span id="c-action">—</span></div>
     <div class="row"><span>chain</span><span id="c-chain">—</span></div>
     <div class="row"><span>gaze</span><span id="c-gaze">—</span></div>
     <div class="row"><span>blend</span><span id="c-blend">—</span></div>
-    <div class="row"><span>queue</span><span id="c-queue">0</span></div>
+    <div class="row"><span>in flight</span><span id="c-queue">0</span></div>
+    <div class="row"><span>next action</span><span id="c-next">—</span></div>
     <div class="row"><span>fatigue</span><span id="c-fatigue">—</span></div>
+    <div class="row"><span>focus</span><span id="c-focus">—</span></div>
+    <div class="row"><span>phase</span><span id="c-phase">—</span></div>
+    <div class="row wide"><span>locks</span><span id="c-locks">none</span></div>
   </div>
 
   <div class="panel" id="cam">
@@ -103,23 +282,166 @@
     <div class="row"><span>live</span><span id="k-id">—</span></div>
     <div class="row"><span>lens</span><span id="k-lens">—</span></div>
     <div class="row"><span>held</span><span id="k-held">—</span></div>
+    <div class="row"><span>hold target</span><span id="k-target">—</span></div>
+    <div class="row wide"><span>reason</span><span id="k-reason">—</span></div>
+    <div class="row"><span>next cut</span><span id="k-elig">—</span></div>
     <div class="row"><span>transition</span><span id="k-trans">—</span></div>
     <div class="row"><span>parallax</span><span id="k-par">—</span></div>
-    <div class="row"><span>drift</span><span id="k-drift">—</span></div>
+    <div class="row"><span>mode</span><span id="k-auto">auto</span></div>
+  </div>
+
+  <div class="panel" id="music">
+    <h2>Music</h2>
+    <div class="row"><span>bpm</span><span id="u-bpm">—</span></div>
+    <div class="row"><span>energy</span><span id="u-energy">—</span></div>
+    <div class="row"><span>genre</span><span id="u-genre">—</span></div>
+    <div class="row"><span>nod p</span><span id="u-nod">—</span></div>
+    <div class="row"><span>nod ceiling</span><span id="u-max">—</span></div>
   </div>
 
   <div class="panel" id="market">
-    <h2>State</h2>
+    <h2>Market</h2>
     <div class="row"><span>symbol</span><span id="m-sym">—</span></div>
+    <div class="row"><span>regime</span><span id="m-regime">—</span></div>
     <div class="row"><span>band</span><span id="m-band">—</span></div>
     <div class="row"><span>energy</span><span id="m-energy">—</span></div>
-    <div class="row"><span>bpm</span><span id="m-bpm">—</span></div>
+    <div class="row"><span>velocity</span><span id="m-vel">—</span></div>
+    <div class="row"><span>direction</span><span id="m-dir">—</span></div>
+    <div class="row"><span>salience</span><span id="m-sal">—</span></div>
     <div class="row"><span>charts</span><span id="m-charts">—</span></div>
-    <div class="row"><span>station</span><span id="m-station">—</span></div>
+  </div>
+
+  <div class="panel" id="art">
+    <h2>Art</h2>
+    <div class="row"><span>mode</span><span id="a-mode">—</span></div>
+    <div class="row"><span>character</span><span id="a-char">—</span></div>
+    <div class="row"><span>environment</span><span id="a-env">—</span></div>
+    <div class="row"><span>motion layers</span><span id="a-motion">—</span></div>
+    <div class="row wide"><span>source</span><span id="a-source">—</span></div>
+  </div>
+
+  <div class="panel" id="demo">
+    <h2>Demo timeline</h2>
+    <div class="row"><span>phase</span><span id="d-phase">—</span></div>
+    <div class="row"><span>remaining</span><span id="d-remain">—</span></div>
+    <div class="row"><span>cycle</span><span id="d-cycle">—</span></div>
+    <div class="row"><span>elapsed</span><span id="d-elapsed">—</span></div>
+    <div class="row"><span>symbol swaps</span><span id="d-swaps">—</span></div>
+    <div class="row"><span>overrides</span><span id="d-over">none</span></div>
+  </div>
+</div>
+
+<!-- Development only. Gated on ?demo=1 so a broadcast source cannot render it. -->
+<div id="controls" class="off">
+  <h2>Actions</h2>
+  <div class="grid">
+    <button data-trigger="blink">BLINK</button>
+    <button data-trigger="typing_medium">TYPING</button>
+    <button data-trigger="mouse_move">MOUSE</button>
+    <button data-trigger="note_write_short">NOTE</button>
+    <button data-trigger="sip">COFFEE</button>
+    <button data-trigger="adjust_left">HEADPHONES</button>
+    <button data-trigger="spine_straighten">POSTURE RESET</button>
+    <button data-trigger="lean_forward_reaction">MARKET REACTION</button>
+  </div>
+
+  <h2>More movement</h2>
+  <div class="grid">
+    <button data-trigger="small_head_turn">HEAD TURN</button>
+    <button data-trigger="small_head_tilt">HEAD TILT</button>
+    <button data-trigger="shoulder_roll">SHOULDER</button>
+    <button data-trigger="lean_forward">LEAN IN</button>
+    <button data-trigger="lean_back">LEAN BACK</button>
+    <button data-trigger="hand_to_chin">HAND TO CHIN</button>
+    <button data-trigger="quick_chart_glance">CHART GLANCE</button>
+    <button data-trigger="micro_head_nod">MUSIC NOD</button>
+  </div>
+
+  <h2>Market</h2>
+  <div class="grid">
+    <button data-market="quiet">QUIET</button>
+    <button data-market="trend">TREND</button>
+    <button data-market="breakout">BREAKOUT</button>
+    <button data-market="extreme">EXTREME</button>
+  </div>
+
+  <h2>Symbol</h2>
+  <div class="grid">
+    <button data-symbol="XAUUSD">XAUUSD</button>
+    <button data-symbol="BTCUSD">BTCUSD</button>
+  </div>
+
+  <h2>Music</h2>
+  <div class="grid">
+    <button data-music="low">LOW BPM</button>
+    <button data-music="high">HIGH BPM</button>
+  </div>
+
+  <h2>Camera</h2>
+  <div class="grid three">
+    <button data-camera="CAM_1">CAM 1</button>
+    <button data-camera="CAM_2">CAM 2</button>
+    <button data-camera="CAM_3">CAM 3</button>
+    <button data-camera="CAM_4">CAM 4</button>
+    <button data-camera="CAM_5">CAM 5</button>
+    <button data-camera="CAM_6">CAM 6</button>
+    <button data-camera="CAM_7">CAM 7</button>
+    <button data-camera="auto" class="active">AUTO</button>
+    <button data-resume="1">RESUME</button>
+  </div>
+
+  <h2>Overlay</h2>
+  <div class="grid">
+    <button data-toggle="hud">HUD</button>
+    <button data-toggle="debug">DEBUG LINES</button>
+  </div>
+
+  <div id="result">Ready. Buttons go through the production director — a blocked action
+    reports why.</div>
+</div>
+
+<!-- Shown whenever no valid plate has loaded. Not a warning badge: a full-screen
+     statement, because a dark frame was mistaken for a working visual once already. -->
+<div id="noart">
+  <div class="inner">
+    <h1>REAL ART NOT IMPORTED</h1>
+    <div class="sub">the runtime is working &middot; there is nothing painted to draw</div>
+    <div class="counts">
+      <div class="count">
+        <div class="label">CHARACTER</div>
+        <div class="value" id="n-char">0/9</div>
+      </div>
+      <div class="count">
+        <div class="label">ENVIRONMENT</div>
+        <div class="value" id="n-env">0/4</div>
+      </div>
+      <div class="count">
+        <div class="label">MOTION</div>
+        <div class="value" id="n-motion">0/9</div>
+      </div>
+    </div>
+    <div class="where">
+      Put approved PNGs in<br>
+      <code id="n-source">visual/assets/source/</code><br>
+      exact filenames, sizes and alpha in <code>visual/assets/IMPORT_ART_HERE.md</code><br>
+      then run <code>tradefix visual assets validate</code>
+      <div class="problem" id="n-problem"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Only once real art is live and this camera has no plate of its own. -->
+<div id="nocam">
+  <div class="inner">
+    <h1>ART VIEW NOT YET AVAILABLE</h1>
+    <p id="nocam-detail">No imported plate is painted for this camera.</p>
   </div>
 </div>
 
 <div id="fault"></div>
+<!-- Loaded before app.js so the draw loop sees TF_PROOF and TF_ART on its first frame. -->
+<script src="proof.js"></script>
+<script src="art.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

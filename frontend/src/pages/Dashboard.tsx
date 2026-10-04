@@ -23,6 +23,103 @@ import { api } from '../lib/api'
 import { humanDuration, integer, percent } from '../lib/format'
 import { useLive } from '../lib/live'
 
+/**
+ * Startup progress bar - shows when fresh, non-repetitive music will be ready.
+ * Disappears once the target is met.
+ */
+function StartupProgress() {
+  const { state, connection } = useLive()
+
+  // Show connection status if not connected
+  if (connection !== 'connected') {
+    return (
+      <div className="rounded-panel border border-red-500/40 bg-red-900/20 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+          <span className="text-sm text-red-400">
+            WebSocket: {connection} — waiting for connection...
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!state) return null
+
+  const buffer = state.buffer
+  const generation = state.generation
+  const status = state.status
+
+  // Target: 8 minutes of fresh content OR station has been running for 5+ minutes
+  const TARGET_MINUTES = 8
+  const readyMinutes = buffer?.ready_minutes ?? 0
+  const progress = Math.min(1, readyMinutes / TARGET_MINUTES)
+  const secondsOnAir = status?.seconds_on_air ?? 0
+  const isReady = progress >= 1 || secondsOnAir > 300
+
+  // Don't show if we're already ready
+  if (isReady) return null
+
+  const remainingMinutes = Math.max(0, TARGET_MINUTES - readyMinutes)
+  const genRate = generation?.capacity_ratio ?? 1
+  const etaSeconds = genRate > 0 ? (remainingMinutes * 60) / genRate : 0
+  const etaMinutes = Math.ceil(etaSeconds / 60)
+
+  const progressPercent = Math.round(progress * 100)
+  const barWidth = `${progressPercent}%`
+
+  return (
+    <div className="relative overflow-hidden rounded-panel border border-gold-500/40 bg-gradient-to-r from-ink-900 to-ink-900/80 px-4 py-3">
+      {/* Progress bar background */}
+      <div
+        className="absolute inset-0 bg-gradient-to-r from-gold-500/20 to-gold-500/10 transition-all duration-500"
+        style={{ width: barWidth }}
+      />
+
+      <div className="relative flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full border border-gold-500/50 bg-gold-500/20">
+            <div className="h-2 w-2 animate-pulse rounded-full bg-gold-500" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-gold-400">
+              PREPARING FRESH MUSIC
+            </div>
+            <div className="text-xs text-ink-400">
+              On air: {Math.floor(secondsOnAir)}s • Updates every 2s
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-6">
+          <div className="text-right">
+            <div className="font-mono text-lg font-bold text-gold-400">
+              {progressPercent}%
+            </div>
+            <div className="text-xs text-ink-500">
+              {readyMinutes.toFixed(1)} / {TARGET_MINUTES} min
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="font-mono text-sm text-ink-300">
+              ~{etaMinutes} min
+            </div>
+            <div className="text-xs text-ink-500">remaining</div>
+          </div>
+
+          <div className="h-8 w-32 overflow-hidden rounded-full border border-ink-700 bg-ink-800">
+            <div
+              className="h-full bg-gradient-to-r from-gold-500 to-gold-400 transition-all duration-500"
+              style={{ width: barWidth }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function StationStrip() {
   const { state } = useLive()
   const status = state?.status
@@ -86,6 +183,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4 p-4" data-testid="dashboard">
+      <StartupProgress />
       <AlertRail alerts={state.alerts} />
       <EmergencyBanner emergency={state.emergency} />
       <StationStrip />

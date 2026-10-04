@@ -240,10 +240,10 @@
         "height": 4096
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.92
-      },
+      "pivot": [
+        0.5,
+        0.92
+      ],
       "cameras": [
         "CAM_1",
         "CAM_2",
@@ -475,10 +475,10 @@
         "height": 2048
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_1",
         "CAM_4"
@@ -531,10 +531,10 @@
         "height": 2048
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_7"
       ],
@@ -566,10 +566,10 @@
         "height": 2048
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_1"
       ],
@@ -601,10 +601,10 @@
         "height": 2048
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_2"
       ],
@@ -636,10 +636,10 @@
         "height": 2048
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [],
       "character_pose": "seated_neutral",
       "layer_order": [],
@@ -669,10 +669,10 @@
         "height": 3072
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_5"
       ],
@@ -704,10 +704,10 @@
         "height": 3072
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_3"
       ],
@@ -739,10 +739,10 @@
         "height": 2048
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_1",
         "CAM_7"
@@ -775,10 +775,10 @@
         "height": 2048
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_2",
         "CAM_6"
@@ -811,10 +811,10 @@
         "height": 1620
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_1"
       ],
@@ -1037,10 +1037,10 @@
         "height": 1620
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_2"
       ],
@@ -1079,10 +1079,10 @@
         "height": 1620
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_3"
       ],
@@ -1121,10 +1121,10 @@
         "height": 1620
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_5"
       ],
@@ -1163,10 +1163,10 @@
         "height": 1620
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_6"
       ],
@@ -1205,10 +1205,10 @@
         "height": 1620
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_5"
       ],
@@ -1247,10 +1247,10 @@
         "height": 1620
       },
       "anchor": null,
-      "pivot": {
-        "x": 0.5,
-        "y": 0.5
-      },
+      "pivot": [
+        0.5,
+        0.5
+      ],
       "cameras": [
         "CAM_2"
       ],

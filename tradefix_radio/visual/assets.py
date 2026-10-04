@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from tradefix_radio.visual.geometry import Blockout, default_blockout
+from tradefix_radio.visual.geometry import vec as _vec2
 
 #: Output the renderer targets, and the one it must scale to gracefully.
 CANONICAL_OUTPUT: Final = (1920, 1080)
@@ -213,7 +214,15 @@ class AssetSpec:
             "description": self.description,
             "canonical_dimensions": {"width": self.width, "height": self.height},
             "anchor": self.anchor,
-            "pivot": {"x": self.pivot[0], "y": self.pivot[1]},
+            # A Vec2 array, matching `scene.py`'s geometry contract.
+            #
+            # This was `{"x": …, "y": …}`. Not yet consumed by the renderer — no painted
+            # plates exist — but the same inconsistency in the scene payload cost the
+            # whole picture: `room` was the one object-shaped vector among twenty-one
+            # arrays, and the renderer destructured it as `object is not iterable`. When
+            # the plates arrive, `pivot` goes to the same renderer. Fixed now, while it
+            # costs one line instead of an afternoon.
+            "pivot": _vec2(self.pivot),
             "cameras": list(self.cameras),
             "character_pose": self.pose,
             "layer_order": [

@@ -626,6 +626,17 @@ class CameraDirector:
         self._pending_request = camera_id
 
     @property
+    def has_pending_request(self) -> bool:
+        """Whether an operator request is waiting to be applied.
+
+        Read by the behaviour director so that manual mode can still honour an explicit
+        request. Without it, turning `auto` off stopped the camera director ticking at
+        all, and every request queued forever — manual mode locked the camera that
+        happened to be live rather than the one the operator chose.
+        """
+        return self._pending_request is not None
+
+    @property
     def hold_seconds(self) -> float:
         return self._hold_target
 
@@ -744,8 +755,21 @@ class CameraDirector:
 
         # Before the hold expires only a licensed motivation may cut, and never before
         # the camera's own declared minimum.
+        #
+        # An operator request is exempt from the per-camera minimum, and only from that.
+        # The minimum is a *pacing* judgement — do not cut away from the hero shot after
+        # 20 s because it looks restless — and an operator asking for a specific camera
+        # has overridden the pacing on purpose; `MOTIVATION_EARLIEST[OPERATOR] = 0.0`
+        # already declares exactly that intent. The absolute `MINIMUM_HOLD_FLOOR` above
+        # still applies, and so does every safety veto: those are the ones whose
+        # docstrings say they outrank every operator slider, and they still do. Without
+        # this, inspecting the seven cameras from the control panel meant waiting out
+        # CAM_5's 70 s minimum between presses.
         early = fraction < 1.0
-        if early and elapsed < self.state.metadata().minimum_hold_seconds:
+        operator = any(
+            candidate.value is CutMotivation.OPERATOR for candidate in candidates
+        )
+        if early and not operator and elapsed < self.state.metadata().minimum_hold_seconds:
             vetoes["camera_minimum"] = CutVeto.BELOW_SAMPLED_HOLD.value
             return None, vetoes
 

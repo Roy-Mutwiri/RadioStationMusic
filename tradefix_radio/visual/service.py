@@ -37,9 +37,18 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from tradefix_radio.core.clock import Clock, SystemClock
+from tradefix_radio.visual.art import SOURCE_ROOT as ART_SOURCE_ROOT
+from tradefix_radio.visual.art import status as art_status
 from tradefix_radio.visual.bridge import VisualStateBridge, default_station_url
-from tradefix_radio.visual.camera import CAMERA_METADATA
+from tradefix_radio.visual.camera import CAMERA_METADATA, CAMERA_NAMES
+from tradefix_radio.visual.camera_director import MINIMUM_HOLD_FLOOR
 from tradefix_radio.visual.catalog import CATALOG, SCHEDULABLE
+from tradefix_radio.visual.demo import (
+    PANEL_BANDS,
+    PANEL_BPM,
+    PANEL_SYMBOLS,
+    DemoStateSource,
+)
 from tradefix_radio.visual.director import TICK_SECONDS, BehaviorDirector
 from tradefix_radio.visual.modulation import rhythm_policy
 from tradefix_radio.visual.renderer import (
@@ -100,6 +109,10 @@ class VisualRuntime:
     #: When set, the station socket is not used and this scenario drives the director.
     #: Every simulated frame is badged, so a test mode cannot be streamed by accident.
     scenario: str | None = None
+    #: VISUAL DEMO MODE. Mutually exclusive with `scenario`; walks `DEMO_TIMELINE` and
+    #: accepts operator overrides from the control panel. A state source only — it holds
+    #: nothing it could mutate.
+    demo: DemoStateSource | None = None
 
     director: BehaviorDirector = field(init=False)
     bridge: VisualStateBridge = field(init=False)
@@ -111,6 +124,14 @@ class VisualRuntime:
     _running: bool = field(default=False, init=False)
     _last_screen: float = field(default=0.0, init=False)
     _last_policy: str | None = field(default=None, init=False)
+    #: The state the director last saw. The HUD reports this rather than re-deriving it,
+    #: so what it shows is what the director actually acted on.
+    _last_state: Any = field(default=None, init=False)
+    #: Renderer draw failures, newest last. Bounded: this process runs for weeks, and the
+    #: interesting ones are the first few anyway — a renderer stops drawing after one.
+    draw_failures: deque[dict[str, Any]] = field(
+        default_factory=lambda: deque(maxlen=32), init=False
+    )
     #: Optional read-only station socket, started and stopped with the runtime.
     link: Any = field(default=None, init=False)
     #: Retained telemetry frames, for `tradefix visual benchmark`. Bounded, because this
@@ -129,21 +150,56 @@ class VisualRuntime:
 
     def current_state(self) -> Any:
         """The state the director should see this tick."""
+        if self.demo is not None:
+            return self.demo.state()
         if self.scenario is not None:
             return SCENARIOS[self.scenario].state(self.clock.now())
         return self.bridge.state_or_degraded()
 
+    @property
+    def mode(self) -> str:
+        if self.demo is not None:
+            return "demo"
+        return "simulated" if self.scenario else "live"
+
     def snapshot(self) -> dict[str, Any]:
-        """What the V9 control page reads."""
+        """What the V9 control page and the demo HUD read.
+
+        Deliberately the server's own view rather than something reconstructed in the
+        browser from the command stream: interaction locks, the camera's stated reason and
+        the anti-repetition memory live in Python, and a HUD that guessed at them would be
+        describing a different system from the one running.
+        """
         director = self.director
         shot = director.snapshot()
         decision = director.last_camera_decision
+        state = self._last_state
         return {
             "protocol": PROTOCOL_VERSION,
-            "mode": "simulated" if self.scenario else "live",
+            "mode": self.mode,
             "scenario": self.scenario,
+            "demo": self.demo.snapshot() if self.demo is not None else None,
             "renderers": len(self._clients),
             "sequence": self._sequence,
+            "market": {
+                "symbol": state.active_symbol if state else None,
+                "regime": state.market_regime if state else None,
+                "energy": state.market_energy if state else None,
+                "energy_velocity": state.market_energy_velocity if state else None,
+                "direction": (
+                    state.market_direction.value
+                    if state and state.market_direction
+                    else None
+                ),
+                "confidence": state.market_confidence if state else None,
+                "feed_trust": state.feed_trust.value if state else None,
+                "salience": state.reaction_salience if state else None,
+            },
+            "music": {
+                "bpm": state.music_bpm if state else None,
+                "energy": state.music_energy if state else None,
+                "genre": state.music_genre if state else None,
+            },
             "character": {
                 "state": shot.character_state.value,
                 "action": shot.current_action,
@@ -175,6 +231,26 @@ class VisualRuntime:
                     if decision and decision.motivation
                     else None
                 ),
+                "name": CAMERA_NAMES.get(director.camera.camera_id, ""),
+                # Whether a cut is even possible right now: the hold floor is a gate, so
+                # before it clears no motivation can produce one. The HUD says which.
+                "cut_eligible": director.camera.hold_seconds(self.clock.monotonic())
+                >= MINIMUM_HOLD_FLOOR,
+                "seconds_to_eligible": max(
+                    0.0,
+                    round(
+                        MINIMUM_HOLD_FLOOR
+                        - director.camera.hold_seconds(self.clock.monotonic()),
+                        1,
+                    ),
+                ),
+                "vetoes": dict(decision.vetoes) if decision else {},
+            },
+            "anti_repeat": {
+                "recent_actions": list(shot.recent_actions),
+                "recent_action_count": len(shot.recent_actions),
+                "recent_cameras": list(director.camera.recent[-8:]),
+                "recent_camera_count": len(set(director.camera.recent[-8:])),
             },
             "bridge": {
                 "connected": self.bridge.stats.connected,
@@ -280,8 +356,8 @@ class VisualRuntime:
             await self.link.start()
         _log.info(
             "visual.runtime_started",
-            mode="simulated" if self.scenario else "live",
-            station=self.station_url if not self.scenario else None,
+            mode=self.mode,
+            station=self.station_url if self.mode == "live" else None,
         )
 
     async def stop(self) -> None:
@@ -313,6 +389,7 @@ class VisualRuntime:
 
     async def _tick(self) -> None:
         state = self.current_state()
+        self._last_state = state
         output = self.director.tick(state)
         commands: list[dict[str, Any]] = []
 
@@ -400,6 +477,19 @@ def create_app(runtime: VisualRuntime) -> FastAPI:
     async def health() -> JSONResponse:
         return JSONResponse({"status": "ok", "protocol": PROTOCOL_VERSION})
 
+    @app.get("/api/visual/version")
+    async def version() -> JSONResponse:
+        """Build info for cache verification."""
+        import os
+        import time
+        build_id = "2026-10-04-frozen-diagnostic"
+        return JSONResponse({
+            "build_id": build_id,
+            "server_pid": os.getpid(),
+            "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "static_root": str(RUNTIME_DIR),
+        })
+
     @app.get("/api/visual/scene")
     async def scene() -> JSONResponse:
         """The blockout-derived placeholder scene. Cached by the browser per session."""
@@ -408,6 +498,59 @@ def create_app(runtime: VisualRuntime) -> FastAPI:
     @app.get("/api/visual/state")
     async def state() -> JSONResponse:
         return JSONResponse(runtime.snapshot())
+
+    @app.post("/api/visual/draw_failure")
+    async def draw_failure(report: dict[str, Any]) -> JSONResponse:
+        """Record a renderer DRAW FAILED.
+
+        Posted by the browser's error boundary so the failure survives a closed tab and
+        lands in the same log as the director state that produced it. The renderer also
+        stops drawing — this is a report, not a recovery.
+        """
+        contract = report.get("contract") or {}
+        error = report.get("error") or {}
+        renderer = report.get("renderer") or {}
+        character = report.get("character") or {}
+        _log.error(
+            "visual.draw_failed",
+            error_name=error.get("name"),
+            error_message=error.get("message"),
+            primitive=contract.get("primitive") or renderer.get("primitive"),
+            field=contract.get("field"),
+            expected=contract.get("expected"),
+            received=contract.get("received"),
+            frame=renderer.get("frame"),
+            camera=renderer.get("camera"),
+            debug_lines=renderer.get("debug_lines"),
+            character_state=character.get("state"),
+            action=character.get("action"),
+            action_chain=character.get("action_chain"),
+            gaze=character.get("gaze"),
+            carried_props=character.get("carried_props"),
+            locks=character.get("locks"),
+            stack=error.get("stack"),
+        )
+        runtime.draw_failures.append(report)
+        return JSONResponse({"recorded": True, "total": len(runtime.draw_failures)})
+
+    @app.get("/api/visual/draw_failures")
+    async def draw_failures() -> JSONResponse:
+        """Every draw failure this process has seen. The soak's acceptance gate."""
+        return JSONResponse(
+            {
+                "count": len(runtime.draw_failures),
+                "failures": list(runtime.draw_failures),
+            }
+        )
+
+    @app.get("/api/visual/assets")
+    async def assets() -> JSONResponse:
+        """What art is imported, and what proof mode is standing in for.
+
+        Read by the HUD's ART panel so a viewer can see *why* the trader looks
+        procedural, rather than wondering whether something is broken.
+        """
+        return JSONResponse(art_status())
 
     @app.get("/api/visual/benchmark")
     async def benchmark() -> JSONResponse:
@@ -446,16 +589,101 @@ def create_app(runtime: VisualRuntime) -> FastAPI:
 
     @app.post("/api/visual/trigger/{action_id}")
     async def trigger(action_id: str) -> JSONResponse:
-        """Fire one action now. Cooldowns bypassed; **locks still respected**."""
+        """Fire one action now. Cooldowns bypassed; **locks still respected**.
+
+        The control panel calls this and nothing else — it goes through the same
+        `BehaviorDirector.trigger` a production operator would use, so a button cannot
+        produce a movement the director would refuse. When a lock blocks it the panel
+        shows `BLOCKED: <reason>` rather than silently doing nothing, which is the
+        difference between a demo and a puppet show.
+        """
         if action_id not in CATALOG:
             raise HTTPException(status_code=404, detail=f"unknown action {action_id!r}")
         emitted = runtime.director.trigger(action_id)
         if emitted is None:
             return JSONResponse(
-                {"triggered": False, "reason": "a lock or an object in hand blocked it"},
+                {
+                    "triggered": False,
+                    "reason": runtime.director.last_trigger_block
+                    or "the director refused it",
+                    "held_locks": sorted(runtime.director.snapshot().held_locks),
+                },
                 status_code=409,
             )
         return JSONResponse({"triggered": True, "action": emitted.action_id})
+
+    # ------------------------------------------------------ VISUAL DEMO MODE
+    #
+    # Present only in demo mode. These drive the demo's own state source, which holds
+    # nothing it could mutate — they cannot reach the station, the queue or the database.
+
+    def _require_demo() -> DemoStateSource:
+        if runtime.demo is None:
+            raise HTTPException(
+                status_code=409,
+                detail="not running in demo mode; start with `tradefix visual demo`",
+            )
+        return runtime.demo
+
+    @app.get("/api/visual/demo")
+    async def demo_state() -> JSONResponse:
+        return JSONResponse(_require_demo().snapshot())
+
+    @app.post("/api/visual/demo/market/{label}")
+    async def demo_market(label: str) -> JSONResponse:
+        demo = _require_demo()
+        try:
+            demo.set_band(label.lower())
+        except KeyError as error:
+            raise HTTPException(
+                status_code=404,
+                detail=f"unknown market condition {label!r}; "
+                f"use one of {sorted(PANEL_BANDS)}",
+            ) from error
+        return JSONResponse({"market": label.lower(), "overridden": True})
+
+    @app.post("/api/visual/demo/symbol/{symbol}")
+    async def demo_symbol(symbol: str) -> JSONResponse:
+        """Switch the active symbol. **The character does not reset.**
+
+        Nothing here touches the director: the symbol is an input the next state frame
+        carries, so the behaviour in flight continues across the change exactly as it
+        would when the real station rotates markets.
+        """
+        demo = _require_demo()
+        try:
+            demo.set_symbol(symbol.upper())
+        except KeyError as error:
+            raise HTTPException(
+                status_code=404,
+                detail=f"unknown symbol {symbol!r}; use one of {list(PANEL_SYMBOLS)}",
+            ) from error
+        return JSONResponse(
+            {
+                "symbol": symbol.upper(),
+                "character_reset": False,
+                "character_state": runtime.director.character_state.value,
+            }
+        )
+
+    @app.post("/api/visual/demo/music/{label}")
+    async def demo_music(label: str) -> JSONResponse:
+        demo = _require_demo()
+        try:
+            demo.set_music(label.lower())
+        except KeyError as error:
+            raise HTTPException(
+                status_code=404,
+                detail=f"unknown music setting {label!r}; use one of {sorted(PANEL_BPM)}",
+            ) from error
+        return JSONResponse({"music": label.lower(), "overridden": True})
+
+    @app.post("/api/visual/demo/resume")
+    async def demo_resume() -> JSONResponse:
+        """Drop every override and hand the show back to the timeline."""
+        demo = _require_demo()
+        demo.resume()
+        return JSONResponse({"overridden": False})
 
     @app.websocket("/ws")
     async def renderer_socket(socket: WebSocket) -> None:
@@ -477,6 +705,15 @@ def create_app(runtime: VisualRuntime) -> FastAPI:
             )
         finally:
             runtime.detach(socket)
+
+    if ART_SOURCE_ROOT.is_dir():
+        # Imported plates, served read-only.
+        #
+        # Mounted so the renderer can fetch a texture by the URL `/api/visual/assets`
+        # hands it. That endpoint only emits a URL for a plate that *passed* validation,
+        # so a file with the wrong dimensions or no alpha is never offered to the browser
+        # even though it sits in a served directory.
+        app.mount("/art", StaticFiles(directory=ART_SOURCE_ROOT), name="art")
 
     if RUNTIME_DIR.is_dir():
         # Mounted LAST so the API and socket routes match first.
