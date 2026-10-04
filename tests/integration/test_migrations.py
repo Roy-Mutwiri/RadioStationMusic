@@ -419,3 +419,80 @@ def _revision_sequence(config: Config) -> list[str]:
 
     script = ScriptDirectory.from_config(config)
     return [revision.revision for revision in reversed(list(script.walk_revisions()))]
+
+
+# ------------------------------------------------- the chain as committed
+
+
+def _committed_migrations() -> dict[str, str | None]:
+    """`revision -> down_revision` for migrations **tracked by git**.
+
+    Deliberately not `ScriptDirectory`, and that is the whole point of this test. Every
+    other migration test in this file resolves the chain from the working directory, which
+    contains untracked files. An uncommitted migration therefore satisfies them all while
+    being absent from the repository — which is exactly what happened: `track_provenance`
+    was committed declaring `down_revision = 'cda89a476c06'`, the migration defining that
+    revision never was, and a clean checkout could not run `alembic upgrade head` at all.
+    Eleven migration tests passed throughout.
+    """
+    import re
+    import subprocess
+
+    listing = subprocess.run(
+        ["git", "ls-files", "tradefix_radio/persistence/migrations/versions/*.py"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    chain: dict[str, str | None] = {}
+    for line in listing.stdout.splitlines():
+        if not line.strip():
+            continue
+        # Read from git's object store, not from disk: a file can be tracked *and* locally
+        # modified, and what ships is the committed content.
+        blob = subprocess.run(
+            ["git", "show", f"HEAD:{line.strip()}"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        revision = re.search(r"^revision: str = ['\"]([^'\"]+)", blob, re.M)
+        down = re.search(
+            r"^down_revision: str \| None = (?:['\"]([^'\"]+)['\"]|None)", blob, re.M
+        )
+        if revision is not None:
+            chain[revision.group(1)] = down.group(1) if down and down.group(1) else None
+    return chain
+
+
+@pytest.mark.skipif(
+    not (ROOT / ".git").exists(), reason="not a git checkout"
+)
+def test_the_committed_migration_chain_has_no_dangling_parent() -> None:
+    """`alembic upgrade head` must work from a clean checkout, not just from my disk."""
+    chain = _committed_migrations()
+    assert chain, "no migrations are tracked by git"
+
+    known = set(chain)
+    dangling = {
+        f"{revision} -> {parent}"
+        for revision, parent in chain.items()
+        if parent is not None and parent not in known
+    }
+    assert not dangling, (
+        "committed migrations reference parents that are not committed: "
+        f"{sorted(dangling)}"
+    )
+
+
+@pytest.mark.skipif(
+    not (ROOT / ".git").exists(), reason="not a git checkout"
+)
+def test_the_committed_migration_chain_has_exactly_one_head() -> None:
+    """A second head in the repository is a merge nobody has done yet."""
+    chain = _committed_migrations()
+    parents = {parent for parent in chain.values() if parent is not None}
+    heads = sorted(set(chain) - parents)
+    assert len(heads) == 1, f"expected a single committed head, found {heads}"

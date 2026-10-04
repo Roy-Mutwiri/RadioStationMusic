@@ -439,9 +439,18 @@ panel and a `submission` panel (including `vocals_downgraded`, the one field an 
 would look for first), and `TrackLyrics` / `ProviderSubmission` are declared in
 `frontend/src/lib/api.ts`.
 
-What does not exist is anywhere to render it. The Control Center has `Dashboard`,
-`Originality` and `Overlay` — **there is no track-detail view at all**. `fetchTrackDetail`
-and the `TrackDetail` type were written and never called by any component, which is the same
-pattern §7 describes. Building that page is real UI work on files another terminal is
-currently editing, and it is not lyric work, so I stopped at the contract rather than
-half-build a page. Flagging it rather than quietly reporting the UI item as done.
+What remains is rendering it. The Library page's detail panel
+(`frontend/src/pages/pages.tsx:747`) already fetches this endpoint and shows title, genre,
+BPM, key, duration, state, regime, energy and the blueprint; it does not yet show the two
+new panels. A field addition to a working component, not new UI, and it is frontend work on
+files another terminal is currently editing — so I stopped at the contract rather than
+half-build it. Flagging it rather than quietly reporting the UI item as done.
+
+> **Correction.** This section originally claimed there was *"no track-detail view at all"*
+> and that the detail fetch was "never called by any component". That was wrong. I had
+> grepped for `fetchTrackDetail`, which is not the name of anything — the method is
+> `api.libraryTrack`, and it has a caller. The panel exists and works. Caught by the
+> production wiring audit (`docs/status/PRODUCTION_WIRING_AUDIT.md`), which also found that
+> the panel's "Audio on disk" row renders "No" for every track, because `has_audio` counts
+> `track_files` rows and nothing writes them — a separate, genuinely user-visible defect
+> belonging to B5.

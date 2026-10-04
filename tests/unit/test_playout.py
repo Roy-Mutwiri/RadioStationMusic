@@ -503,7 +503,7 @@ async def test_u_the_start_and_finish_hooks_fire_once_per_track(
     async def on_started(item) -> None:
         started.append(item.track_id)
 
-    async def on_finished(item, completed: bool, reason: str) -> None:
+    async def on_finished(item, completed: bool, reason: str, aired) -> None:
         finished.append((item.track_id, completed))
 
     engine = PlayoutEngine(
@@ -596,3 +596,83 @@ async def test_x_a_pump_holds_the_clock_while_it_works(
     assert clock.pending_holds == 0
     await deck.pump()
     assert clock.pending_holds == 0, "the pump leaked a clock hold"
+
+
+# ------------------------------------------------------- the airing record
+
+
+async def test_a_completed_airing_reports_the_audio_it_actually_wrote(
+    sink: RecordingSink,
+    queue: RadioQueue,
+    emergency: EmergencyManager,
+    clock: VirtualClock,
+    tmp_path: Path,
+) -> None:
+    """`AiredPlay.played_seconds` comes from the frame counter, not the file's length."""
+    records: list[tuple[str, bool, object]] = []
+
+    async def on_finished(item, completed: bool, reason: str, aired) -> None:
+        records.append((item.track_id, completed, aired))
+
+    engine = PlayoutEngine(
+        sink=sink,
+        queue=queue,
+        emergency=emergency,
+        clock=clock,
+        block_seconds=BLOCK,
+        on_track_finished=on_finished,
+    )
+    deck = Deck(engine, clock, sink)
+    enqueue_ready(queue, "t1", tone(tmp_path / "t1.flac"))
+    await engine.start()
+    await deck.pump_until(lambda: bool(records))
+
+    _, completed, aired = records[0]
+    assert completed is True
+    assert aired.played_seconds == pytest.approx(TRACK, abs=BLOCK)
+    # Nothing preceded it, so no transition was planned and none may be claimed.
+    assert aired.transition_in == "cold_open"
+
+
+async def test_a_skipped_airing_reports_the_part_that_played(
+    sink: RecordingSink,
+    queue: RadioQueue,
+    emergency: EmergencyManager,
+    clock: VirtualClock,
+    tmp_path: Path,
+) -> None:
+    """The case the record exists for, and the one the old shortcut got wrong.
+
+    `TrackFinished` used to publish `duration if completed else 0.0`, so a track cut
+    three-quarters of the way through reported zero seconds of airtime. Any tier accounting
+    built on that would have understated real music and overstated the emergency tiers —
+    the opposite of the truth, and in the direction that hides a problem.
+    """
+    records: list[object] = []
+
+    async def on_finished(item, completed: bool, reason: str, aired) -> None:
+        records.append(aired)
+
+    engine = PlayoutEngine(
+        sink=sink,
+        queue=queue,
+        emergency=emergency,
+        clock=clock,
+        block_seconds=BLOCK,
+        on_track_finished=on_finished,
+    )
+    deck = Deck(engine, clock, sink)
+    enqueue_ready(queue, "t1", tone(tmp_path / "t1.flac"))
+    await engine.start()
+
+    # One block through, then cut it short. Three would finish a three-second track at
+    # one-second blocks, and the test would be asserting about a completed airing.
+    await deck.pump(1)
+    engine.request_skip()
+    await deck.pump_until(lambda: bool(records))
+
+    aired = records[0]
+    assert aired.played_seconds > 0.0, "a skipped track reported no airtime at all"
+    assert aired.played_seconds < TRACK, (
+        "a skipped track reported the whole file as played"
+    )

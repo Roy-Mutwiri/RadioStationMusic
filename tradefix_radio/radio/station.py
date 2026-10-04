@@ -88,6 +88,7 @@ from tradefix_radio.persistence.repositories import (
     LyricsRepository,
     MemoryKeys,
     OriginalityRepository,
+    PlayEventRepository,
     ProviderSubmissionsRepository,
     RadioMemoryRepository,
     TrackRepository,
@@ -100,7 +101,7 @@ from tradefix_radio.persistence.repositories.queue import (
 from tradefix_radio.postprocess.pipeline import PipelineOutcome, PostProductionPipeline
 from tradefix_radio.radio.buffer import BufferAssessment, BufferLevel, BufferMonitor
 from tradefix_radio.radio.emergency import EmergencyManager
-from tradefix_radio.radio.playout import PlayingItem, PlayoutEngine
+from tradefix_radio.radio.playout import AiredPlay, PlayingItem, PlayoutEngine
 from tradefix_radio.radio.queue import QueueEntry, RadioQueue, ReadinessState
 from tradefix_radio.radio.scheduler import Scheduler
 from tradefix_radio.radio.station_ids import StationIdCategory, StationIdLibrary
@@ -440,7 +441,12 @@ class RadioStation:
         self._tier_since = 0.0
         # Finished tracks waiting to be written. Bounded: an unbounded queue would turn a
         # database stall into unbounded memory growth over a week-long run.
-        self._finished: asyncio.Queue[tuple[PlayingItem, bool, str]] = asyncio.Queue(
+        #: When the item currently on air started. Stamped by `_on_track_started`.
+        self._airing_started_at: datetime | None = None
+
+        self._finished: asyncio.Queue[
+            tuple[PlayingItem, bool, str, AiredPlay, datetime]
+        ] = asyncio.Queue(
             maxsize=FINISHED_QUEUE_SIZE
         )
 
@@ -1458,12 +1464,16 @@ class RadioStation:
     # -- callbacks ---------------------------------------------------------
 
     async def _on_track_started(self, item: PlayingItem) -> None:
+        # Stamped here rather than derived later from `now - played_seconds`. The two agree
+        # for a clean airing and disagree for an interrupted one, and the start of a play is
+        # a fact the station observed rather than one it should reconstruct.
+        self._airing_started_at = self._clock.now()
         if item.is_station_id and item.station_id is not None:
             self._station_ids.note_played(item.station_id.key, now=self._clock.now())
             self._scheduler.note_station_id_played()
 
     async def _on_track_finished(
-        self, item: PlayingItem, completed: bool, reason: str
+        self, item: PlayingItem, completed: bool, reason: str, aired: AiredPlay
     ) -> None:
         """Called by the playout engine on the audio path. **Does no I/O.**
 
@@ -1481,16 +1491,24 @@ class RadioStation:
             TrackFinished(
                 at=self._clock.now(),
                 track_id=item.track_id,
-                played_seconds=item.duration_seconds if completed else 0.0,
+                # Measured, not inferred. This was `duration if completed else 0.0`,
+                # which reported a track cut at 2:58 of 3:00 as zero seconds of airtime.
+                played_seconds=aired.played_seconds,
                 completed=completed,
                 end_reason=reason,
             )
         )
-        if item.entry is None:
+        # Station identities are airtime but not programming (§31 counts them separately),
+        # so they are the one thing not recorded as a play. Everything else is -- including
+        # Tier 2 reserve and Tier 3 procedural, which have no queue entry and no track row.
+        # Excluding them would make "how much of the hour was real music" unanswerable,
+        # which is exactly the question the emergency tiers exist to raise.
+        if item.is_station_id:
             return
 
+        started_at = self._airing_started_at or self._clock.now()
         try:
-            self._finished.put_nowait((item, completed, reason))
+            self._finished.put_nowait((item, completed, reason, aired, started_at))
         except asyncio.QueueFull:
             # The database is far behind. Dropping the *record* is bad; dropping the *audio*
             # would be worse, so the broadcast wins and this is loud.
@@ -1499,6 +1517,12 @@ class RadioStation:
                 track_id=item.track_id,
                 detail="play record dropped; the broadcast continues",
             )
+
+        if item.entry is None:
+            # Emergency audio is recorded as a play above, but it is not programming: it
+            # must not advance the station-id rotation, the diversity history, or the
+            # "tracks aired" counter the scheduler paces itself against.
+            return
 
         self._scheduler.note_track_aired()
         self._station_ids.note_track_aired()
@@ -1538,9 +1562,11 @@ class RadioStation:
         the playout engine free to do nothing but write blocks.
         """
         while not self._coordinator.should_stop:
-            item, completed, reason = await self._finished.get()
+            item, completed, reason, aired, started_at = await self._finished.get()
             try:
-                await self._record_finished(item, completed, reason)
+                await self._record_finished(
+                    item, completed, reason, aired, started_at
+                )
             except Exception as error:  # noqa: BLE001 - one bad record must not stop the rest
                 _log.error(
                     "station.persistence_failed",
@@ -1553,15 +1579,50 @@ class RadioStation:
                 self._finished.task_done()
 
     async def _record_finished(
-        self, item: PlayingItem, completed: bool, reason: str
+        self,
+        item: PlayingItem,
+        completed: bool,
+        reason: str,
+        aired: AiredPlay,
+        started_at: datetime,
     ) -> None:
+        now = self._clock.now()
+        async with self._database.session() as session:
+            # The airing record comes first, and it is written for every tier.
+            #
+            # `play_events` had a contract, a model, a table and five indexes and no writer
+            # at all: 247 tracks played, zero rows. `tracks.play_count` and `last_played_at`
+            # are denormalised separately, which is why rotation worked and why the gap was
+            # invisible until something asked a question only these rows can answer -- how
+            # much of the hour was real music, and whether §75's "never record an incomplete
+            # airing as played" actually held.
+            with contextlib.suppress(PersistenceError):
+                await PlayEventRepository(session).record(
+                    track_id=item.track_id,
+                    tier=item.tier.value,
+                    started_at=started_at,
+                    ended_at=now,
+                    played_seconds=aired.played_seconds,
+                    completed=completed,
+                    transition_in=aired.transition_in,
+                    end_reason=reason[:48],
+                    regime_at_play=(
+                        None if self._market is None else self._market.regime.value
+                    ),
+                    symbol_at_play=None if self._market is None else self._market.symbol,
+                )
+
+        if item.entry is None:
+            # Emergency audio: recorded as airtime, but it has no track row to advance.
+            return
+
         await self._advance_track(item.track_id, PLAYING_LIFECYCLE, reason="airing")
         async with self._database.session() as session:
             tracks = TrackRepository(session)
             with contextlib.suppress(IllegalTransitionError, PersistenceError):
                 await tracks.mark_played(
                     item.track_id,
-                    now=self._clock.now(),
+                    now=now,
                     completed=completed,
                     reason=reason,
                 )
@@ -1575,9 +1636,7 @@ class RadioStation:
             # never be mistaken for the real thing.
             if self._provenance == TrackProvenance.PRODUCTION_RADIO.value:
                 with contextlib.suppress(PersistenceError):
-                    await tracks.promote_to_production(
-                        item.track_id, now=self._clock.now()
-                    )
+                    await tracks.promote_to_production(item.track_id, now=now)
     async def _maybe_request_station_id(self) -> None:
         # A market switch gets an identifier of its own, ahead of the rotation and
         # regardless of how long it has been since the last one. The listener has just had

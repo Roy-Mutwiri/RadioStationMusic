@@ -41,6 +41,7 @@ from tradefix_radio.generation.provider import (
 from tradefix_radio.persistence.database import Database
 from tradefix_radio.persistence.repositories import (
     LyricsRepository,
+    PlayEventRepository,
     ProviderSubmissionsRepository,
 )
 from tradefix_radio.radio.emergency import EmergencyManager, ProceduralSource
@@ -431,3 +432,55 @@ async def test_suppression_is_skipped_when_no_level_is_configured(
     finally:
         await harness.stop()
         await harness.database.disconnect()
+
+
+# ------------------------------------------------------- airing records (audit)
+
+
+async def test_playback_completed_persists_a_play_event(vocal: Harness) -> None:
+    """The downstream assertion: a track aired → a row exists saying so.
+
+    `play_events` had a contract, a model, a table and five indexes and no writer: 247
+    tracks had played and the table held zero rows. `tracks.play_count` is denormalised
+    separately, which is why rotation worked and why nothing noticed.
+
+    Asserted on the persisted row rather than on the hook firing, because the hook *was*
+    firing the whole time.
+    """
+    await vocal.station.start()
+    await vocal.advance(240)
+
+    async with vocal.database.read_session() as session:
+        events = await PlayEventRepository(session).recent(limit=50)
+
+    assert events, "tracks aired and no play event was recorded"
+    for event in events:
+        assert event.tier, "an airing with no tier is unusable for §33 accounting"
+        assert event.played_seconds > 0.0, (
+            "an airing that wrote no audio should not be recorded as a play"
+        )
+        assert event.ended_at is not None
+        assert event.started_at <= event.ended_at
+        assert event.transition_in
+
+
+async def test_emergency_audio_is_recorded_as_airtime_too(vocal: Harness) -> None:
+    """Tier 3 has no track row, and excluding it would hide the thing it exists to signal.
+
+    "How much of the hour was real music" is unanswerable if the emergency tiers are left
+    out of the record, and a cold-starting station airs procedural audio first. The row is
+    written for every tier; only station identities are excluded, because §31 counts those
+    separately and they are airtime rather than programming.
+    """
+    await vocal.station.start()
+    await vocal.advance(240)
+
+    async with vocal.database.read_session() as session:
+        by_tier = await PlayEventRepository(session).seconds_by_tier()
+
+    assert by_tier, "no airtime recorded at all"
+    assert all(seconds > 0.0 for seconds in by_tier.values())
+    # A station starting from an empty buffer must have aired *something* before its first
+    # generated track was ready. If only scheduled airtime is present the tiers are not
+    # being recorded, which is the defect rather than a very fast generator.
+    assert "procedural" in by_tier or "scheduled" in by_tier

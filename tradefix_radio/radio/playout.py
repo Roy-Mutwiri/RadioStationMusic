@@ -126,9 +126,29 @@ class PlayoutStats:
         self.by_tier[tier.value] = self.by_tier.get(tier.value, 0) + 1
 
 
+@dataclass(frozen=True)
+class AiredPlay:
+    """What an item measured on its way off air.
+
+    Separate from :class:`PlayingItem` because these are facts about *this airing* rather
+    than about the thing aired, and separate from the hook's positional arguments so that
+    adding another measurement later does not change the hook's arity again.
+
+    ``played_seconds`` is counted from frames the sink actually accepted, not from the
+    item's nominal duration and not from wall-clock timestamps. That distinction is the
+    whole reason this type exists: a track skipped at 2:58 of 3:00 played 178 seconds, and
+    the bus event that predates this recorded it as 0.0.
+    """
+
+    #: Audio actually written for this item.
+    played_seconds: float
+    #: The §30 transition that brought it in; ``cold_open`` when nothing preceded it.
+    transition_in: str
+
+
 #: Called when a track finishes. The engine's only outward dependency beyond the sink, and a
 #: callback rather than a reference so it cannot acquire a second one.
-TrackFinishedHook = Callable[[PlayingItem, bool, str], Awaitable[None]]
+TrackFinishedHook = Callable[[PlayingItem, bool, str, AiredPlay], Awaitable[None]]
 TrackStartedHook = Callable[[PlayingItem], Awaitable[None]]
 
 
@@ -173,6 +193,8 @@ class PlayoutEngine:
         # 20 tracks and 0 transitions, which is what made it visible.
         self._previous: PlayingItem | None = None
         self._position_frames = 0
+        #: The §30 transition that brought the current item in. See `AiredPlay`.
+        self._transition_in = "cold_open"
         self._pending_station_id: StationIdRecord | None = None
         self._stats = PlayoutStats()
         self._skip_requested = False
@@ -427,6 +449,10 @@ class PlayoutEngine:
         previous = self._previous
         self._current = item
         self._position_frames = 0
+        # Overwritten by `_apply_transition` when something preceded this item. The default
+        # is the honest answer for the first item after a start or a recovery: nothing was
+        # faded out of, so no transition was planned.
+        self._transition_in = "cold_open"
         self._state = PlayoutState.PLAYING
         if item.is_station_id:
             # Counted separately, and deliberately not as a track. A station identity is
@@ -476,6 +502,7 @@ class PlayoutEngine:
                 incoming_duration_seconds=incoming.duration_seconds,
             )
             self._stats.transitions += 1
+            self._transition_in = decision.transition.value
             _log.debug(
                 "playout.transition",
                 from_track=outgoing.track_id,
@@ -492,6 +519,9 @@ class PlayoutEngine:
                 error=str(error),
                 detail="falling through to a hard cut",
             )
+            # Record what actually happened, not what was asked for. The planner failed, so
+            # the audio is a hard cut, and the play record has to say so.
+            self._transition_in = "hard_cut"
 
     def crossfade_into(
         self, outgoing: AudioBuffer, incoming: AudioBuffer, decision: TransitionDecision
@@ -571,6 +601,13 @@ class PlayoutEngine:
         if item is None:
             return
         reason = "completed" if completed else "skipped"
+        # Measured *before* the reset below, which is where this number used to be lost. The
+        # frame counter is the only honest source for a partial airing: the item's duration
+        # describes the file, and a wall-clock difference describes the scheduler.
+        aired = AiredPlay(
+            played_seconds=self._position_frames / self._sample_rate,
+            transition_in=self._transition_in,
+        )
         self._previous = item
         self._current = None
         self._position_frames = 0
@@ -592,10 +629,13 @@ class PlayoutEngine:
             completed=completed,
             reason=reason,
             tier=item.tier.value,
+            played_seconds=round(aired.played_seconds, 2),
+            transition_in=aired.transition_in,
         )
         if self._on_finished is not None:
             await self._notify(
-                self._on_finished(item, completed, reason), hook="on_track_finished"
+                self._on_finished(item, completed, reason, aired),
+                hook="on_track_finished",
             )
 
     async def _notify(self, call: Awaitable[None], *, hook: str) -> None:
@@ -639,6 +679,7 @@ def _energy_of(item: PlayingItem) -> float | None:
 __all__ = [
     "DEFAULT_BLOCK_SECONDS",
     "MAX_SINK_REOPEN_ATTEMPTS",
+    "AiredPlay",
     "PlayingItem",
     "PlayoutEngine",
     "PlayoutState",

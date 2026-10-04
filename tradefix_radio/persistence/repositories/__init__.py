@@ -29,6 +29,7 @@ from tradefix_radio.persistence.repositories.originality import (
     StoredQcResult,
     TrackEvidence,
 )
+from tradefix_radio.persistence.repositories.plays import PlayEventRepository
 from tradefix_radio.persistence.repositories.queue import QueueRepository
 from tradefix_radio.persistence.repositories.submissions import (
     ProviderSubmissionsRepository,
@@ -49,6 +50,7 @@ __all__ = [
     "MetricPoint",
     "MetricRepository",
     "OriginalityRepository",
+    "PlayEventRepository",
     "ProviderSubmissionsRepository",
     "QueueRepository",
     "RadioMemoryRepository",
