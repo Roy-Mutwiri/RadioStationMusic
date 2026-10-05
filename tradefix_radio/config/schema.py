@@ -352,9 +352,9 @@ class MusicSettings(Section):
     )
 
     #: Probability vocals are enabled, by energy band lower bound (§1: stronger
-    #: vocal probability at high energy).
+    #: vocal probability at high energy). Modified to favor vocals at all energy levels.
     vocal_probability_by_energy: dict[int, float] = Field(
-        default_factory=lambda: {0: 0.25, 25: 0.35, 45: 0.5, 65: 0.62, 82: 0.7}
+        default_factory=lambda: {0: 0.72, 25: 0.78, 45: 0.85, 65: 0.90, 82: 0.95}
     )
 
     #: Weighting applied to session personality bias (§97). Market energy has

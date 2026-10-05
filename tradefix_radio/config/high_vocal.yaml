@@ -1,0 +1,16 @@
+# ============================================================================
+#  High vocal mode configuration
+#
+#  Increases vocal probability at all energy levels to ensure more vocal tracks.
+# ============================================================================
+
+music:
+  # Override vocal probability to strongly favor vocals at all energy levels
+  # Default was: {0: 0.25, 25: 0.35, 45: 0.5, 65: 0.62, 82: 0.7}
+  # New: Minimum 70% vocals at any energy level
+  vocal_probability_by_energy:
+    0: 0.70
+    25: 0.78
+    45: 0.85
+    65: 0.90
+    82: 0.95

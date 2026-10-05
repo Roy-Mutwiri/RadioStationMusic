@@ -713,6 +713,39 @@ class RadioStation:
             1 for e in entries if e.readiness is ReadinessState.UNAVAILABLE
         )
 
+        # §75.1: Recover tracks that have master files from a previous session.
+        # A PENDING entry with an existing master.wav is ready to play - the generation
+        # completed but the station crashed before marking it READY. Without this check,
+        # such tracks stay PENDING forever and the station falls back to procedural.
+        async with self._database.session() as session:
+            files_repo = TrackFileRepository(session)
+            tracks_repo = TrackRepository(session)
+            recovered_from_disk = 0
+            for i, entry in enumerate(entries):
+                if entry.readiness is not ReadinessState.PENDING:
+                    continue
+                master_path = await files_repo.live_path(entry.track_id, FileRole.MASTER)
+                if master_path is None or not master_path.is_file():
+                    continue
+                # Get the track to read duration
+                track = await tracks_repo.get(entry.track_id)
+                if track is None:
+                    continue
+                entries[i] = replace(
+                    entry,
+                    readiness=ReadinessState.READY,
+                    state=TrackState.READY,
+                    audio_path=str(master_path),
+                    duration_seconds=track.duration_seconds,
+                )
+                recovered_from_disk += 1
+            if recovered_from_disk:
+                _log.info(
+                    "station.recovered_from_disk",
+                    count=recovered_from_disk,
+                    detail="tracks with existing master files marked ready",
+                )
+
         # The track that was playing when the process died did **not** complete. It is not
         # restored to the playing slot — that would make the station resume mid-track with no
         # position — and it is not marked played either, because §75 forbids recording an
