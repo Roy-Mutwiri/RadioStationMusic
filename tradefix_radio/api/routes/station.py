@@ -276,6 +276,54 @@ async def post_radio_skip(view: ViewDep) -> ControlResultV1:
     )
 
 
+@router.post(
+    "/radio/pause",
+    response_model=ControlResultV1,
+    summary="Pause playback",
+)
+async def post_radio_pause(view: ViewDep) -> ControlResultV1:
+    """Pause the playout engine. Audio stops but the current track position is preserved."""
+    station = _require_station(view)
+    playout = station.playout  # type: ignore[attr-defined]
+    if playout.pause():
+        item = playout.current
+        track_id = item.track_id if item else None
+        _log.info("api.pause_requested", track_id=track_id)
+        return ControlResultV1(
+            applied=True,
+            message="Playback paused.",
+            track_id=track_id,
+        )
+    return ControlResultV1(
+        applied=False,
+        message="Already paused or stopped.",
+    )
+
+
+@router.post(
+    "/radio/resume",
+    response_model=ControlResultV1,
+    summary="Resume playback",
+)
+async def post_radio_resume(view: ViewDep) -> ControlResultV1:
+    """Resume the playout engine after a pause."""
+    station = _require_station(view)
+    playout = station.playout  # type: ignore[attr-defined]
+    if playout.resume():
+        item = playout.current
+        track_id = item.track_id if item else None
+        _log.info("api.resume_requested", track_id=track_id)
+        return ControlResultV1(
+            applied=True,
+            message="Playback resumed.",
+            track_id=track_id,
+        )
+    return ControlResultV1(
+        applied=False,
+        message="Not paused.",
+    )
+
+
 @router.post("/radio/queue/{track_id}/lock", response_model=ControlResultV1)
 async def post_queue_lock(track_id: str, view: ViewDep) -> ControlResultV1:
     """Pin a slot so a replan cannot touch it (§28's ``OPERATOR_PINNED``)."""

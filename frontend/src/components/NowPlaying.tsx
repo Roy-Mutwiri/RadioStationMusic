@@ -19,8 +19,9 @@
  */
 
 import clsx from 'clsx'
-import { memo, useState } from 'react'
+import { memo, useState, useCallback } from 'react'
 
+import { api } from '../lib/api'
 import { ABSENT, decimal, duration, percent, titleCase } from '../lib/format'
 import { usePosition } from '../lib/live'
 import type { NowPlaying as NowPlayingData } from '../lib/types'
@@ -225,7 +226,59 @@ function WhyThisTrack({ track }: { track: NowPlayingData }) {
   )
 }
 
-export function NowPlayingPanel({ track }: { track: NowPlayingData | null }) {
+function PlayPauseButton({ isPaused }: { isPaused: boolean }) {
+  const [loading, setLoading] = useState(false)
+
+  const handleClick = useCallback(async () => {
+    setLoading(true)
+    try {
+      if (isPaused) {
+        await api.resume()
+      } else {
+        await api.pause()
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [isPaused])
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={loading}
+      className={clsx(
+        'flex h-10 w-10 items-center justify-center rounded-full border transition-colors',
+        isPaused
+          ? 'border-gold-500 bg-gold-500/20 text-gold-400 hover:bg-gold-500/30'
+          : 'border-ink-700 bg-ink-800 text-ink-300 hover:bg-ink-700 hover:text-ink-100',
+        loading && 'opacity-50 cursor-not-allowed'
+      )}
+      aria-label={isPaused ? 'Resume playback' : 'Pause playback'}
+      title={isPaused ? 'Resume' : 'Pause'}
+    >
+      {isPaused ? (
+        <svg className="h-5 w-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      ) : (
+        <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+        </svg>
+      )}
+    </button>
+  )
+}
+
+export function NowPlayingPanel({
+  track,
+  playoutState,
+}: {
+  track: NowPlayingData | null
+  playoutState?: string
+}) {
+  const isPaused = playoutState === 'paused'
+
   if (!track) {
     return (
       <Panel title="Now playing" data-testid="now-playing">
@@ -255,6 +308,9 @@ export function NowPlayingPanel({ track }: { track: NowPlayingData | null }) {
       <div className="flex gap-4">
         <div className="w-[104px] shrink-0 space-y-2">
           <CoverArt trackId={track.track_id} genre={track.genre} />
+          <div className="flex justify-center">
+            <PlayPauseButton isPaused={isPaused} />
+          </div>
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-3">

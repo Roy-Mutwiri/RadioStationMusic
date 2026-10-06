@@ -121,6 +121,8 @@ export const api = {
   radioHistory: (limit = 50) => request<HistoryEntry[]>(`/radio/history?limit=${limit}`),
 
   skip: () => request<ControlResult>('/radio/skip', { method: 'POST' }),
+  pause: () => request<ControlResult>('/radio/pause', { method: 'POST' }),
+  resume: () => request<ControlResult>('/radio/resume', { method: 'POST' }),
   lock: (trackId: string) =>
     request<ControlResult>(`/radio/queue/${encodeURIComponent(trackId)}/lock`, {
       method: 'POST',

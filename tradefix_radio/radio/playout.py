@@ -69,6 +69,7 @@ class PlayoutState(str, enum.Enum):
     STOPPED = "stopped"
     STARTING = "starting"
     PLAYING = "playing"
+    PAUSED = "paused"
     DRAINING = "draining"
     FAILED = "failed"
 
@@ -202,6 +203,8 @@ class PlayoutEngine:
         self._stats = PlayoutStats()
         self._skip_requested = False
         self._stop_requested = False
+        self._paused = False
+        self._state_before_pause: PlayoutState | None = None
         self._sink_failures = 0
 
     # -- introspection -----------------------------------------------------
@@ -253,6 +256,31 @@ class PlayoutEngine:
 
     def request_stop(self) -> None:
         self._stop_requested = True
+
+    def pause(self) -> bool:
+        """Pause playback. Returns True if paused, False if already paused or stopped."""
+        if self._paused or self._state == PlayoutState.STOPPED:
+            return False
+        self._paused = True
+        self._state_before_pause = self._state
+        self._state = PlayoutState.PAUSED
+        _log.info("playout.paused")
+        return True
+
+    def resume(self) -> bool:
+        """Resume playback. Returns True if resumed, False if not paused."""
+        if not self._paused:
+            return False
+        self._paused = False
+        self._state = self._state_before_pause or PlayoutState.PLAYING
+        self._state_before_pause = None
+        _log.info("playout.resumed")
+        return True
+
+    @property
+    def is_paused(self) -> bool:
+        """Whether playback is currently paused."""
+        return self._paused
 
     def queue_station_id(self, record: StationIdRecord) -> None:
         """Air an identifier after the current item (§31)."""
@@ -306,6 +334,11 @@ class PlayoutEngine:
             await self._pump_once()
 
     async def _pump_once(self) -> None:
+        # If paused, just sleep without advancing playback
+        if self._paused:
+            await self._clock.sleep(self._block_seconds)
+            return
+
         if self._current is None:
             acquired = await self._acquire_next()
             if acquired is None:
