@@ -1,13 +1,14 @@
-"""Voice-activated audio ducking.
+"""System audio-activated ducking.
 
-Monitors microphone input and reduces music volume when voice is detected,
-providing a "talkover" effect for live commentary or voice chat.
+Monitors system audio output (what you hear from speakers) and reduces music
+volume when other audio is detected, providing automatic ducking when other
+apps play sound.
 
 The ducking level and timing are configurable:
 - `duck_level`: How much to reduce volume (0.0 = silent, 1.0 = no change)
-- `attack_ms`: How quickly to duck when voice starts
-- `release_ms`: How quickly to restore volume when voice stops
-- `threshold`: Voice detection sensitivity (0.0-1.0)
+- `attack_ms`: How quickly to duck when audio starts
+- `release_ms`: How quickly to restore volume when audio stops
+- `threshold`: Audio detection sensitivity (0.0-1.0)
 """
 
 from __future__ import annotations
@@ -28,37 +29,37 @@ __all__ = ["DuckingController", "DuckingConfig"]
 
 @dataclass
 class DuckingConfig:
-    """Configuration for voice ducking."""
+    """Configuration for system audio ducking."""
 
     enabled: bool = False
     #: Volume level when ducking (0.0 = silent, 1.0 = full volume)
     duck_level: float = 0.2
-    #: Time to reach duck level when voice starts (milliseconds)
+    #: Time to reach duck level when audio starts (milliseconds)
     attack_ms: float = 50.0
-    #: Time to restore full volume when voice stops (milliseconds)
+    #: Time to restore full volume when audio stops (milliseconds)
     release_ms: float = 300.0
-    #: Voice detection threshold (0.0-1.0, higher = less sensitive)
-    threshold: float = 0.02
-    #: Minimum voice duration to trigger ducking (milliseconds)
+    #: Audio detection threshold (0.0-1.0, higher = less sensitive)
+    threshold: float = 0.01
+    #: Minimum audio duration to trigger ducking (milliseconds)
     hold_ms: float = 100.0
-    #: Input device name (None = default microphone)
-    input_device: str | None = None
+    #: Loopback device name (None = auto-detect WASAPI loopback)
+    loopback_device: str | None = None
 
 
 class DuckingController:
-    """Controls voice-activated volume ducking.
+    """Controls system audio-activated volume ducking.
 
-    Monitors microphone input in a background thread and provides a volume
-    multiplier that smoothly transitions between 1.0 (full volume) and
-    the configured duck level when voice is detected.
+    Monitors system audio output (loopback) in a background thread and provides
+    a volume multiplier that smoothly transitions between 1.0 (full volume) and
+    the configured duck level when other audio is detected.
     """
 
     def __init__(self, config: DuckingConfig | None = None) -> None:
         self._config = config or DuckingConfig()
         self._current_gain = 1.0
         self._target_gain = 1.0
-        self._voice_active = False
-        self._last_voice_time = 0.0
+        self._audio_active = False
+        self._last_audio_time = 0.0
         self._running = False
         self._thread: threading.Thread | None = None
         self._stream: Any = None
@@ -80,8 +81,8 @@ class DuckingController:
 
     @property
     def is_voice_active(self) -> bool:
-        """Whether voice is currently detected."""
-        return self._voice_active
+        """Whether external audio is currently detected."""
+        return self._audio_active
 
     def set_on_change(self, callback: Callable[[float], None] | None) -> None:
         """Set callback for gain changes (for UI updates)."""
@@ -100,7 +101,7 @@ class DuckingController:
                 self.stop()
 
     def start(self) -> bool:
-        """Start monitoring microphone input."""
+        """Start monitoring system audio output."""
         if self._running:
             return True
 
@@ -112,14 +113,14 @@ class DuckingController:
         except ImportError:
             _log.warning(
                 "ducking.sounddevice_missing",
-                detail="sounddevice package required for voice ducking",
+                detail="sounddevice package required for audio ducking",
             )
             return False
 
         try:
             self._running = True
             self._thread = threading.Thread(
-                target=self._monitor_loop, daemon=True, name="voice-ducking"
+                target=self._monitor_loop, daemon=True, name="audio-ducking"
             )
             self._thread.start()
             _log.info(
@@ -134,7 +135,7 @@ class DuckingController:
             return False
 
     def stop(self) -> None:
-        """Stop monitoring microphone input."""
+        """Stop monitoring system audio."""
         self._running = False
         if self._stream is not None:
             try:
@@ -145,20 +146,51 @@ class DuckingController:
             self._stream = None
         self._current_gain = 1.0
         self._target_gain = 1.0
-        self._voice_active = False
+        self._audio_active = False
         _log.info("ducking.stopped")
 
-    def apply_gain(self, audio: np.ndarray) -> np.ndarray:
-        """Apply current ducking gain to audio buffer."""
-        if not self._config.enabled or self._current_gain >= 0.999:
-            return audio
-        return (audio * self._current_gain).astype(audio.dtype)
+    def _find_loopback_device(self, sd: Any) -> int | None:
+        """Find a WASAPI loopback device for capturing system audio."""
+        devices = sd.query_devices()
+
+        # First, look for explicit loopback devices
+        for i, d in enumerate(devices):
+            name = d["name"].lower()
+            # Check for WASAPI loopback or virtual audio cables
+            if d["max_input_channels"] > 0:
+                if "loopback" in name:
+                    _log.info("ducking.found_loopback", device=d["name"], index=i)
+                    return i
+                if "stereo mix" in name:
+                    _log.info("ducking.found_stereo_mix", device=d["name"], index=i)
+                    return i
+                if "what u hear" in name:
+                    _log.info("ducking.found_what_u_hear", device=d["name"], index=i)
+                    return i
+                if "cable output" in name or "vb-audio" in name:
+                    _log.info("ducking.found_virtual_cable", device=d["name"], index=i)
+                    return i
+
+        # If user specified a device, try to find it
+        if self._config.loopback_device:
+            target = self._config.loopback_device.lower()
+            for i, d in enumerate(devices):
+                if target in d["name"].lower() and d["max_input_channels"] > 0:
+                    _log.info("ducking.found_configured_device", device=d["name"], index=i)
+                    return i
+
+        _log.warning(
+            "ducking.no_loopback_found",
+            detail="No loopback device found. Enable 'Stereo Mix' in Windows Sound settings, "
+                   "or install a virtual audio cable like VB-Cable.",
+        )
+        return None
 
     def _monitor_loop(self) -> None:
-        """Background thread that monitors microphone and updates gain."""
+        """Background thread that monitors system audio and updates gain."""
         import sounddevice as sd  # noqa: PLC0415
 
-        sample_rate = 16000
+        sample_rate = 44100
         block_size = int(sample_rate * 0.05)  # 50ms blocks
 
         def audio_callback(indata: np.ndarray, frames: int, time_info: Any, status: Any) -> None:
@@ -171,43 +203,48 @@ class DuckingController:
             with self._lock:
                 now = time.monotonic()
 
-                # Voice detection with hysteresis
+                # Audio detection with hysteresis
                 if rms > self._config.threshold:
-                    self._last_voice_time = now
-                    if not self._voice_active:
-                        self._voice_active = True
+                    self._last_audio_time = now
+                    if not self._audio_active:
+                        self._audio_active = True
                         self._target_gain = self._config.duck_level
-                elif self._voice_active:
+                        _log.debug("ducking.audio_detected", rms=round(rms, 4))
+                elif self._audio_active:
                     # Check hold time
                     hold_seconds = self._config.hold_ms / 1000.0
-                    if now - self._last_voice_time > hold_seconds:
-                        self._voice_active = False
+                    if now - self._last_audio_time > hold_seconds:
+                        self._audio_active = False
                         self._target_gain = 1.0
+                        _log.debug("ducking.audio_ended")
 
         try:
-            # Find input device
-            device = None
-            if self._config.input_device:
-                devices = sd.query_devices()
-                for i, d in enumerate(devices):
-                    if (
-                        self._config.input_device.lower() in d["name"].lower()
-                        and d["max_input_channels"] > 0
-                    ):
-                        device = i
-                        break
+            # Find loopback device
+            device = self._find_loopback_device(sd)
+
+            if device is None:
+                _log.error(
+                    "ducking.no_device",
+                    detail="Cannot start ducking without a loopback device",
+                )
+                self._running = False
+                return
+
+            device_info = sd.query_devices(device)
+            channels = min(2, device_info["max_input_channels"])
 
             self._stream = sd.InputStream(
                 device=device,
-                channels=1,
+                channels=channels,
                 samplerate=sample_rate,
                 blocksize=block_size,
                 callback=audio_callback,
             )
             self._stream.start()
             _log.info(
-                "ducking.mic_opened",
-                device=self._stream.device,
+                "ducking.loopback_opened",
+                device=device_info["name"],
+                channels=channels,
                 sample_rate=sample_rate,
             )
 
@@ -217,7 +254,7 @@ class DuckingController:
                 time.sleep(0.01)  # 10ms update rate
 
         except Exception as e:
-            _log.error("ducking.monitor_error", error=str(e))
+            _log.error("ducking.monitor_error", error=str(e), exc_info=True)
         finally:
             if self._stream is not None:
                 try:
@@ -226,6 +263,7 @@ class DuckingController:
                 except Exception:
                     pass
                 self._stream = None
+            self._running = False
 
     def _update_gain(self) -> None:
         """Smoothly interpolate gain toward target."""
