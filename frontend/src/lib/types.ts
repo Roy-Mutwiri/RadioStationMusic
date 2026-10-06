@@ -295,6 +295,21 @@ export interface StationStatus {
   audio_coverage: number | null
 }
 
+export interface DuckingConfig {
+  enabled: boolean
+  duck_level: number
+  threshold: number
+  attack_ms: number
+  release_ms: number
+}
+
+export interface DuckingStatus {
+  enabled: boolean
+  voice_active: boolean
+  current_gain: number
+  config: DuckingConfig
+}
+
 export interface TrackSummary {
   track_id: string
   title: string

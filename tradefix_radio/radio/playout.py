@@ -34,6 +34,7 @@ from pathlib import Path
 
 import structlog
 
+from tradefix_radio.audio.ducking import DuckingConfig, DuckingController
 from tradefix_radio.audio.format import PLAYOUT_CHANNELS, PLAYOUT_SAMPLE_RATE, conform
 from tradefix_radio.audio.io import read_audio
 from tradefix_radio.audio.mixer import TransitionDecision, TransitionPlanner, crossfade
@@ -206,8 +207,14 @@ class PlayoutEngine:
         self._paused = False
         self._state_before_pause: PlayoutState | None = None
         self._sink_failures = 0
+        self._ducking = DuckingController()
 
     # -- introspection -----------------------------------------------------
+
+    @property
+    def ducking(self) -> DuckingController:
+        """Voice-activated ducking controller."""
+        return self._ducking
 
     @property
     def state(self) -> PlayoutState:
@@ -605,6 +612,11 @@ class PlayoutEngine:
         device that is genuinely gone would produce a tight loop of failures and no audio, which
         is worse than failing loudly.
         """
+        # Apply voice ducking if enabled
+        if self._ducking.enabled:
+            ducked_data = self._ducking.apply_gain(block.data)
+            block = AudioBuffer(ducked_data, sample_rate=block.sample_rate)
+
         try:
             await self._sink.write(block)
         except AudioSinkError as error:

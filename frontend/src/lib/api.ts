@@ -20,6 +20,8 @@ import type {
   BufferState,
   Capability,
   ControlResult,
+  DuckingConfig,
+  DuckingStatus,
   EmergencyState,
   GenerationJob,
   LiveState,
@@ -123,6 +125,13 @@ export const api = {
   skip: () => request<ControlResult>('/radio/skip', { method: 'POST' }),
   pause: () => request<ControlResult>('/radio/pause', { method: 'POST' }),
   resume: () => request<ControlResult>('/radio/resume', { method: 'POST' }),
+  getDucking: () => request<DuckingStatus>('/radio/ducking'),
+  setDucking: (config: DuckingConfig) =>
+    request<ControlResult>('/radio/ducking', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    }),
+  toggleDucking: () => request<ControlResult>('/radio/ducking/toggle', { method: 'POST' }),
   lock: (trackId: string) =>
     request<ControlResult>(`/radio/queue/${encodeURIComponent(trackId)}/lock`, {
       method: 'POST',
