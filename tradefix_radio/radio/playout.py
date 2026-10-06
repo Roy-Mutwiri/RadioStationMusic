@@ -613,9 +613,8 @@ class PlayoutEngine:
         is worse than failing loudly.
         """
         # Apply voice ducking if enabled
-        if self._ducking.enabled:
-            ducked_data = self._ducking.apply_gain(block.data)
-            block = AudioBuffer(ducked_data, sample_rate=block.sample_rate)
+        if self._ducking.enabled and self._ducking.gain < 0.999:
+            block = block.scaled(self._ducking.gain)
 
         try:
             await self._sink.write(block)
