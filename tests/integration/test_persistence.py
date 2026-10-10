@@ -281,9 +281,12 @@ async def test_deleting_a_track_cascades_to_its_children(database: Database) -> 
 
 
 async def test_one_file_per_role_per_track_is_enforced(database: Database) -> None:
-    """Two masters for one track would make "which file airs?" ambiguous."""
-    from sqlalchemy.exc import IntegrityError
+    """Two masters for one track would make "which file airs?" ambiguous.
 
+    Enforced by *replacement*, not by refusing: a station killed mid-generation re-runs
+    the job on restart and registers the regenerated file for the same role. Refusing that
+    left the track stuck forever; the new file is the file for that role now.
+    """
     blueprint = make_blueprint()
     async with database.session() as session:
         await TrackRepository(session).create(
@@ -299,16 +302,26 @@ async def test_one_file_per_role_per_track_is_enforced(database: Database) -> No
             now=FIXED_NOW,
         )
 
-    with pytest.raises(IntegrityError):
-        async with database.session() as session:
-            await TrackFileRepository(session).add(
-                track_id=blueprint.track_id,
-                role=FileRole.MASTER,
-                path=Path("b.flac"),
-                size_bytes=1,
-                file_format="flac",
-                now=FIXED_NOW,
+    async with database.session() as session:
+        replaced = await TrackFileRepository(session).add(
+            track_id=blueprint.track_id,
+            role=FileRole.MASTER,
+            path=Path("b.flac"),
+            size_bytes=2,
+            file_format="flac",
+            now=FIXED_NOW,
+        )
+        assert replaced.path == "b.flac"
+
+    async with database.read_session() as session:
+        rows = (
+            await session.execute(
+                select(TrackFile).where(TrackFile.track_id == blueprint.track_id)
             )
+        ).scalars().all()
+        assert [(r.role, r.path, r.size_bytes, r.deleted_at) for r in rows] == [
+            ("master", "b.flac", 2, None)
+        ]
 
 
 # ---------------------------------------------------------------- transactions

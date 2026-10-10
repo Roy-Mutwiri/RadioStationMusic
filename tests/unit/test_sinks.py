@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -263,17 +264,124 @@ async def test_the_wav_sink_can_pace_in_real_time(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- SoundDeviceSink
 
 
-async def test_the_device_sink_explains_how_to_fix_a_missing_dependency() -> None:
+class _FakeSoundDevice:
+    """Just enough of ``sounddevice`` for the sink: one output device, a recording stream."""
+
+    def __init__(self, *, default_fails: bool = False) -> None:
+        self.opened: list[int | None] = []
+        self.default_fails = default_fails
+        self._devices = [
+            {"name": "Speakers (Fake)", "hostapi": 0, "max_output_channels": 2},
+        ]
+
+    def query_devices(self, index: int | None = None) -> object:
+        return self._devices if index is None else self._devices[index]
+
+    def query_hostapis(self, _index: int) -> dict[str, str]:
+        return {"name": "MME"}
+
+    def OutputStream(self, *, device: int | None, **_kw: object) -> object:  # noqa: N802
+        if device is None and self.default_fails:
+            raise RuntimeError("no default output device")
+        self.opened.append(device)
+
+        class _Stream:
+            def start(self) -> None: ...
+            def stop(self) -> None: ...
+            def close(self) -> None: ...
+            def write(self, _data: object) -> None: ...
+
+        return _Stream()
+
+
+@pytest.fixture
+def fake_sounddevice(monkeypatch: pytest.MonkeyPatch) -> _FakeSoundDevice:
+    fake = _FakeSoundDevice()
+    monkeypatch.setitem(sys.modules, "sounddevice", fake)  # type: ignore[arg-type]
+    return fake
+
+
+async def test_the_device_sink_falls_back_to_the_default_output(
+    fake_sounddevice: _FakeSoundDevice,
+) -> None:
+    """Bluetooth headphones switched off must not keep the station off air: the configured
+    device is reported missing and the system default carries the broadcast instead."""
+    sink = SoundDeviceSink(device_name="Headphones (gone)", host_api="MME")
+    await sink.open()
+    assert sink.is_open
+    assert sink.resolved_device is None, "the default, not the missing device"
+    assert fake_sounddevice.opened == [None]
+    await sink.close()
+
+
+async def test_the_device_sink_follows_a_change_of_windows_default_output(
+    fake_sounddevice: _FakeSoundDevice, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Switch Windows from speakers to headphones and the music must move with it."""
+    from tradefix_radio.audio import sinks as sinks_module
+
+    endpoint = {"id": "endpoint-speakers"}
+    reinits: list[str] = []
+    monkeypatch.setattr(sinks_module, "_default_endpoint_id", lambda: endpoint["id"])
+    monkeypatch.setattr(sinks_module, "_reinitialise_portaudio", lambda: reinits.append("x"))
+    monkeypatch.setattr(sinks_module, "DEFAULT_ENDPOINT_CHECK_SECONDS", 0.0)
+
+    sink = SoundDeviceSink(device_name="default")
+    await sink.open()
+    assert sink.follows_default
+    block = AudioBuffer.silence(seconds=0.01, sample_rate=sink.sample_rate, channels=sink.channels)
+    await sink.write(block)
+    assert fake_sounddevice.opened == [None], "still on the first default"
+
+    endpoint["id"] = "endpoint-headphones"
+    await sink.write(block)
+    assert fake_sounddevice.opened == [None, None], "closed and re-opened on the new default"
+    assert reinits == ["x"], "PortAudio re-enumerated so it can see the new device"
+    assert sink.is_open
+    await sink.close()
+
+
+async def test_the_device_sink_pinned_to_a_device_does_not_follow_the_default(
+    fake_sounddevice: _FakeSoundDevice, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tradefix_radio.audio import sinks as sinks_module
+
+    endpoint = {"id": "a"}
+    monkeypatch.setattr(sinks_module, "_default_endpoint_id", lambda: endpoint["id"])
+    monkeypatch.setattr(sinks_module, "DEFAULT_ENDPOINT_CHECK_SECONDS", 0.0)
+    sink = SoundDeviceSink(device_name="Speakers (Fake)", host_api="MME")
+    await sink.open()
+    assert not sink.follows_default
+    endpoint["id"] = "b"
+    await sink.write(AudioBuffer.silence(seconds=0.01, sample_rate=sink.sample_rate, channels=sink.channels))
+    assert fake_sounddevice.opened == [0], "the operator pinned a device; it stays"
+    await sink.close()
+
+
+async def test_the_device_sink_uses_the_configured_device_when_present(
+    fake_sounddevice: _FakeSoundDevice,
+) -> None:
+    sink = SoundDeviceSink(device_name="Speakers (Fake)", host_api="MME")
+    await sink.open()
+    assert sink.resolved_device == (0, "Speakers (Fake)", "MME")
+    assert fake_sounddevice.opened == [0]
+    await sink.close()
+
+
+async def test_the_device_sink_explains_how_to_fix_a_missing_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """§72's simulation mode is supposed to run on a machine with no sound card at all.
 
-    Whether ``sounddevice`` is installed or whether a device exists, the failure must name the
+    When neither the configured device nor the default can open, the failure must name the
     remedy — the alternative is a PortAudio error that means nothing to an operator.
     """
+    monkeypatch.setitem(sys.modules, "sounddevice", _FakeSoundDevice(default_fails=True))  # type: ignore[arg-type]
     sink = SoundDeviceSink(device_name="__no_such_device__")
     with pytest.raises(AudioSinkError) as caught:
         await sink.open()
     message = str(caught.value)
-    assert "null_sink" in message or "cannot open audio device" in message
+    assert "cannot open audio device" in message
 
 
 def test_the_device_sink_is_constructible_without_hardware() -> None:

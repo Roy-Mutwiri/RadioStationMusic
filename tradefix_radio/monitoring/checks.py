@@ -477,6 +477,13 @@ async def check_market_feed(clock: Clock, settings: AppSettings) -> ComponentHea
         return healthy(
             "market_feed", clock=clock, detail=f"rest feed {settings.market.rest_base_url}"
         )
+    if feed == "public":
+        return healthy(
+            "market_feed",
+            clock=clock,
+            detail="public keyless feed: spot gold (gold-api.com) with Yahoo history, "
+            "Bitcoin from Binance",
+        )
 
     return await _check_metatrader5(clock, settings)
 

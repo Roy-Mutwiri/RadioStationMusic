@@ -45,14 +45,19 @@ Plan and milestone exit criteria: `docs/IMPLEMENTATION_PLAN.md`.
 **For listeners: download `Trade Fix Radio.exe` from this repository and double-click it.**
 Nothing else to install. On first run the app sets everything up by itself into
 `%LOCALAPPDATA%\TradeFixRadio` — the station, Python, FFmpeg, the ACE-Step music generator
-and its models (about 12 GB in total, downloaded once, resumable) — then starts playing real,
-market-driven music. Every later run goes straight to the music. Machines without an NVIDIA
+and its models (about 12 GB in total, downloaded once, resumable) — then starts playing real
+music composed from the **live market**: spot gold and Bitcoin prices from public endpoints,
+no account or API key needed, with the current price in the top bar. Gold is closed at
+weekends, so the station then plays against Bitcoin. Every later run goes straight to the music. Machines without an NVIDIA
 GPU with 6 GB of memory get synthetic placeholder audio instead, and the app says so.
 
 ![Trade Fix Radio desktop app](docs/images/desktop-app.png)
 
-The Control Center runs in its own native window with its own icon — no browser. Operator
-controls: **Prev / Next / Mute** on the Dashboard and a **volume** control in the top bar.
+The window shows a progress bar until the first generated track is actually on air, then
+the Control Center. It runs in its own native window with its own icon — no browser. The top
+bar says what is on air (**AI MUSIC · LIVE**, synthetic audio, or filler), shows the live price,
+and holds the transport: **Prev / Play-Pause / Next / Mute** and the **volume**. Sound follows the
+Windows default output device, so switching from speakers to headphones moves the music too.
 Closing the window stops the station and the generator. Uninstalling is deleting the
 `TradeFixRadio` folder.
 
@@ -187,7 +192,7 @@ same shape in seconds.
 
 | Mode | Market | Generator | Audio | Needs |
 | --- | --- | --- | --- | --- |
-| `development` | simulated | mock | null sink | nothing external |
+| `development` | simulated or `public` (live gold + Bitcoin, no key) | mock or ACE-Step | null sink or device | nothing external |
 | `simulation` | simulated | mock or ACE-Step | null sink or device | production-shaped config |
 | `production` | MetaTrader 5 / REST | ACE-Step | sound device → OBS | GPU, feed, OBS, secrets |
 

@@ -41,6 +41,7 @@ from tradefix_radio.director.selection import WeightedSelector
 from tradefix_radio.generation.factory import build_provider
 from tradefix_radio.generation.manager import DatabaseJobUnitOfWork, GenerationManager
 from tradefix_radio.market.active import ActiveMarketService
+from tradefix_radio.market.feeds import build_feed
 from tradefix_radio.market.feeds.simulated import SimulatedFeed
 from tradefix_radio.market.service import MarketDataService
 from tradefix_radio.market.simulation import Scenario
@@ -384,6 +385,14 @@ class ControlCenterRunner:
         UNKNOWN regime at exactly the moment it is needed.
         """
         services: dict[str, MarketDataService] = {}
+        if settings.market.feed != "simulated":
+            # A real feed runs on the real clock: there is no history to wind through, the
+            # feed replays whatever it fetched itself, and a catch-up clock would stamp live
+            # quotes with the wrong time.
+            for symbol in settings.markets.symbols_in_order:
+                feed = build_feed(settings, clock=self._clock, symbol=symbol)
+                services[symbol] = MarketDataService(settings, feed, clock=self._clock)
+            return services
         for index, symbol in enumerate(settings.markets.symbols_in_order):
             scenario = self._scenario
             if index > 0 and scenario is Scenario.RANDOM_WALK:
@@ -420,11 +429,24 @@ class ControlCenterRunner:
         # Ten ticks per bar: enough for a meaningful open/high/low/close, few enough that
         # thirty-odd bars cost a few hundred cheap polls.
         step = max(1.0, bar_seconds / 10.0)
+        # A real feed is not wound: it replays the history it fetched (``backlog``) and is
+        # warm once that is drained and every symbol has classified. A feed with no history
+        # to replay drains instantly and the loop falls through to a cold start.
+        simulated = all(service.feed.is_simulated for service in market.services.values())
         for _ in range(MAX_WARMUP_POLLS):
-            if not clock.caught_up:
+            if simulated and not clock.caught_up:
                 clock.advance(step)
             await market.poll_once()
             state = market.current_state
+            if not simulated:
+                backlog = sum(
+                    getattr(service.feed, "backlog", 0) for service in market.services.values()
+                )
+                if backlog:
+                    await asyncio.sleep(0)
+                    continue
+                if state is None or not _all_classified(market):
+                    break  # live now; nothing more to replay, so waiting would only poll
             # Warmed means *classified*, not merely present. The engine's first states are
             # UNKNOWN until it has enough bars to judge, and a station that opens on an
             # unknown regime composes from a neutral reading of a market that is in fact
@@ -434,7 +456,10 @@ class ControlCenterRunner:
             # it is needed: a switch that handed the director an UNKNOWN regime would make
             # the station's first minutes on Bitcoin its least market-aware, which is the
             # opposite of the point.
-            if clock.caught_up and state is not None and _all_classified(market):
+            if (simulated and not clock.caught_up) or state is None:
+                await asyncio.sleep(0)
+                continue
+            if _all_classified(market):
                 _log.info(
                     "control_center.feed_warmed",
                     seconds=round(time.monotonic() - started, 2),

@@ -263,6 +263,39 @@ class WavFileSink(BaseSink):
             self._handle = None
 
 
+#: How often the sink asks Windows whether the default output endpoint moved.
+DEFAULT_ENDPOINT_CHECK_SECONDS = 2.0
+
+
+def _default_endpoint_id() -> str | None:
+    """The Windows default output endpoint's id, or ``None`` where that cannot be asked.
+
+    Through ``pycaw`` (the Core Audio API), because PortAudio caches its device list and
+    default at initialisation and cannot see a change. Optional: without it the sink simply
+    stays on the device it opened.
+    """
+    try:
+        from pycaw.pycaw import AudioUtilities  # type: ignore[import-untyped]  # noqa: PLC0415
+    except Exception:  # noqa: BLE001 - absent or unusable: no following, no failure
+        return None
+    try:
+        device = AudioUtilities.GetSpeakers()
+    except Exception:  # noqa: BLE001 - COM can fail transiently; treat as "unknown"
+        return None
+    return str(getattr(device, "id", "") or "") or None
+
+
+def _reinitialise_portaudio() -> None:
+    """Make PortAudio re-enumerate devices; only safe with no stream open in this process."""
+    try:
+        import sounddevice  # noqa: PLC0415
+
+        sounddevice._terminate()
+        sounddevice._initialize()
+    except Exception as error:  # noqa: BLE001 - logged; the re-open will say if it mattered
+        _log.warning("audio.portaudio_reinit_failed", error=str(error))
+
+
 class SoundDeviceSink(BaseSink):
     """Real audio output through PortAudio (§51's VB-CABLE path).
 
@@ -294,11 +327,20 @@ class SoundDeviceSink(BaseSink):
         self._stream: object | None = None
         #: ``(index, name, host api)`` actually opened, for logs and the §49 page.
         self._resolved: tuple[int, str, str] | None = None
+        #: The Windows default output endpoint id when the stream was opened on the default,
+        #: so a change of default (speakers to headphones) can be noticed and followed.
+        self._default_endpoint: str | None = None
+        self._last_endpoint_check = 0.0
 
     @property
     def resolved_device(self) -> tuple[int, str, str] | None:
         """Which device is in use, once open. ``None`` before open, or on the default."""
         return self._resolved
+
+    @property
+    def follows_default(self) -> bool:
+        """Whether the stream is on the system default output and will follow it."""
+        return self._is_open and self._resolved is None
 
     @property
     def name(self) -> str:
@@ -314,28 +356,67 @@ class SoundDeviceSink(BaseSink):
                 sink=self.name,
             ) from exc
 
-        device = _resolve_output_device(
-            sounddevice, self._device_name, self._host_api, sink=self.name
-        )
+        # A configured device that is not there right now — Bluetooth headphones switched
+        # off, a USB interface unplugged — must not keep the station off air. The system
+        # default output is used instead, loudly: the operator chose a device and is told
+        # it was not honoured, but the broadcast goes on. The sink reopens on every playout
+        # start, so plugging the device back in and restarting the station restores it.
+        try:
+            device = _resolve_output_device(
+                sounddevice, self._device_name, self._host_api, sink=self.name
+            )
+        except AudioSinkError as exc:
+            _log.warning(
+                "audio.device_fallback",
+                configured=self._device_name,
+                host_api=self._host_api,
+                error=str(exc).splitlines()[0],
+                detail="using the system default output device instead",
+            )
+            device = None
         self._resolved = device
 
-        try:
+        def _open(index: int | None) -> Any:
             stream = sounddevice.OutputStream(
                 samplerate=self._sample_rate,
                 channels=self._channels,
                 dtype="float32",
                 blocksize=self._block_frames,
                 latency=self._block_frames * self._buffer_blocks / self._sample_rate,
-                device=None if device is None else device[0],
+                device=index,
             )
             stream.start()
+            return stream
+
+        try:
+            stream = _open(None if device is None else device[0])
         except Exception as exc:
-            raise AudioSinkError(
-                f"cannot open audio device {self._device_name or 'default'!r}: {exc}",
-                sink=self.name,
-                device=self._device_name,
-            ) from exc
+            if device is None:
+                raise AudioSinkError(
+                    f"cannot open audio device {self._device_name or 'default'!r}: {exc}",
+                    sink=self.name,
+                    device=self._device_name,
+                ) from exc
+            _log.warning(
+                "audio.device_fallback",
+                configured=self._device_name,
+                host_api=self._host_api,
+                error=str(exc),
+                detail="the device resolved but would not open; using the system default",
+            )
+            self._resolved = None
+            try:
+                stream = _open(None)
+            except Exception as exc2:
+                raise AudioSinkError(
+                    f"cannot open audio device {self._device_name!r} nor the default: {exc2}",
+                    sink=self.name,
+                    device=self._device_name,
+                ) from exc2
+            device = None
         self._stream = stream
+        self._default_endpoint = _default_endpoint_id() if device is None else None
+        self._last_endpoint_check = self._clock.monotonic()
         if device is not None:
             # Logged because the host API was very likely chosen for the operator rather
             # than by them, and which one is in use changes latency and resampling.
@@ -349,6 +430,7 @@ class SoundDeviceSink(BaseSink):
             )
 
     async def _do_write(self, buffer: AudioBuffer) -> None:
+        await self._follow_default_if_moved()
         stream = self._stream
         if stream is None:
             raise AudioSinkError("sounddevice sink has no open stream", sink=self.name)
@@ -362,6 +444,38 @@ class SoundDeviceSink(BaseSink):
             raise AudioSinkError(
                 f"audio device write failed: {exc}", sink=self.name
             ) from exc
+
+    async def _follow_default_if_moved(self) -> None:
+        """Re-open on the new default output when Windows' default changed (ADR-06).
+
+        A PortAudio stream is bound to the endpoint it opened on: switch Windows from the
+        speakers to headphones and the music keeps coming out of the speakers. When the stream
+        was opened on the *default* device, the default endpoint is checked every couple of
+        seconds through the Windows audio API and, if it moved, the stream is closed, PortAudio
+        is re-initialised so it sees the new device list, and the stream re-opened on the new
+        default. One block of audio is lost at the switch; the clock is not, because the next
+        write blocks on the new device as usual.
+        """
+        if self._resolved is not None or self._default_endpoint is None:
+            return
+        now = self._clock.monotonic()
+        if now - self._last_endpoint_check < DEFAULT_ENDPOINT_CHECK_SECONDS:
+            return
+        self._last_endpoint_check = now
+        current = await asyncio.to_thread(_default_endpoint_id)
+        if current is None or current == self._default_endpoint:
+            return
+        _log.info(
+            "audio.default_output_changed",
+            detail="Windows' default output device changed; following it",
+        )
+        try:
+            await self._do_close()
+            _reinitialise_portaudio()
+            await self._do_open()
+        except AudioSinkError as error:
+            _log.error("audio.default_output_follow_failed", error=str(error))
+            raise
 
     async def _do_close(self) -> None:
         stream = self._stream
@@ -517,7 +631,7 @@ def _resolve_output_device(
     A numeric string is accepted as an index, so an operator can paste a number straight
     from `tradefix audio devices` when a name is genuinely unhelpful.
     """
-    if name is None or not str(name).strip():
+    if name is None or not str(name).strip() or str(name).strip().lower() == "default":
         return None
 
     text = str(name).strip()

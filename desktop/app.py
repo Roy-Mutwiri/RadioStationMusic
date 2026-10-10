@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import faulthandler
+import json
 import logging
 import os
 import shutil
@@ -45,6 +46,9 @@ TITLE = "Trade Fix Radio"
 APP_ID = "TradeFix.Radio.ControlCenter"
 STARTUP_TIMEOUT_SECONDS = 180
 ACE_STEP_STARTUP_TIMEOUT_SECONDS = 300
+#: How long the loading page waits for real music before showing the Control Center
+#: anyway. Generation normally takes a couple of minutes; this is a safety net.
+FIRST_MUSIC_TIMEOUT_SECONDS = 20 * 60
 _log = logging.getLogger("tradefix.desktop")
 
 
@@ -110,6 +114,7 @@ LOADING_HTML = """<!doctype html><html><head><meta charset="utf-8"><title>Trade 
 <script>
   function tfxSay(m, failed){document.getElementById('msg').textContent=m;document.querySelector('.ring').style.borderTopColor=failed?'#e05252':'#e8b440';if(failed){document.querySelector('.ring').style.animation='none'}}
   function tfxLog(line){var l=document.getElementById('log');l.style.display='block';l.textContent+=line+'\\n';l.scrollTop=l.scrollHeight}
+  function tfxProgress(frac,label){var b=document.getElementById('bar'),f=document.getElementById('fill'),t=document.getElementById('bytes');b.style.display='block';f.style.width=Math.max(2,Math.min(100,100*frac))+'%';t.textContent=label||''}
   function tfxBytes(done,total){var b=document.getElementById('bar'),f=document.getElementById('fill'),t=document.getElementById('bytes');
     if(done===null){b.style.display='none';t.textContent='';return}
     b.style.display='block';var mb=function(x){return (x/1048576).toFixed(0)+' MB'};
@@ -390,6 +395,44 @@ class Station:
             _kill_tree(self.proc)
 
 
+def _status(url: str) -> dict | None:
+    try:
+        with urllib.request.urlopen(f"{url}api/status", timeout=3) as response:  # noqa: S310 - loopback
+            return json.load(response)
+    except Exception:  # noqa: BLE001 - the station may still be starting
+        return None
+
+
+def _real_music_on_air(status: dict) -> bool:
+    """A generated track (never procedural filler or a station ident) is playing."""
+    now_playing = status.get("now_playing") or {}
+    track_id = str(now_playing.get("track_id") or "")
+    return (
+        status.get("status", {}).get("playout_state") == "playing"
+        and status.get("emergency", {}).get("tier") == "scheduled"
+        and track_id.startswith("TF-")
+    )
+
+
+def _describe_wait(status: dict) -> tuple[float, str]:
+    """Progress fraction and caption for the wait, from the buffer and generator figures."""
+    buffer = status.get("buffer") or {}
+    generation = status.get("generation") or {}
+    market = status.get("market") or {}
+    ready = float(buffer.get("ready_minutes") or 0.0)
+    target = 8.0  # the station's fresh-start target: two tracks or eight minutes
+    done = int(generation.get("completed") or 0)
+    in_flight = int(generation.get("in_flight") or 0)
+    parts = [f"{done} track{'s' if done != 1 else ''} generated"]
+    if in_flight:
+        parts.append(f"{in_flight} generating")
+    parts.append(f"{ready:.1f} of {target:.0f} min ready")
+    symbol, price = market.get("symbol"), market.get("price")
+    if symbol and price is not None:
+        parts.append(f"{symbol} {price:,.2f}")
+    return min(1.0, ready / target), " · ".join(parts)
+
+
 def _apply_window_icon() -> None:
     """Set the title-bar and taskbar icon on the WinForms window pywebview created."""
     if sys.platform != "win32" or not ICON.is_file():
@@ -542,11 +585,29 @@ def main(argv: list[str] | None = None) -> int:
             _log.exception("station start failed")
             say(f"Could not start the station: {error}", failed=True)
             return
-        if station.wait_ready(STARTUP_TIMEOUT_SECONDS):
-            _log.info("station ready (attached=%s); loading %s", station.attached, url)
-            window.load_url(url)
+        if not station.wait_ready(STARTUP_TIMEOUT_SECONDS):
+            say(f"The station did not start. See {(LOG_DIR / 'desktop.log').as_posix()}", failed=True)
             return
-        say(f"The station did not start. See {(LOG_DIR / 'desktop.log').as_posix()}", failed=True)
+        _log.info("station ready (attached=%s); waiting for real music", station.attached)
+        # The loading page stays until a generated track is actually on air, so the first
+        # thing a listener sees the Control Center show is music, not "nothing on air".
+        say("Composing the first tracks from the live market…")
+        js("tfxBytes(null, null)")
+        deadline = time.monotonic() + FIRST_MUSIC_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            status = _status(url)
+            if status is not None:
+                if _real_music_on_air(status):
+                    break
+                fraction, caption = _describe_wait(status)
+                js(f"tfxProgress({fraction:.3f}, {caption!r})")
+            time.sleep(2.0)
+        else:
+            _log.warning("no generated track on air after %s s; showing the UI anyway",
+                         FIRST_MUSIC_TIMEOUT_SECONDS)
+        say("On air.")
+        _log.info("loading %s", url)
+        window.load_url(url)
 
     def shutdown() -> None:
         _log.info("shutdown requested")

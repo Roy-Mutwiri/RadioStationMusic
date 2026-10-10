@@ -174,7 +174,9 @@ class LoggingSettings(Section):
 
 class MarketSettings(Section):
     symbol: str = Field(default="XAUUSD", min_length=1, max_length=32)
-    feed: Literal["simulated", "metatrader5", "rest", "replay"] = "simulated"
+    #: ``public`` needs no account or key: spot gold and Binance from public endpoints,
+    #: with replayed history. What the desktop app installs with.
+    feed: Literal["simulated", "metatrader5", "rest", "replay", "public"] = "simulated"
     #: Brokers name gold inconsistently; tried in order (ADR-03).
     symbol_aliases: tuple[str, ...] = (
         "XAUUSD",

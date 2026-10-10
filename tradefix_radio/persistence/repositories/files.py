@@ -48,6 +48,28 @@ class TrackFileRepository(Repository):
         sha256: str | None = None,
         retain_forever: bool = False,
     ) -> TrackFile:
+        """Record a file for ``(track_id, role)``, replacing an earlier record if one exists.
+
+        One file per role per track is the schema's rule (``uq_track_files_track_id_role``),
+        and a plain insert enforced it by crashing: a station killed mid-generation re-runs
+        the job on restart, writes the new raw file, and the insert collided with the row the
+        dead run had already written. Post-production never finished, the track never became
+        ready, and the station sat on an empty buffer. The regenerated file *is* the file for
+        that role now, so the row is updated in place and un-reclaimed.
+        """
+        existing = await self.get(track_id, role)
+        if existing is not None:
+            existing.path = str(path)
+            existing.file_format = file_format
+            existing.size_bytes = size_bytes
+            existing.sample_rate = sample_rate
+            existing.channels = channels
+            existing.sha256 = sha256
+            existing.created_at = now
+            existing.deleted_at = None
+            existing.retain_forever = retain_forever
+            await self._session.flush()
+            return existing
         row = TrackFile(
             track_id=track_id,
             role=role.value,

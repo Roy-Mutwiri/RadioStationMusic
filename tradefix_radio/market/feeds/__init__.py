@@ -80,6 +80,10 @@ def build_feed(
         return RestPollingFeed(
             settings.market.model_copy(update={"symbol": resolved}), clock=clock
         )
+    if kind == "public":
+        from tradefix_radio.market.feeds.public import PublicFeed  # noqa: PLC0415
+
+        return PublicFeed(resolved, clock=clock)
     raise ConfigurationError(f"unknown market.feed {kind!r}")
 
 

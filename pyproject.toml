@@ -43,6 +43,9 @@ dependencies = [
 # Phase 6 analysis stack is only needed where audio is actually inspected.
 audio = [
     "sounddevice>=0.4.7,<1",
+    # Windows: lets the sound-device sink notice when the default output changes
+    # (speakers to headphones) and follow it. Optional at runtime; see audio/sinks.py.
+    "pycaw>=20240210; sys_platform == 'win32'",
 ]
 analysis = [
     "librosa>=0.10.2,<1",

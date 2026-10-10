@@ -320,14 +320,22 @@ class Installer:
             "# in the install folder to have it regenerated.",
             "TRADEFIX_MODE=development",
             "",
+            "# Real market prices with no account or key: spot gold (gold-api.com) with Yahoo",
+            "# history, Bitcoin from Binance. Gold is closed at weekends; the station then",
+            "# plays against Bitcoin. Alternatives: metatrader5 (logged-in terminal), simulated.",
+            "TRADEFIX_MARKET__FEED=public",
+            "",
             "# Sound: the Windows default output device at install time.",
             "TRADEFIX_AUDIO__SINK=sounddevice",
         ]
         if device is not None:
             name, host_api = device
-            lines += [f"TRADEFIX_AUDIO__DEVICE_NAME={name}",
+            # `default` follows whatever Windows has as its output device, and switches
+            # with it. The detected device is recorded as a comment, for the operator.
+            lines += [f"# Detected at install time: {name} ({host_api})",
+                      "TRADEFIX_AUDIO__DEVICE_NAME=default",
                       f"TRADEFIX_AUDIO__DEVICE_HOST_API={host_api}"]
-            self.log(f"    sound device: {name} ({host_api})")
+            self.log(f"    sound: following the Windows default output (now {name})")
         else:
             lines += ["TRADEFIX_AUDIO__SINK=null_sink"]
             self.log("    no output device found; the station will run silently")

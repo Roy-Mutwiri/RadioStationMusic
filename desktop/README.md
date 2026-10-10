@@ -42,6 +42,11 @@ plus `pywebview` and `pillow` in the venv.
 
 ## Sound
 
+`TRADEFIX_AUDIO__DEVICE_NAME=default` (what the installer writes) follows the Windows default
+output: the sink asks Windows every two seconds whether the default endpoint changed and, if so,
+re-opens on the new one, so switching speakers to headphones moves the music within a couple of
+seconds. A pinned device that is missing at start falls back to the default with a warning.
+
 Development mode defaults to a silent `null_sink`. The project-root `.env` switches it to a
 real device (`TRADEFIX_AUDIO__SINK=sounddevice`). Pick the device with
 `TRADEFIX_AUDIO__DEVICE_NAME` (a substring from `tradefix audio devices`) and keep
@@ -71,3 +76,18 @@ startup; the process is then `python.exe` and not caught by that sweep. The stat
 ACE-Step are also placed in a Windows job object, so if the launcher is ever ended from
 outside, they end with it instead of running headless. The launcher's own log is
 `logs/desktop-app.log`.
+
+## Live market prices
+
+Both modes default to `TRADEFIX_MARKET__FEED=public` (`tradefix_radio/market/feeds/public.py`):
+gold quoted second by second from Binance PAXG ticks anchored to spot gold from gold-api.com
+(spot updates about once a minute, so its level with PAXG's motion), Yahoo Finance one-minute
+history for gold, and Bitcoin from Binance.
+No account or key. History is replayed through the feature engine at startup so the regime is
+classified within seconds instead of an hour, and the current price shows in the top bar.
+Gold is closed from Friday evening to Sunday evening New York time; the market router then
+plays against Bitcoin and returns to gold when it reopens. `metatrader5` (a logged-in terminal)
+and `simulated` remain available.
+
+The loading page stays up — with a progress bar fed by the buffer — until a generated track is
+on air, so the first thing the Control Center shows is music.
