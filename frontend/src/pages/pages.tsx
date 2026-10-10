@@ -258,7 +258,7 @@ export function RadioPage() {
     <div className="space-y-4 p-4" data-testid="radio-page">
       <PageHeader title="Radio" subtitle="Programming, buffer and recent history" />
       <EmergencyBanner emergency={state.emergency} />
-      <NowPlayingPanel track={state.now_playing} />
+      <NowPlayingPanel track={state.now_playing} playoutState={state.status.playout_state} />
 
       <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <QueuePanel queue={state.queue} />

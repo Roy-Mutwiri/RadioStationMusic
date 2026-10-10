@@ -34,6 +34,7 @@ from pathlib import Path
 
 import structlog
 
+from tradefix_radio.audio.ducking import DuckingController
 from tradefix_radio.audio.format import PLAYOUT_CHANNELS, PLAYOUT_SAMPLE_RATE, conform
 from tradefix_radio.audio.io import read_audio
 from tradefix_radio.audio.mixer import TransitionDecision, TransitionPlanner, crossfade
@@ -69,6 +70,7 @@ class PlayoutState(str, enum.Enum):
     STOPPED = "stopped"
     STARTING = "starting"
     PLAYING = "playing"
+    PAUSED = "paused"
     DRAINING = "draining"
     FAILED = "failed"
 
@@ -207,9 +209,17 @@ class PlayoutEngine:
         self._volume = 1.0
         #: Set by :meth:`request_previous`; honoured by the next acquisition.
         self._replay_item: PlayingItem | None = None
+        self._paused = False
+        self._state_before_pause: PlayoutState | None = None
         self._sink_failures = 0
+        self._ducking = DuckingController()
 
     # -- introspection -----------------------------------------------------
+
+    @property
+    def ducking(self) -> DuckingController:
+        """Voice-activated ducking controller."""
+        return self._ducking
 
     @property
     def state(self) -> PlayoutState:
@@ -313,6 +323,31 @@ class PlayoutEngine:
     def request_stop(self) -> None:
         self._stop_requested = True
 
+    def pause(self) -> bool:
+        """Pause playback. Returns True if paused, False if already paused or stopped."""
+        if self._paused or self._state == PlayoutState.STOPPED:
+            return False
+        self._paused = True
+        self._state_before_pause = self._state
+        self._state = PlayoutState.PAUSED
+        _log.info("playout.paused")
+        return True
+
+    def resume(self) -> bool:
+        """Resume playback. Returns True if resumed, False if not paused."""
+        if not self._paused:
+            return False
+        self._paused = False
+        self._state = self._state_before_pause or PlayoutState.PLAYING
+        self._state_before_pause = None
+        _log.info("playout.resumed")
+        return True
+
+    @property
+    def is_paused(self) -> bool:
+        """Whether playback is currently paused."""
+        return self._paused
+
     def queue_station_id(self, record: StationIdRecord) -> None:
         """Air an identifier after the current item (§31)."""
         self._pending_station_id = record
@@ -365,6 +400,11 @@ class PlayoutEngine:
             await self._pump_once()
 
     async def _pump_once(self) -> None:
+        # If paused, just sleep without advancing playback
+        if self._paused:
+            await self._clock.sleep(self._block_seconds)
+            return
+
         if self._current is None:
             acquired = await self._acquire_next()
             if acquired is None:
@@ -640,6 +680,10 @@ class PlayoutEngine:
         device that is genuinely gone would produce a tight loop of failures and no audio, which
         is worse than failing loudly.
         """
+        # Apply voice ducking if enabled
+        if self._ducking.enabled and self._ducking.gain < 0.999:
+            block = block.scaled(self._ducking.gain)
+
         try:
             await self._sink.write(block)
         except AudioSinkError as error:

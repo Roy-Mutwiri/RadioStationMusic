@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 
 from tradefix_radio.config.schema import AppSettings, RunMode
+from tradefix_radio.contracts.enums import StartupMode
 from tradefix_radio.market.simulation import Scenario
 
 __all__ = ["command", "register"]
@@ -35,6 +36,11 @@ def register(subparsers: object) -> None:
         help="market scenario the simulator starts on",
     )
     parser.add_argument("--seed", type=int, default=2026, help="RNG seed (reproducible)")
+    parser.add_argument(
+        "--immediate",
+        action="store_true",
+        help="start playout immediately (live recovery mode)",
+    )
 
 
 async def command(args: argparse.Namespace, settings: AppSettings) -> int:
@@ -65,11 +71,15 @@ async def command(args: argparse.Namespace, settings: AppSettings) -> int:
         f"  API docs       : {url}/api/docs\n"
         f"  Mode           : {settings.mode.value}   Scenario: {args.scenario}\n"
     )
+    startup_mode = (
+        StartupMode.LIVE_RECOVERY if args.immediate else StartupMode.CONTROLLED_START
+    )
     await serve(
         settings,
         host=args.host,
         port=args.port,
         scenario=Scenario(args.scenario),
         seed=args.seed,
+        startup_mode=startup_mode,
     )
     return 0

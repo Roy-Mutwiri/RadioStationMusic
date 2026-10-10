@@ -19,8 +19,9 @@
  */
 
 import clsx from 'clsx'
-import { memo, useState } from 'react'
+import { memo, useState, useCallback } from 'react'
 
+import { api } from '../lib/api'
 import { ABSENT, decimal, duration, percent, titleCase } from '../lib/format'
 import { usePosition } from '../lib/live'
 import type { NowPlaying as NowPlayingData } from '../lib/types'
@@ -225,7 +226,95 @@ function WhyThisTrack({ track }: { track: NowPlayingData }) {
   )
 }
 
-export function NowPlayingPanel({ track }: { track: NowPlayingData | null }) {
+function PlayPauseButton({ isPaused }: { isPaused: boolean }) {
+  const [loading, setLoading] = useState(false)
+
+  const handleClick = useCallback(async () => {
+    setLoading(true)
+    try {
+      if (isPaused) {
+        await api.resume()
+      } else {
+        await api.pause()
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [isPaused])
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={loading}
+      className={clsx(
+        'flex h-10 w-10 items-center justify-center rounded-full border transition-colors',
+        isPaused
+          ? 'border-gold-500 bg-gold-500/20 text-gold-400 hover:bg-gold-500/30'
+          : 'border-ink-700 bg-ink-800 text-ink-300 hover:bg-ink-700 hover:text-ink-100',
+        loading && 'opacity-50 cursor-not-allowed'
+      )}
+      aria-label={isPaused ? 'Resume playback' : 'Pause playback'}
+      title={isPaused ? 'Resume' : 'Pause'}
+    >
+      {isPaused ? (
+        <svg className="h-5 w-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      ) : (
+        <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+        </svg>
+      )}
+    </button>
+  )
+}
+
+function DuckingButton({ duckingEnabled }: { duckingEnabled: boolean }) {
+  const [loading, setLoading] = useState(false)
+  const [enabled, setEnabled] = useState(duckingEnabled)
+
+  const handleClick = useCallback(async () => {
+    setLoading(true)
+    try {
+      await api.toggleDucking()
+      setEnabled(!enabled)
+    } finally {
+      setLoading(false)
+    }
+  }, [enabled])
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={loading}
+      className={clsx(
+        'flex h-8 w-8 items-center justify-center rounded-full border transition-colors',
+        enabled
+          ? 'border-blue-500 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+          : 'border-ink-700 bg-ink-800 text-ink-500 hover:bg-ink-700 hover:text-ink-300',
+        loading && 'opacity-50 cursor-not-allowed'
+      )}
+      aria-label={enabled ? 'Disable voice ducking' : 'Enable voice ducking'}
+      title={enabled ? 'Voice ducking ON (click to disable)' : 'Voice ducking OFF (click to enable)'}
+    >
+      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15a.998.998 0 00-.98-.85c-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z" />
+      </svg>
+    </button>
+  )
+}
+
+export function NowPlayingPanel({
+  track,
+  playoutState,
+}: {
+  track: NowPlayingData | null
+  playoutState?: string
+}) {
+  const isPaused = playoutState === 'paused'
+
   if (!track) {
     return (
       <Panel title="Now playing" data-testid="now-playing">
@@ -255,6 +344,10 @@ export function NowPlayingPanel({ track }: { track: NowPlayingData | null }) {
       <div className="flex gap-4">
         <div className="w-[104px] shrink-0 space-y-2">
           <CoverArt trackId={track.track_id} genre={track.genre} />
+          <div className="flex items-center justify-center gap-2">
+            <PlayPauseButton isPaused={isPaused} />
+            <DuckingButton duckingEnabled={false} />
+          </div>
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-3">

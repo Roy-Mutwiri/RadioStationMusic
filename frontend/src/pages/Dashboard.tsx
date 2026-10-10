@@ -190,7 +190,7 @@ export function DashboardPage() {
       <StationStrip />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
-        <NowPlayingPanel track={state.now_playing} />
+        <NowPlayingPanel track={state.now_playing} playoutState={state.status.playout_state} />
         <MarketPanel market={state.market} />
       </div>
 

@@ -304,6 +304,30 @@ async def post_radio_previous(view: ViewDep) -> ControlResultV1:
 
 
 @router.post(
+    "/radio/pause",
+    response_model=ControlResultV1,
+    summary="Pause playback",
+)
+async def post_radio_pause(view: ViewDep) -> ControlResultV1:
+    """Pause the playout engine. Audio stops but the current track position is preserved."""
+    station = _require_station(view)
+    playout = station.playout  # type: ignore[attr-defined]
+    if playout.pause():
+        item = playout.current
+        track_id = item.track_id if item else None
+        _log.info("api.pause_requested", track_id=track_id)
+        return ControlResultV1(
+            applied=True,
+            message="Playback paused.",
+            track_id=track_id,
+        )
+    return ControlResultV1(
+        applied=False,
+        message="Already paused or stopped.",
+    )
+
+
+@router.post(
     "/radio/mute",
     response_model=ControlResultV1,
     summary="Toggle the operator mute",
@@ -349,6 +373,115 @@ async def post_radio_volume(request: VolumeRequestV1, view: ViewDep) -> ControlR
     applied = playout.set_volume(request.volume)
     _log.info("api.volume_set", volume=applied)
     return ControlResultV1(applied=True, message=f"Volume {round(applied * 100)}%.")
+
+
+@router.post(
+    "/radio/resume",
+    response_model=ControlResultV1,
+    summary="Resume playback",
+)
+async def post_radio_resume(view: ViewDep) -> ControlResultV1:
+    """Resume the playout engine after a pause."""
+    station = _require_station(view)
+    playout = station.playout  # type: ignore[attr-defined]
+    if playout.resume():
+        item = playout.current
+        track_id = item.track_id if item else None
+        _log.info("api.resume_requested", track_id=track_id)
+        return ControlResultV1(
+            applied=True,
+            message="Playback resumed.",
+            track_id=track_id,
+        )
+    return ControlResultV1(
+        applied=False,
+        message="Not paused.",
+    )
+
+
+class DuckingConfigV1(BaseModel):
+    """Voice ducking configuration."""
+
+    enabled: bool = False
+    duck_level: float = Field(default=0.2, ge=0.0, le=1.0)
+    threshold: float = Field(default=0.02, ge=0.0, le=1.0)
+    attack_ms: float = Field(default=50.0, ge=1.0, le=1000.0)
+    release_ms: float = Field(default=300.0, ge=1.0, le=3000.0)
+
+
+class DuckingStatusV1(BaseModel):
+    """Current ducking state."""
+
+    enabled: bool
+    voice_active: bool
+    current_gain: float
+    config: DuckingConfigV1
+
+
+@router.get("/radio/ducking", response_model=DuckingStatusV1)
+async def get_ducking_status(view: ViewDep) -> DuckingStatusV1:
+    """Get current voice ducking status."""
+    station = _require_station(view)
+    playout = station.playout  # type: ignore[attr-defined]
+    ducking = playout.ducking
+    return DuckingStatusV1(
+        enabled=ducking.enabled,
+        voice_active=ducking.is_voice_active,
+        current_gain=ducking.gain,
+        config=DuckingConfigV1(
+            enabled=ducking.config.enabled,
+            duck_level=ducking.config.duck_level,
+            threshold=ducking.config.threshold,
+            attack_ms=ducking.config.attack_ms,
+            release_ms=ducking.config.release_ms,
+        ),
+    )
+
+
+@router.post("/radio/ducking", response_model=ControlResultV1)
+async def post_ducking_config(config: DuckingConfigV1, view: ViewDep) -> ControlResultV1:
+    """Update voice ducking configuration."""
+    station = _require_station(view)
+    playout = station.playout  # type: ignore[attr-defined]
+    ducking = playout.ducking
+
+    ducking.update_config(
+        enabled=config.enabled,
+        duck_level=config.duck_level,
+        threshold=config.threshold,
+        attack_ms=config.attack_ms,
+        release_ms=config.release_ms,
+    )
+
+    _log.info(
+        "api.ducking_updated",
+        enabled=config.enabled,
+        duck_level=config.duck_level,
+        threshold=config.threshold,
+    )
+
+    return ControlResultV1(
+        applied=True,
+        message=f"Voice ducking {'enabled' if config.enabled else 'disabled'}.",
+    )
+
+
+@router.post("/radio/ducking/toggle", response_model=ControlResultV1)
+async def post_ducking_toggle(view: ViewDep) -> ControlResultV1:
+    """Toggle voice ducking on/off."""
+    station = _require_station(view)
+    playout = station.playout  # type: ignore[attr-defined]
+    ducking = playout.ducking
+
+    new_state = not ducking.config.enabled
+    ducking.update_config(enabled=new_state)
+
+    _log.info("api.ducking_toggled", enabled=new_state)
+
+    return ControlResultV1(
+        applied=True,
+        message=f"Voice ducking {'enabled' if new_state else 'disabled'}.",
+    )
 
 
 @router.post("/radio/queue/{track_id}/lock", response_model=ControlResultV1)
