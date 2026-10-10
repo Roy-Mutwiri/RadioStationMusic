@@ -202,6 +202,11 @@ class PlayoutEngine:
         self._stats = PlayoutStats()
         self._skip_requested = False
         self._stop_requested = False
+        self._muted = False
+        #: Operator volume, linear gain 0..1 applied to every block before the sink.
+        self._volume = 1.0
+        #: Set by :meth:`request_previous`; honoured by the next acquisition.
+        self._replay_item: PlayingItem | None = None
         self._sink_failures = 0
 
     # -- introspection -----------------------------------------------------
@@ -250,6 +255,60 @@ class PlayoutEngine:
     def request_skip(self) -> None:
         """§44's operator skip. Takes effect at the next block boundary."""
         self._skip_requested = True
+
+    def request_previous(self) -> str | None:
+        """Operator "previous": replay the last track, or restart the current one.
+
+        Returns the track id that will air next, or ``None`` when nothing is playing. The
+        previous track is replayed from the buffer the engine still holds, so no queue
+        surgery is needed and the scheduler's plan is untouched. Station identifiers and
+        procedural filler are never "previous": if that is what came before, the current
+        track restarts instead, which is what every player's back button does near the
+        start of a track anyway.
+        """
+        current = self._current
+        if current is None:
+            return None
+        previous = self._previous
+        if (
+            previous is not None
+            and not previous.is_station_id
+            and previous.tier is not PlayoutTier.PROCEDURAL
+        ):
+            target = previous
+        else:
+            target = current
+        self._replay_item = PlayingItem(
+            track_id=target.track_id, audio=target.audio, tier=target.tier
+        )
+        self._skip_requested = True
+        return target.track_id
+
+    @property
+    def muted(self) -> bool:
+        return self._muted
+
+    @property
+    def volume(self) -> float:
+        return self._volume
+
+    def set_volume(self, volume: float) -> float:
+        """Operator volume as linear gain, clamped to 0..1. Returns what was applied.
+
+        Applied per block on the way to the sink, so it is heard within one block and never
+        touches the mastered file, the play clock or the records.
+        """
+        self._volume = min(1.0, max(0.0, float(volume)))
+        return self._volume
+
+    def set_muted(self, muted: bool) -> None:
+        """Silence the output without stopping the clock.
+
+        Blocks keep flowing to the sink at the same pace, zeroed, so the position, the play
+        records and the transitions are exactly what they would have been. Unmuting resumes
+        mid-track rather than restarting it.
+        """
+        self._muted = muted
 
     def request_stop(self) -> None:
         self._stop_requested = True
@@ -330,6 +389,11 @@ class PlayoutEngine:
 
     async def _acquire_next(self) -> PlayingItem | None:
         """Get the next thing to play, escalating tiers as needed (§33)."""
+        replay = self._replay_item
+        if replay is not None:
+            self._replay_item = None
+            return replay
+
         pending = self._pending_station_id
         if pending is not None:
             self._pending_station_id = None
@@ -555,6 +619,10 @@ class PlayoutEngine:
         block = item.audio.slice_frames(
             self._position_frames, self._position_frames + take
         )
+        gain = 0.0 if self._muted else self._volume
+        if gain != 1.0:
+            # Same block, same length, less gain: the sink keeps pacing the clock.
+            block = block.scaled(gain)
         written = await self._write(block)
         if written:
             self._position_frames += take

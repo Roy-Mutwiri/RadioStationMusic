@@ -781,3 +781,66 @@ async def test_evidence_for_an_unprocessed_track_is_404_not_an_empty_shell(
     response = validating_client.get("/api/originality/tracks/TF-NOT-REAL")
     assert response.status_code == 404
     assert "TF-NOT-REAL" in response.json()["detail"]
+
+
+async def test_r2_previous_asks_the_engine_to_go_back(
+    client: TestClient,
+    station_fixture: tuple[RadioStation, GenerationManager, Database, VirtualClock],
+) -> None:
+    station, _generation, _database, clock = station_fixture
+    await clock.run_to(clock.monotonic() + 15.0)
+    playing = station.playout.current
+    assert playing is not None
+
+    response = client.post("/api/radio/previous")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["applied"] is True
+    assert body["track_id"] is not None
+
+    await clock.run_to(clock.monotonic() + 3.0)
+    assert station.playout.stats.unintended_silence_seconds == 0.0
+
+
+async def test_r3_mute_toggles_and_shows_in_status(
+    client: TestClient,
+    station_fixture: tuple[RadioStation, GenerationManager, Database, VirtualClock],
+) -> None:
+    station, _generation, _database, clock = station_fixture
+    await clock.run_to(clock.monotonic() + 15.0)
+    assert client.get("/api/status").json()["status"]["muted"] is False
+
+    response = client.post("/api/radio/mute")
+    assert response.status_code == 200
+    assert response.json()["applied"] is True
+    assert station.playout.muted is True
+    assert client.get("/api/status").json()["status"]["muted"] is True
+
+    # Still broadcasting: mute does not stop the clock.
+    await clock.run_to(clock.monotonic() + 3.0)
+    assert station.playout.stats.unintended_silence_seconds == 0.0
+
+    assert client.post("/api/radio/mute").json()["message"] == "Output unmuted."
+    assert station.playout.muted is False
+
+
+async def test_r4_volume_is_set_validated_and_shown_in_status(
+    client: TestClient,
+    station_fixture: tuple[RadioStation, GenerationManager, Database, VirtualClock],
+) -> None:
+    station, _generation, _database, clock = station_fixture
+    await clock.run_to(clock.monotonic() + 15.0)
+    assert client.get("/api/status").json()["status"]["volume"] == 1.0
+
+    response = client.post("/api/radio/volume", json={"volume": 0.4})
+    assert response.status_code == 200
+    assert response.json() == {"applied": True, "message": "Volume 40%.", "track_id": None, "lock": None}
+    assert station.playout.volume == 0.4
+    assert client.get("/api/status").json()["status"]["volume"] == 0.4
+
+    assert client.post("/api/radio/volume", json={"volume": 1.5}).status_code == 422
+    assert client.post("/api/radio/volume", json={}).status_code == 422
+    assert station.playout.volume == 0.4
+
+    await clock.run_to(clock.monotonic() + 3.0)
+    assert station.playout.stats.unintended_silence_seconds == 0.0

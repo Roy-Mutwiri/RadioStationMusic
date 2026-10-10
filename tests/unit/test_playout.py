@@ -676,3 +676,95 @@ async def test_a_skipped_airing_reports_the_part_that_played(
     assert aired.played_seconds < TRACK, (
         "a skipped track reported the whole file as played"
     )
+
+
+async def test_z1_mute_zeroes_the_output_without_stopping_the_clock(
+    engine: PlayoutEngine, deck: Deck, queue: RadioQueue, sink: RecordingSink, tmp_path: Path
+) -> None:
+    """Operator mute: the same blocks keep flowing, at zero gain, so position and play
+    records are exactly what they would have been. Unmuting resumes mid-track."""
+    enqueue_ready(queue, "t1", tone(tmp_path / "t1.flac", seconds=12.0))
+    await engine.start()
+    await deck.pump()
+    await deck.pump()
+    assert engine.current is not None
+    loud = len(sink.blocks)
+    assert sink.blocks[-1].peak() > 0.0
+
+    engine.set_muted(True)
+    assert engine.muted is True
+    await deck.pump()
+    await deck.pump()
+    assert len(sink.blocks) == loud + 2, "blocks keep flowing while muted"
+    assert sink.blocks[-1].peak() == 0.0
+    assert engine.current.track_id == "t1"
+    assert engine.stats.seconds_on_air > 0.0
+
+    engine.set_muted(False)
+    await deck.pump()
+    assert sink.blocks[-1].peak() > 0.0
+
+
+async def test_z2_previous_replays_the_last_track(
+    engine: PlayoutEngine, deck: Deck, queue: RadioQueue, tmp_path: Path
+) -> None:
+    enqueue_ready(queue, "t1", tone(tmp_path / "t1.flac"))
+    enqueue_ready(queue, "t2", tone(tmp_path / "t2.flac"))
+    enqueue_ready(queue, "t3", tone(tmp_path / "t3.flac"))
+    await engine.start()
+    await deck.pump()
+    engine.request_skip()
+    await deck.pump_until(lambda: engine.current is not None and engine.current.track_id == "t2")
+
+    assert engine.request_previous() == "t1"
+    await deck.pump_until(lambda: engine.current is not None and engine.current.track_id == "t1")
+    assert engine.current is not None
+    assert engine.current.entry is None, "a replay does not re-enter the queue"
+    # The scheduler's plan is untouched: t3 is still next after the replay.
+    assert [entry.track_id for entry in queue] == ["t3"]
+
+
+async def test_z3_previous_restarts_the_current_track_when_nothing_came_before(
+    engine: PlayoutEngine, deck: Deck, queue: RadioQueue, tmp_path: Path
+) -> None:
+    enqueue_ready(queue, "t1", tone(tmp_path / "t1.flac"))
+    await engine.start()
+    await deck.pump()
+    await deck.pump()
+    assert engine.current is not None
+    assert engine.request_previous() == "t1"
+    await deck.pump_until(lambda: engine.stats.tracks_skipped == 1)
+    await deck.pump()
+    assert engine.current is not None
+    assert engine.current.track_id == "t1"
+    assert engine.stats.tracks_started == 2
+
+
+async def test_z4_previous_with_nothing_playing_is_a_no_op(engine: PlayoutEngine) -> None:
+    assert engine.request_previous() is None
+
+
+async def test_z5_volume_scales_the_output_and_mute_overrides_it(
+    engine: PlayoutEngine, deck: Deck, queue: RadioQueue, sink: RecordingSink, tmp_path: Path
+) -> None:
+    enqueue_ready(queue, "t1", tone(tmp_path / "t1.flac", seconds=12.0))
+    await engine.start()
+    await deck.pump()
+    await deck.pump()
+    full = sink.blocks[-1].peak()
+    assert full > 0.0
+
+    assert engine.set_volume(0.5) == 0.5
+    await deck.pump()
+    assert abs(sink.blocks[-1].peak() - full * 0.5) < 1e-3
+
+    assert engine.set_volume(7.0) == 1.0, "clamped to unity"
+    assert engine.set_volume(-1.0) == 0.0, "clamped to silence"
+    engine.set_volume(0.25)
+    engine.set_muted(True)
+    await deck.pump()
+    assert sink.blocks[-1].peak() == 0.0, "mute wins over volume"
+    engine.set_muted(False)
+    await deck.pump()
+    assert abs(sink.blocks[-1].peak() - full * 0.25) < 1e-3, "unmuting returns to the level"
+    assert engine.current is not None and engine.current.track_id == "t1"

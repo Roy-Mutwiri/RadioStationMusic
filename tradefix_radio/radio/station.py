@@ -758,6 +758,30 @@ class RadioStation:
             )
 
         self._queue.restore(entries)
+
+        # §FSP: a restored READY track has never aired — anything that had was dropped above —
+        # so it is exactly the fresh programming controlled start waits for. Without crediting
+        # it, the scheduler sees a full buffer and plans nothing, no generation ever completes,
+        # priming never finishes, and a station holding ten minutes of fresh music stays silent.
+        if self._startup_mode is StartupMode.CONTROLLED_START:
+            credited = 0
+            for entry in entries:
+                if entry.readiness is not ReadinessState.READY:
+                    continue
+                blueprint = self._blueprint_for(entry.track_id)
+                self._startup.on_fresh_track_ready(
+                    track_id=entry.track_id,
+                    duration_seconds=float(entry.duration_seconds or 0.0),
+                    genre=blueprint.composition.genre if blueprint else "unknown",
+                    persona_id=blueprint.persona_id if blueprint else None,
+                )
+                credited += 1
+            if credited:
+                _log.info(
+                    "station.restored_tracks_credited_as_fresh",
+                    count=credited,
+                    detail="never-played tracks restored from the queue count toward priming",
+                )
         self._stats.recovered_queue_entries = len(entries)
 
         # Rehydrate the lyrics of restored slots.

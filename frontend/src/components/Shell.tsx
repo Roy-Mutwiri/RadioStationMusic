@@ -16,6 +16,7 @@ import clsx from 'clsx'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 
+import { api } from '../lib/api'
 import { useLive } from '../lib/live'
 import { ABSENT, clockTime, price, signed, since, titleCase } from '../lib/format'
 import { StatusDot } from './primitives'
@@ -218,10 +219,82 @@ function TopBar() {
             {critical.length} alert{critical.length === 1 ? '' : 's'}
           </span>
         )}
+        <VolumeControl />
         <span className="font-mono text-xs tnum text-ink-400">{time}</span>
         <ConnectionIndicator />
       </div>
     </header>
+  )
+}
+
+const VOLUME_STEP = 0.1
+
+function VolumeControl() {
+  const { state } = useLive()
+  // The server's figure is the truth; a pending value covers the moment between a click
+  // and the next live state so repeated clicks step from where the operator sees it.
+  const [pending, setPending] = useState<number | null>(null)
+  const [busy, setBusy] = useState(false)
+  const live = state?.status.volume ?? null
+  const volume = pending ?? live
+  const muted = state?.status.muted ?? false
+
+  useEffect(() => {
+    if (pending !== null && live !== null && Math.abs(live - pending) < 0.005) setPending(null)
+  }, [live, pending])
+
+  async function change(delta: number) {
+    if (volume === null) return
+    const next = Math.round(Math.min(1, Math.max(0, volume + delta)) * 100) / 100
+    setPending(next)
+    setBusy(true)
+    try {
+      await api.setVolume(next)
+    } catch {
+      setPending(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const percent = volume === null ? ABSENT : `${Math.round(volume * 100)}%`
+  const buttonClass =
+    'rounded border border-ink-700 px-1.5 text-xs leading-5 text-ink-200 hover:border-ink-500 hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-40'
+
+  return (
+    <div
+      className="flex items-center gap-1.5 border-l border-ink-800 pl-4"
+      data-testid="volume-control"
+      title="Music volume. Applied on the way to the sound device; the mastered files are untouched."
+    >
+      <span className="label">{muted ? 'Vol (muted)' : 'Vol'}</span>
+      <button
+        type="button"
+        className={buttonClass}
+        onClick={() => void change(-VOLUME_STEP)}
+        disabled={busy || volume === null || volume <= 0}
+        aria-label="Decrease volume"
+        data-testid="volume-down"
+      >
+        −
+      </button>
+      <span
+        className={clsx('w-9 text-center font-mono text-xs tnum', muted ? 'text-ink-500' : 'text-ink-100')}
+        data-testid="volume-value"
+      >
+        {percent}
+      </span>
+      <button
+        type="button"
+        className={buttonClass}
+        onClick={() => void change(VOLUME_STEP)}
+        disabled={busy || volume === null || volume >= 1}
+        aria-label="Increase volume"
+        data-testid="volume-up"
+      >
+        +
+      </button>
+    </div>
   )
 }
 

@@ -451,6 +451,10 @@ class StationStatusV1(_Dto):
     is_broadcasting: bool
     #: ``playing`` / ``fallback`` / ``silent`` / ``stopped`` — what the engine is doing.
     playout_state: str
+    #: Operator mute: the engine keeps running and writes zeroed blocks to the sink.
+    muted: bool = False
+    #: Operator volume, linear gain 0..1 applied before the sink.
+    volume: float = Field(default=1.0, ge=0.0, le=1.0)
     station_name: str = "TRADE FIX RADIO"
     tagline: str = "THE MARKET COMPOSES THE RADIO"
     version: str

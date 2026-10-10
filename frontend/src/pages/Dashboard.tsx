@@ -22,6 +22,7 @@ import { Button, LoadingState, Panel } from '../components/primitives'
 import { api } from '../lib/api'
 import { humanDuration, integer, percent } from '../lib/format'
 import { useLive } from '../lib/live'
+import type { ControlResult } from '../lib/types'
 
 /**
  * Startup progress bar - shows when fresh, non-repetitive music will be ready.
@@ -213,7 +214,7 @@ export function DashboardPage() {
       <div className="flex items-center justify-between rounded-panel border border-ink-800 bg-ink-900/60 px-4 py-2">
         <span className="label">Operator controls</span>
         <div className="flex items-center gap-2">
-          <SkipButton />
+          <TransportControls />
           <span className="text-2xs text-ink-600">
             Only controls the runtime actually supports are offered.
           </span>
@@ -223,18 +224,20 @@ export function DashboardPage() {
   )
 }
 
-function SkipButton() {
+function TransportControls() {
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const { state } = useLive()
+  const muted = state?.status.muted ?? false
+  const playing = Boolean(state?.now_playing)
 
-  async function skip() {
+  async function run(action: () => Promise<ControlResult>, failure: string) {
     setBusy(true)
     try {
-      const result = await api.skip()
+      const result = await action()
       setMessage(result.message)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'The skip failed.')
+      setMessage(error instanceof Error ? error.message : failure)
     } finally {
       setBusy(false)
     }
@@ -244,12 +247,29 @@ function SkipButton() {
     <div className="flex items-center gap-3">
       {message && <span className="text-2xs text-ink-400">{message}</span>}
       <Button
-        onClick={() => void skip()}
-        disabled={busy || !state?.now_playing}
+        onClick={() => void run(api.previous, 'Going back failed.')}
+        disabled={busy || !playing}
+        title="Replay the previous track, or restart this one"
+        data-testid="previous-button"
+      >
+        ◀◀ Prev
+      </Button>
+      <Button
+        onClick={() => void run(api.skip, 'The skip failed.')}
+        disabled={busy || !playing}
         title="End the current track at the next block boundary"
         data-testid="skip-button"
       >
-        Skip track
+        Next ▶▶
+      </Button>
+      <Button
+        onClick={() => void run(api.mute, 'The mute failed.')}
+        disabled={busy || !state}
+        title={muted ? 'Restore the output' : 'Silence the output; playout keeps running'}
+        data-testid="mute-button"
+        aria-pressed={muted}
+      >
+        {muted ? '🔇 Unmute' : '🔊 Mute'}
       </Button>
     </div>
   )

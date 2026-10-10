@@ -276,6 +276,81 @@ async def post_radio_skip(view: ViewDep) -> ControlResultV1:
     )
 
 
+@router.post(
+    "/radio/previous",
+    response_model=ControlResultV1,
+    summary="Replay the previous track, or restart the current one",
+)
+async def post_radio_previous(view: ViewDep) -> ControlResultV1:
+    """Like skip, a request the engine honours at the next block boundary.
+
+    The engine replays the last track from the audio it still holds; if nothing suitable
+    came before, the current track restarts. Nothing in the queue is touched.
+    """
+    station = _require_station(view)
+    playout = station.playout  # type: ignore[attr-defined]
+    item = playout.current
+    if item is None:
+        return ControlResultV1(applied=False, message="Nothing is playing.")
+    track_id = playout.request_previous()
+    _log.info("api.previous_requested", track_id=track_id)
+    if track_id == item.track_id:
+        return ControlResultV1(
+            applied=True, message=f"{track_id} will restart.", track_id=track_id
+        )
+    return ControlResultV1(
+        applied=True, message=f"Going back to {track_id}.", track_id=track_id
+    )
+
+
+@router.post(
+    "/radio/mute",
+    response_model=ControlResultV1,
+    summary="Toggle the operator mute",
+)
+async def post_radio_mute(view: ViewDep) -> ControlResultV1:
+    """Silences the output without stopping playout.
+
+    The engine keeps writing blocks, zeroed, so the clock, the play records and the
+    transitions are unaffected; unmuting resumes mid-track. A toggle rather than a setter so
+    one button with no state of its own cannot drift from the engine.
+    """
+    station = _require_station(view)
+    playout = station.playout  # type: ignore[attr-defined]
+    muted = not playout.muted
+    playout.set_muted(muted)
+    _log.info("api.mute_toggled", muted=muted)
+    return ControlResultV1(
+        applied=True, message="Output muted." if muted else "Output unmuted."
+    )
+
+
+class VolumeRequestV1(BaseModel):
+    """Operator volume as linear gain."""
+
+    model_config = ConfigDict(frozen=True)
+
+    volume: float = Field(ge=0.0, le=1.0)
+
+
+@router.post(
+    "/radio/volume",
+    response_model=ControlResultV1,
+    summary="Set the operator volume",
+)
+async def post_radio_volume(request: VolumeRequestV1, view: ViewDep) -> ControlResultV1:
+    """Linear gain applied to every block before the sink, heard within one block.
+
+    Separate from mute so the two cannot fight: mute is a switch, volume is a level, and
+    unmuting returns to the level that was set. The mastered file is untouched.
+    """
+    station = _require_station(view)
+    playout = station.playout  # type: ignore[attr-defined]
+    applied = playout.set_volume(request.volume)
+    _log.info("api.volume_set", volume=applied)
+    return ControlResultV1(applied=True, message=f"Volume {round(applied * 100)}%.")
+
+
 @router.post("/radio/queue/{track_id}/lock", response_model=ControlResultV1)
 async def post_queue_lock(track_id: str, view: ViewDep) -> ControlResultV1:
     """Pin a slot so a replan cannot touch it (§28's ``OPERATOR_PINNED``)."""

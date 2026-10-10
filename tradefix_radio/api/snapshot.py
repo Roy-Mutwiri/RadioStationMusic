@@ -780,6 +780,8 @@ def status_to_dto(view: RuntimeView) -> StationStatusV1:
     return StationStatusV1(
         is_broadcasting=playout.state.value == "playing",
         playout_state=playout.state.value,
+        muted=bool(getattr(playout, "muted", False)),
+        volume=float(getattr(playout, "volume", 1.0)),
         version=str(version),
         environment=str(mode),
         mode=str(mode),

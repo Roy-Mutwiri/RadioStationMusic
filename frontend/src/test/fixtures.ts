@@ -226,6 +226,8 @@ export const healthFixture: HealthComponent[] = [
 export const statusFixture: StationStatus = {
   is_broadcasting: true,
   playout_state: 'playing',
+  muted: false,
+  volume: 1,
   station_name: 'TRADE FIX RADIO',
   tagline: 'THE MARKET COMPOSES THE RADIO',
   version: '0.1.0',

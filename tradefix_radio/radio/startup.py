@@ -193,6 +193,10 @@ class StartupProgrammingPlanner:
         if self._state is StartupState.GENERATOR_WARMING:
             if self._requirements.prime_enabled:
                 self.transition_to(StartupState.PRIMING)
+                # Fresh tracks credited before this point (a restored queue of never-played
+                # audio) may already satisfy priming; nothing else re-checks, so do it here.
+                if self._progress.is_priming_complete:
+                    self.transition_to(StartupState.READY_TO_AIR)
             else:
                 # Skip priming if disabled
                 self.transition_to(StartupState.READY_TO_AIR)

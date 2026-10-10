@@ -278,6 +278,10 @@ export interface Alert {
 export interface StationStatus {
   is_broadcasting: boolean
   playout_state: string
+  /** Operator mute: playout keeps running, the output is zeroed. */
+  muted: boolean
+  /** Operator volume, linear gain 0..1 applied before the sink. */
+  volume: number
   station_name: string
   tagline: string
   version: string

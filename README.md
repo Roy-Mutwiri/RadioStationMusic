@@ -36,6 +36,32 @@ Plan and milestone exit criteria: `docs/IMPLEMENTATION_PLAN.md`.
 
 ---
 
+## Desktop app
+
+<p align="center">
+  <img src="desktop/tradefix.png" alt="Trade Fix Radio app icon" width="96">
+</p>
+
+The Control Center runs in its own native window with its own icon — no browser. One
+double-click starts the ACE-Step generator, the station and the UI; closing the window
+stops them all.
+
+![Trade Fix Radio desktop app](docs/images/desktop-app.png)
+
+| Launch | What it is |
+| --- | --- |
+| **Trade Fix Radio.exe** (from the [Releases](https://github.com/Roy-Mutwiri/RadioStationMusic/releases) page, placed in the project root) | Standalone windowed launcher with the app icon. Built by `desktop/build_exe.py`. |
+| `Trade Fix Radio.bat` | Same launcher with a console, for logs |
+| `.venv\Scripts\python desktoppp.py --scenario violent_breakout` | From a terminal, with options |
+
+The launcher is only the window and the process supervisor: the station still runs from the
+`.venv` and `tradefix_radio` package beside it, so set the project up first (Quick start
+below, then `tradefix models install ace-step --yes` for real music). Operator controls in
+the UI: **Prev / Next / Mute** on the Dashboard and a **volume** control in the top bar.
+Details, sound-device notes and the launcher's logs: `desktop/README.md`.
+
+---
+
 ## Requirements
 
 | Requirement | Why | Notes |
