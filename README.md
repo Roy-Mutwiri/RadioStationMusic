@@ -2,6 +2,8 @@
 
 **Autonomous 24/7 market-reactive AI music radio station.**
 
+> **Just want to listen?** [Download Trade Fix Radio.exe](https://github.com/Roy-Mutwiri/RadioStationMusic/raw/main/Trade%20Fix%20Radio.exe) (Windows, 31 MB) and double-click it. It installs everything it needs on first run. Details in [Desktop app](#desktop-app).
+
 > The market composes the radio.
 
 Trade Fix Radio watches XAUUSD continuously, classifies what the market is doing,
@@ -42,7 +44,14 @@ Plan and milestone exit criteria: `docs/IMPLEMENTATION_PLAN.md`.
   <img src="desktop/tradefix.png" alt="Trade Fix Radio app icon" width="96">
 </p>
 
-**For listeners: download `Trade Fix Radio.exe` from this repository and double-click it.**
+<p align="center">
+  <a href="https://github.com/Roy-Mutwiri/RadioStationMusic/raw/main/Trade%20Fix%20Radio.exe">
+    <img src="https://img.shields.io/badge/Download-Trade%20Fix%20Radio.exe%20(Windows%2010%2F11%2C%2064--bit)-e8b440?style=for-the-badge&logo=windows&logoColor=black" alt="Download Trade Fix Radio.exe">
+  </a>
+</p>
+
+**For listeners: click the button above (direct download, about 31 MB), save `Trade Fix Radio.exe`
+anywhere, and double-click it.**
 Nothing else to install. On first run the app sets everything up by itself into
 `%LOCALAPPDATA%\TradeFixRadio` — the station, Python, FFmpeg, the ACE-Step music generator
 and its models (about 12 GB in total, downloaded once, resumable) — then starts playing real
