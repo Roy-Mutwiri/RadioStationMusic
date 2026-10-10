@@ -165,6 +165,10 @@ def _slot_to_entry(slot: PersistedQueueSlot) -> QueueEntry:
     )
 
 
+#: Recent lyric rows loaded back into memory at start, for recovered generation jobs.
+REHYDRATED_LYRICS = 500
+
+
 def _lyrics_from_row(row: LyricsRow) -> LyricsV1:
     """Rebuild the lyric contract from its stored row.
 
@@ -698,6 +702,18 @@ class RadioStation:
         # A track that already aired must never return as new programming. It would be an
         # immediate, audible repeat, and §11's history would not catch it because the queue is
         # upstream of that check.
+        # Also ask each slot's own track row. The history above is the last 400 airings by
+        # ``last_played_at``, and a track whose later airings were never stamped there (a
+        # reissued id collided with it) fell outside that window and came back on every
+        # restart. Played is a fact about the track, not about its rank in a window.
+        async with self._database.session() as session:
+            tracks = TrackRepository(session)
+            for entry in entries:
+                if entry.track_id in self._played_track_ids:
+                    continue
+                track_row = await tracks.get(entry.track_id)
+                if track_row is not None and track_row.state == TrackState.PLAYED.value:
+                    self._played_track_ids.add(entry.track_id)
         resurrected = [e for e in entries if e.track_id in self._played_track_ids]
         if resurrected:
             _log.error(
@@ -759,6 +775,36 @@ class RadioStation:
 
         self._queue.restore(entries)
 
+        # Jobs that have nothing left to do must not be re-run. Start-up classification
+        # requeues every job the dead process held, which is right for a track still being
+        # made and wrong for two cases only this method can see: a track that already
+        # aired (its slot was dropped above as resurrected) and a track whose restored slot
+        # is READY with its audio on disk. Both were regenerated on every restart — minutes
+        # of GPU time each, and the regenerated copy aired again as a repeat.
+        finished = {e.track_id for e in resurrected} | {
+            e.track_id for e in entries if e.readiness is ReadinessState.READY
+        }
+        if finished:
+            async with self._database.session() as session:
+                jobs = GenerationJobRepository(session)
+                stale = 0
+                for track_id in sorted(finished):
+                    for job in await jobs.for_track(track_id):
+                        if job.state in TERMINAL_JOB_STATES:
+                            continue
+                        if await jobs.mark_abandoned(
+                            job.job_id,
+                            now=self._clock.now(),
+                            reason="the track already has its audio; nothing left to generate",
+                        ):
+                            stale += 1
+            if stale:
+                _log.info(
+                    "station.finished_jobs_abandoned",
+                    count=stale,
+                    detail="jobs for tracks that already aired or are ready were not re-run",
+                )
+
         # §FSP: a restored READY track has never aired — anything that had was dropped above —
         # so it is exactly the fresh programming controlled start waits for. Without crediting
         # it, the scheduler sees a full buffer and plans nothing, no generation ever completes,
@@ -784,17 +830,28 @@ class RadioStation:
                 )
         self._stats.recovered_queue_entries = len(entries)
 
-        # Rehydrate the lyrics of restored slots.
+        # Rehydrate composed lyrics.
         #
         # Without this a restart silently converts every pending vocal track into an
         # instrumental: the words are safe in the database, but the synchronous callback
         # the generation manager uses can only read the in-memory map.
+        #
+        # Every recent lyric, not only those of restored slots. A recovered generation
+        # job is not always behind a slot — a track dropped from the queue above (it had
+        # already aired) or whose slot was lost still has a reclaimable job — and that job
+        # ran with no words, the prompt builder refused to let the model invent its own,
+        # and the "vocal" track came out instrumental. Loading the recent lyric rows costs
+        # a few hundred small reads once per start and covers every job that can run.
         async with self._database.session() as session:
             lyrics_repository = LyricsRepository(session)
+            for row in await lyrics_repository.recent(limit=REHYDRATED_LYRICS):
+                self._composed_lyrics.setdefault(row.track_id, _lyrics_from_row(row))
             for entry in entries:
-                row = await lyrics_repository.get(entry.track_id)
-                if row is not None:
-                    self._composed_lyrics[entry.track_id] = _lyrics_from_row(row)
+                if entry.track_id in self._composed_lyrics:
+                    continue
+                found = await lyrics_repository.get(entry.track_id)
+                if found is not None:
+                    self._composed_lyrics[entry.track_id] = _lyrics_from_row(found)
 
         async with self._database.session() as session:
             memory = RadioMemoryRepository(session)

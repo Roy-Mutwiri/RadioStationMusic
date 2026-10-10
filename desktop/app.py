@@ -354,20 +354,21 @@ class Station:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         log = (LOG_DIR / "desktop.log").open("ab")
         flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-        argv = [
-            str(_station_python()), "-m", "tradefix_radio.cli.main",
+        argv = [str(_station_python()), "-m", "tradefix_radio.cli.main"]
+        # Listeners want songs. The station's default vocal probability is 25-35 % in a
+        # quiet market, which is most of the time; the project's high-vocal config raises
+        # it to 70-95 % at every energy level. Opt out with TFR_VOCALS=default.
+        # ``--config`` is a top-level option of the CLI, so it goes before the subcommand.
+        high_vocal = ROOT / "tradefix_radio" / "config" / "high_vocal.yaml"
+        if high_vocal.is_file() and os.environ.get("TFR_VOCALS", "high") != "default":
+            argv += ["--config", str(high_vocal)]
+        argv += [
             "dev",
             "--host", self.host,
             "--port", str(self.port),
             "--scenario", self.scenario,
             "--seed", str(self.seed),
         ]
-        # Listeners want songs. The station's default vocal probability is 25-35 % in a
-        # quiet market, which is most of the time; the project's high-vocal config raises
-        # it to 70-95 % at every energy level. Opt out with TFR_VOCALS=default.
-        high_vocal = ROOT / "tradefix_radio" / "config" / "high_vocal.yaml"
-        if high_vocal.is_file() and os.environ.get("TFR_VOCALS", "high") != "default":
-            argv += ["--config", str(high_vocal)]
         self.proc = subprocess.Popen(  # noqa: S603 - fixed argv from this file
             argv,
             cwd=ROOT,

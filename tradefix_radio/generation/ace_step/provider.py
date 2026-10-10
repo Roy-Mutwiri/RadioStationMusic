@@ -343,6 +343,18 @@ class AceStepProvider:
             guidance_scale=profile.guidance_scale,
             profile=profile.name,
         )
+        if spec.instrumental and request.lyrics is not None:
+            # Words were handed over and will not be sung. Say exactly which flag decided
+            # that: the station's own record only shows the outcome, and a listener who
+            # hears no vocals deserves a log line that names the cause.
+            _log.warning(
+                "provider.vocal_request_rendered_instrumental",
+                track_id=request.track_id,
+                blueprint_vocal_enabled=request.blueprint.vocal.enabled,
+                blueprint_lyrics_enabled=request.blueprint.lyrics.enabled,
+                lyric_words=len(request.lyrics.text.split()),
+                notes=list(spec.lyric_notes)[:3],
+            )
 
         await self._preflight_vram(request)
 

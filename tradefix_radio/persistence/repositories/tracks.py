@@ -211,7 +211,25 @@ class TrackRepository(Repository):
             .select_from(Track)
             .where(Track.created_at >= day_start, Track.created_at < day_end)
         )
-        return int(result.scalar_one() or 0) + 1
+        by_count = int(result.scalar_one() or 0) + 1
+        # The id itself is the authority. A count by ``created_at`` and an id built from
+        # ``when``'s date disagree whenever the two clocks straddle midnight or a stored
+        # timestamp is not in the zone the query assumes, and then the count came back
+        # *lower* than the ids already issued: a restart reissued TF-...-00186 to a new
+        # plan, which collided with the aired track of that id — the regenerated copy kept
+        # the old one's lyrics row, ran with the new blueprint, and replayed every restart.
+        # Continuing from the highest numeric suffix already used for the date cannot
+        # reissue an id, whatever the timestamps say.
+        prefix = f"TF-{when:%Y%m%d}-"
+        ids = await self._session.execute(
+            select(Track.track_id).where(Track.track_id.like(f"{prefix}%"))
+        )
+        highest = 0
+        for (track_id,) in ids:
+            suffix = str(track_id)[len(prefix):]
+            if suffix.isdigit():
+                highest = max(highest, int(suffix))
+        return max(by_count, highest + 1)
 
     # -- state transitions -------------------------------------------------
 

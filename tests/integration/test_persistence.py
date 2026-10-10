@@ -1337,3 +1337,23 @@ async def test_count_unplayed_ready_by_market(database: Database) -> None:
         counts = await repo.count_unplayed_ready_by_market()
         assert counts.get("BTCUSD", 0) == 2
         assert counts.get("XAUUSD", 0) == 3
+
+
+async def test_daily_sequence_never_reissues_an_id_already_used(database: Database) -> None:
+    """The ids are the authority, not a row count by timestamp.
+
+    Ids issued for the day can outrun the rows whose ``created_at`` falls inside it — gaps,
+    a clock that straddled midnight, timestamps stored in another zone. A count alone then
+    hands out an id that already exists, and a restart reissued aired track ids to new plans.
+    """
+    prefix = f"TF-{FIXED_NOW:%Y%m%d}-"
+    async with database.session() as session:
+        repo = TrackRepository(session)
+        for number in (1, 2, 320):
+            await repo.create(
+                make_blueprint(track_id=f"{prefix}{number:05d}", title=f"T{number}"),
+                now=FIXED_NOW - timedelta(days=1),  # timestamps disagree with the id's date
+                provider="mock",
+                model_identifier="mock-1",
+            )
+        assert await repo.next_daily_sequence(FIXED_NOW) == 321
