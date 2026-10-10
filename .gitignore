@@ -55,6 +55,5 @@ desktop.ini
 # itself is reproducible from the scripts and does not belong in version control.
 /artifacts/
 
-# --- Desktop launcher: the built exe ships as a GitHub release asset, shortcuts are per-machine
-/Trade Fix Radio.exe
+# --- Desktop launcher: shortcuts are per-machine. The built exe IS committed, at the root.
 *.lnk

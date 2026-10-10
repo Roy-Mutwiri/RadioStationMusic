@@ -1,3 +1,4 @@
+# ruff: noqa: E501 - drawing coordinates read better on one line
 """Generate the Trade Fix Radio app icon.
 
 Draws a dark rounded tile with a gold (XAUUSD) ring and a market-shaped waveform,

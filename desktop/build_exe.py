@@ -24,6 +24,9 @@ NAME = "Trade Fix Radio"
 
 def main() -> int:
     icon = ROOT / "desktop" / "tradefix.ico"
+    if not (ROOT / "frontend" / "dist" / "index.html").is_file():
+        print("frontend/dist is missing: run `npm install && npm run build` in frontend/ first")
+        return 1
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm", "--clean", "--onefile", "--windowed",
@@ -40,6 +43,11 @@ def main() -> int:
         "--collect-all", "pythonnet",
         # The icon is read at runtime too (title bar + taskbar via WM_SETICON).
         "--add-data", f"{icon};desktop",
+        # The built Control Center, so an installed copy needs no Node.js: the installer
+        # copies it into app/frontend/dist. Build the frontend before building the exe.
+        "--add-data", f"{ROOT / 'frontend' / 'dist'};frontend/dist",
+        "--paths", str(ROOT / "desktop"),
+        "--hidden-import", "bootstrap",
         str(ROOT / "desktop" / "app.py"),
     ]
     print(" ".join(f'"{c}"' if " " in c else c for c in cmd))

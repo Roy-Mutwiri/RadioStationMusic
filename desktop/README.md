@@ -1,4 +1,19 @@
-# Trade Fix Radio desktop window
+# Trade Fix Radio desktop app
+
+## Two modes
+
+| Where the exe runs | What happens |
+| --- | --- |
+| Anywhere (a listener's machine) | **Installed mode.** First run installs everything into `%LOCALAPPDATA%\TradeFixRadio` (override with `TFR_INSTALL_DIR`), then plays. See `bootstrap.py`. |
+| Inside a checkout with a `.venv` | **Checkout mode.** Runs the station from that checkout; ACE-Step from the directory in `.env`. |
+
+Installed-mode steps, each marked done in `state/` so a retry resumes: uv → project source
+(GitHub zip) → bundled UI → Python 3.10 venv + station → FFmpeg → *(GPU ≥ 6 GB only)*
+ACE-Step source → Python 3.12 env (torch excluded) → torch CUDA wheel (resumable, sha256
+checked) → models via `acestep-download` (retried until present) → `.env` with the Windows
+default output device → database. Logs: `logs/install.log`, `logs/desktop-app.log`,
+`logs/desktop.log`, `logs/acestep.log` under the install folder.
+
 
 The Control Center runs in its own native window (Edge WebView2 inside this process),
 with the Trade Fix Radio icon. No browser is opened.

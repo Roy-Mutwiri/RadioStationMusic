@@ -42,23 +42,23 @@ Plan and milestone exit criteria: `docs/IMPLEMENTATION_PLAN.md`.
   <img src="desktop/tradefix.png" alt="Trade Fix Radio app icon" width="96">
 </p>
 
-The Control Center runs in its own native window with its own icon — no browser. One
-double-click starts the ACE-Step generator, the station and the UI; closing the window
-stops them all.
+**For listeners: download `Trade Fix Radio.exe` from this repository and double-click it.**
+Nothing else to install. On first run the app sets everything up by itself into
+`%LOCALAPPDATA%\TradeFixRadio` — the station, Python, FFmpeg, the ACE-Step music generator
+and its models (about 12 GB in total, downloaded once, resumable) — then starts playing real,
+market-driven music. Every later run goes straight to the music. Machines without an NVIDIA
+GPU with 6 GB of memory get synthetic placeholder audio instead, and the app says so.
 
 ![Trade Fix Radio desktop app](docs/images/desktop-app.png)
 
-| Launch | What it is |
-| --- | --- |
-| **Trade Fix Radio.exe** (from the [Releases](https://github.com/Roy-Mutwiri/RadioStationMusic/releases) page, placed in the project root) | Standalone windowed launcher with the app icon. Built by `desktop/build_exe.py`. |
-| `Trade Fix Radio.bat` | Same launcher with a console, for logs |
-| `.venv\Scripts\python desktoppp.py --scenario violent_breakout` | From a terminal, with options |
+The Control Center runs in its own native window with its own icon — no browser. Operator
+controls: **Prev / Next / Mute** on the Dashboard and a **volume** control in the top bar.
+Closing the window stops the station and the generator. Uninstalling is deleting the
+`TradeFixRadio` folder.
 
-The launcher is only the window and the process supervisor: the station still runs from the
-`.venv` and `tradefix_radio` package beside it, so set the project up first (Quick start
-below, then `tradefix models install ace-step --yes` for real music). Operator controls in
-the UI: **Prev / Next / Mute** on the Dashboard and a **volume** control in the top bar.
-Details, sound-device notes and the launcher's logs: `desktop/README.md`.
+For developers the same exe, or `desktop/app.py`, placed inside a checkout that has a `.venv`
+runs the station from that checkout instead. Build the exe with `desktop/build_exe.py` after
+building the frontend. Details: `desktop/README.md`.
 
 ---
 

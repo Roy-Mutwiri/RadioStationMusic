@@ -1,14 +1,23 @@
 # ruff: noqa: E501 - the inline loading page keeps its CSS on long lines
 r"""Trade Fix Radio desktop app.
 
-Starts the station (``tradefix dev``) and opens the Control Center in its own native
-window with the Trade Fix Radio icon. No browser is involved: the page renders inside an
-Edge WebView2 surface owned by this process, and closing the window stops the station.
+The Control Center in its own native window with the Trade Fix Radio icon. No browser: the
+page renders in an Edge WebView2 surface owned by this process, and closing the window stops
+everything the app started.
 
-Run from the project root:
+Two ways of running:
 
-    .venv\Scripts\pythonw desktop\app.py            # no console
-    .venv\Scripts\python  desktop\app.py --scenario violent_breakout
+* **Developer checkout.** The exe or ``app.py`` sits in a clone that has ``tradefix_radio/``
+  and a ``.venv``. The station runs from there, as does ACE-Step from the directory named in
+  ``.env``.
+* **Installed.** ``Trade Fix Radio.exe`` anywhere else. On first run it installs everything
+  into ``%LOCALAPPDATA%\TradeFixRadio`` (``TFR_INSTALL_DIR`` overrides; see ``bootstrap.py``), then starts the ACE-Step
+  generator and the station from there. Every later run goes straight to playing.
+
+From a checkout:
+
+    .venv\Scripts\python desktop\app.py --scenario violent_breakout
+    .venv\Scripts\python desktop\app.py --hide-console      # what the shortcuts run
 
 If the station is already listening on the port, the window simply attaches to it.
 """
@@ -30,61 +39,92 @@ import urllib.request
 from pathlib import Path
 
 import webview
+from bootstrap import Installer, InstallError, Layout, default_install_dir
+
+TITLE = "Trade Fix Radio"
+APP_ID = "TradeFix.Radio.ControlCenter"
+STARTUP_TIMEOUT_SECONDS = 180
+ACE_STEP_STARTUP_TIMEOUT_SECONDS = 300
+_log = logging.getLogger("tradefix.desktop")
 
 
-def _project_root() -> Path:
-    """The checkout this launcher belongs to.
+def _bundled_dir() -> Path | None:
+    """Where PyInstaller unpacked the data files, if this is the frozen exe."""
+    base = getattr(sys, "_MEIPASS", None)
+    return Path(base) if base else None
 
-    From source that is the parent of ``desktop/``. Frozen by PyInstaller into
-    ``Trade Fix Radio.exe`` the file lives in a temp dir, so the exe's own directory is
-    searched upward for the ``.venv`` and ``tradefix_radio`` the station needs.
+
+def _checkout_root() -> Path | None:
+    """A developer checkout this launcher belongs to, or ``None``.
+
+    From source that is the parent of ``desktop/``. Frozen into the exe, the exe's own
+    directory and its parents are searched for ``tradefix_radio`` next to a ``.venv``.
     """
     if getattr(sys, "frozen", False):
         here = Path(sys.executable).resolve().parent
         for candidate in (here, *here.parents):
             if (candidate / "tradefix_radio").is_dir() and (candidate / ".venv").is_dir():
                 return candidate
-        return here
+        return None
     return Path(__file__).resolve().parents[1]
 
 
-ROOT = _project_root()
-ICON = ROOT / "desktop" / "tradefix.ico"
-TITLE = "Trade Fix Radio"
-APP_ID = "TradeFix.Radio.ControlCenter"
-STARTUP_TIMEOUT_SECONDS = 120
-APP_LOG = ROOT / "logs" / "desktop-app.log"
-_log = logging.getLogger("tradefix.desktop")
-ACE_STEP_STARTUP_TIMEOUT_SECONDS = 300
+CHECKOUT = _checkout_root()
+LAYOUT = None if CHECKOUT is not None else Layout(default_install_dir())
+ROOT = CHECKOUT if CHECKOUT is not None else LAYOUT.app  # type: ignore[union-attr]
+LOG_DIR = ROOT / "logs" if CHECKOUT is not None else LAYOUT.logs  # type: ignore[union-attr]
+APP_LOG = LOG_DIR / "desktop-app.log"
+
+
+def _icon_path() -> Path:
+    for candidate in (
+        ROOT / "desktop" / "tradefix.ico",
+        (_bundled_dir() or Path()) / "desktop" / "tradefix.ico",
+    ):
+        if candidate.is_file():
+            return candidate
+    return ROOT / "desktop" / "tradefix.ico"
+
+
+ICON = _icon_path()
 
 LOADING_HTML = """<!doctype html><html><head><meta charset="utf-8"><title>Trade Fix Radio</title>
 <style>
   html,body{height:100%;margin:0;background:#0c0e14;color:#e8e9ee;font-family:Segoe UI,system-ui,sans-serif}
-  .wrap{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+  .wrap{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;box-sizing:border-box}
   .ring{width:72px;height:72px;border-radius:50%;border:6px solid #2a2f3d;border-top-color:#e8b440;animation:spin 1s linear infinite}
   @keyframes spin{to{transform:rotate(360deg)}}
   h1{font-size:20px;letter-spacing:.18em;font-weight:600;margin:0}
-  p{margin:0;color:#8b90a0;font-size:13px}
+  p{margin:0;color:#8b90a0;font-size:13px;text-align:center;max-width:720px}
+  #bar{width:min(720px,90vw);height:6px;background:#1c2030;border-radius:3px;overflow:hidden;display:none}
+  #fill{height:100%;width:0;background:#e8b440;transition:width .3s}
+  #bytes{font-size:12px;color:#6c7184;font-family:Consolas,monospace;min-height:1em}
+  #log{width:min(720px,90vw);max-height:38vh;overflow:auto;background:#10131c;border:1px solid #1c2030;border-radius:6px;padding:10px 12px;font:12px/1.5 Consolas,monospace;color:#9aa0b4;white-space:pre-wrap;display:none;box-sizing:border-box}
+  #note{font-size:12px;color:#6c7184}
 </style></head><body><div class="wrap">
-  <div class="ring"></div><h1>TRADE FIX RADIO</h1><p id="msg">Starting the station…</p>
-</div></body></html>"""
-
-
-def _port_open(host: str, port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(0.3)
-        return s.connect_ex((host, port)) == 0
+  <div class="ring"></div><h1>TRADE FIX RADIO</h1><p id="msg">Starting…</p>
+  <div id="bar"><div id="fill"></div></div><div id="bytes"></div>
+  <div id="log"></div>
+  <div id="note">The market composes the radio</div>
+</div>
+<script>
+  function tfxSay(m, failed){document.getElementById('msg').textContent=m;document.querySelector('.ring').style.borderTopColor=failed?'#e05252':'#e8b440';if(failed){document.querySelector('.ring').style.animation='none'}}
+  function tfxLog(line){var l=document.getElementById('log');l.style.display='block';l.textContent+=line+'\\n';l.scrollTop=l.scrollHeight}
+  function tfxBytes(done,total){var b=document.getElementById('bar'),f=document.getElementById('fill'),t=document.getElementById('bytes');
+    if(done===null){b.style.display='none';t.textContent='';return}
+    b.style.display='block';var mb=function(x){return (x/1048576).toFixed(0)+' MB'};
+    if(total){f.style.width=Math.min(100,100*done/total)+'%';t.textContent=mb(done)+' / '+mb(total)}else{f.style.width='100%';t.textContent=mb(done)}}
+</script></body></html>"""
 
 
 def _configure_logging() -> None:
-    """Everything the launcher itself says goes to ``logs/desktop-app.log``.
+    """Everything the launcher itself says goes to ``desktop-app.log``.
 
-    Under ``pythonw`` there is no console: an uncaught exception would end the process with
-    no trace at all, which is exactly how one launch disappeared while its station kept
-    playing. So stdout/stderr are pointed at the log when they are missing, and faulthandler
-    writes a native-crash traceback to the same file.
+    Under a windowed exe there is no console: an uncaught exception would end the process
+    with no trace at all, so stdout/stderr are pointed at the log when they are missing, and
+    faulthandler writes a native-crash traceback to the same file.
     """
-    APP_LOG.parent.mkdir(exist_ok=True)
+    APP_LOG.parent.mkdir(parents=True, exist_ok=True)
     stream = APP_LOG.open("a", encoding="utf-8", buffering=1)
     if sys.stdout is None:
         sys.stdout = stream
@@ -116,6 +156,18 @@ def _read_dotenv() -> dict[str, str]:
         key, _, value = line.partition("=")
         values[key.strip()] = value.strip().strip('"').strip("'")
     return values
+
+
+def _child_env() -> dict[str, str]:
+    if LAYOUT is not None:
+        return LAYOUT.child_env()
+    return {**os.environ, "PYTHONUNBUFFERED": "1", "UV_NO_SYNC": "1"}
+
+
+def _port_open(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.3)
+        return s.connect_ex((host, port)) == 0
 
 
 def _http_ok(url: str) -> bool:
@@ -218,9 +270,10 @@ class AceStepServer:
     """Owns the ACE-Step API server when the station is configured to generate with it.
 
     The project's ``worker_process`` setting is declared but nothing in the station launches
-    the server, so the desktop app does: ``uv run acestep-api --no-init`` in the ACE-Step
-    checkout. ``--no-init`` leaves model loading to the station, which initialises the exact
-    DiT and LM models it was configured with through the API.
+    the server, so the desktop app does: ``uv run --no-sync acestep-api --no-init`` in the
+    ACE-Step checkout. ``--no-init`` leaves model loading to the station, which initialises
+    the exact DiT and LM models it was configured with through the API. ``--no-sync`` keeps
+    uv from replacing the locally installed torch wheel.
     """
 
     def __init__(self, directory: Path, base_url: str) -> None:
@@ -240,16 +293,16 @@ class AceStepServer:
         if self.is_up():
             self.attached = True
             return
-        log = (ROOT / "logs" / "acestep.log").open("ab")
-        uv = shutil.which("uv")
+        env = _child_env()
+        uv = (str(LAYOUT.uv) if LAYOUT is not None and LAYOUT.uv.is_file() else None) or shutil.which("uv", path=env["PATH"])
         if uv is None:
-            raise RuntimeError("`uv` is not on PATH; it is how ACE-Step runs in its own environment")
+            raise RuntimeError("`uv` was not found; it is how ACE-Step runs in its own environment")
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        log = (LOG_DIR / "acestep.log").open("ab")
         self.proc = subprocess.Popen(  # noqa: S603 - fixed argv
             [uv, "run", "--no-sync", "acestep-api", "--no-init"],
             cwd=self.directory,
-            # --no-sync: torch is installed from a local wheel (uv's streamed download of the
-            # 3 GB CUDA build stalls here), and a sync would replace it from the index.
-            env={**os.environ, "PYTHONUNBUFFERED": "1", "UV_NO_SYNC": "1"},
+            env=env,
             stdout=log,
             stderr=subprocess.STDOUT,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW,
@@ -274,16 +327,11 @@ class AceStepServer:
             _log.info("ace-step stop: nothing to do (attached=%s)", self.attached)
 
 
-def _tradefix_cli() -> list[str]:
-    """Run the CLI module with the venv's python, not the ``tradefix.exe`` launcher.
-
-    The launcher is a separate process whose relayed stderr never reached our log, and it
-    stays locked while the app runs, which makes ``pip install`` into the venv fail.
-    """
+def _station_python() -> Path:
     python = ROOT / ".venv" / "Scripts" / "python.exe"
-    if not python.is_file() and getattr(sys, "frozen", False):
-        raise RuntimeError(f"no .venv next to the app: expected {python}")
-    return [str(python if python.is_file() else sys.executable), "-m", "tradefix_radio.cli.main"]
+    if not python.is_file():
+        raise RuntimeError(f"the station's Python environment is missing: {python}")
+    return python
 
 
 class Station:
@@ -298,13 +346,12 @@ class Station:
         if _port_open(self.host, self.port):
             self.attached = True  # something already serves here; don't start a second one
             return
-        log_dir = ROOT / "logs"
-        log_dir.mkdir(exist_ok=True)
-        log = (log_dir / "desktop.log").open("ab")
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        log = (LOG_DIR / "desktop.log").open("ab")
         flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
         self.proc = subprocess.Popen(  # noqa: S603 - fixed argv from this file
             [
-                *_tradefix_cli(),
+                str(_station_python()), "-m", "tradefix_radio.cli.main",
                 "dev",
                 "--host", self.host,
                 "--port", str(self.port),
@@ -312,7 +359,7 @@ class Station:
                 "--seed", str(self.seed),
             ],
             cwd=ROOT,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},  # so the log fills as it happens
+            env=_child_env(),
             stdout=log,
             stderr=subprocess.STDOUT,
             creationflags=flags,
@@ -362,18 +409,19 @@ def _apply_window_icon() -> None:
 
     user32.EnumWindows(_enum, 0)
     image_icon, lr_loadfromfile, wm_seticon = 1, 0x10, 0x80
+    user32.LoadImageW.restype = ctypes.c_void_p
     for hwnd in hwnds:
         for which, size in ((0, 16), (1, 48)):  # ICON_SMALL, ICON_BIG
             handle = user32.LoadImageW(None, str(ICON), image_icon, size, size, lr_loadfromfile)
             if handle:
-                user32.SendMessageW(hwnd, wm_seticon, which, handle)
+                user32.SendMessageW(hwnd, wm_seticon, which, ctypes.c_void_p(handle))
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Trade Fix Radio desktop window")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=int(os.environ.get("TRADEFIX_APP_PORT", "8000")))
-    parser.add_argument("--scenario", default=os.environ.get("TRADEFIX_APP_SCENARIO", "random_walk"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("TFR_APP_PORT", "8000")))
+    parser.add_argument("--scenario", default=os.environ.get("TFR_APP_SCENARIO", "random_walk"))
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--debug", action="store_true", help="enable the WebView dev tools")
     parser.add_argument(
@@ -389,6 +437,7 @@ def main(argv: list[str] | None = None) -> int:
             ctypes.windll.user32.ShowWindow(console, 0)  # SW_HIDE
     _configure_logging()
     _log.info("launcher starting: %s", vars(args))
+    _log.info("mode: %s root=%s", "checkout" if CHECKOUT is not None else "installed", ROOT)
 
     if sys.platform == "win32":
         # Group taskbar buttons under our own identity rather than python.exe's.
@@ -396,18 +445,6 @@ def main(argv: list[str] | None = None) -> int:
 
     station = Station(args.host, args.port, args.scenario, args.seed)
     url = f"http://{args.host}:{args.port}/"
-
-    dotenv = _read_dotenv()
-
-    def setting(key: str, default: str = "") -> str:
-        return os.environ.get(key, dotenv.get(key, default))
-
-    ace_step: AceStepServer | None = None
-    if setting("TRADEFIX_GENERATION__PROVIDER", "mock") == "ace_step":
-        ace_step = AceStepServer(
-            Path(setting("TRADEFIX_GENERATION__ACE_STEP__WORKER_DIRECTORY", "D:/ace-step")),
-            setting("TRADEFIX_GENERATION__ACE_STEP__BASE_URL", "http://127.0.0.1:8001"),
-        )
 
     window = webview.create_window(
         TITLE,
@@ -419,24 +456,84 @@ def main(argv: list[str] | None = None) -> int:
         text_select=True,
     )
 
+    def js(code: str) -> None:
+        try:
+            window.evaluate_js(code)
+        except Exception:  # noqa: BLE001 - the page may be mid-navigation; never fatal
+            _log.debug("evaluate_js failed", exc_info=True)
+
     def say(message: str, *, failed: bool = False) -> None:
-        colour = "#e05252" if failed else "#e8b440"
-        window.evaluate_js(
-            f"document.querySelector('.ring').style.borderTopColor='{colour}';"
-            f"document.getElementById('msg').textContent={message!r};"
+        _log.info("ui: %s", message)
+        js(f"tfxSay({message!r}, {'true' if failed else 'false'})")
+
+    def log_line(line: str) -> None:
+        _log.info("install: %s", line)
+        js(f"tfxLog({line!r})")
+
+    def bytes_progress(done: int, total: int | None) -> None:
+        js(f"tfxBytes({done}, {total if total is not None else 'null'})")
+
+    def install_if_needed() -> bool:
+        if LAYOUT is None:
+            return True
+        installer = Installer(
+            LAYOUT, say=say, log=log_line, progress=bytes_progress, bundled=_bundled_dir()
         )
+        if LAYOUT.installed:
+            # A quick pass: every step is marked, so this only re-checks the markers.
+            installer.run()
+            return True
+        say("First run: setting everything up. This downloads several gigabytes once.")
+        log_line(f"Installing into {LAYOUT.root}")
+        try:
+            installer.run()
+        except InstallError as error:
+            say(f"Setup stopped: {error}", failed=True)
+            log_line("Close and reopen the app to resume from this step. "
+                     f"Details: {LAYOUT.logs / 'install.log'}")
+            return False
+        except Exception as error:  # noqa: BLE001 - shown on the page, logged with trace
+            _log.exception("installer crashed")
+            say(f"Setup failed: {error}", failed=True)
+            return False
+        bytes_progress(0, None)
+        js("tfxBytes(null, null)")
+        say("Setup complete. Starting the station…")
+        return True
+
+    ace_step: AceStepServer | None = None
 
     def boot() -> None:
+        nonlocal ace_step
+        if not install_if_needed():
+            return
+        dotenv = _read_dotenv()
+
+        def setting(key: str, default: str = "") -> str:
+            return os.environ.get(key, dotenv.get(key, default))
+
+        if setting("TRADEFIX_GENERATION__PROVIDER", "mock") == "ace_step":
+            ace_step = AceStepServer(
+                Path(setting("TRADEFIX_GENERATION__ACE_STEP__WORKER_DIRECTORY",
+                             str(LAYOUT.ace_step) if LAYOUT is not None else "D:/ace-step")),
+                setting("TRADEFIX_GENERATION__ACE_STEP__BASE_URL", "http://127.0.0.1:8001"),
+            )
+        elif LAYOUT is not None:
+            say("No suitable NVIDIA GPU was found, so the music is synthetic placeholder audio.")
         _log.info("boot: ace_step=%s", ace_step is not None and str(ace_step.directory))
         if ace_step is not None:
             if not ace_step.wanted:
                 say(f"ACE-Step is not installed at {ace_step.directory}", failed=True)
                 return
             say("Starting the ACE-Step music generator...")
-            ace_step.start()
+            try:
+                ace_step.start()
+            except Exception as error:  # noqa: BLE001 - shown on the page, logged with trace
+                _log.exception("ace-step start failed")
+                say(f"Could not start ACE-Step: {error}", failed=True)
+                return
             if not ace_step.wait_ready(ACE_STEP_STARTUP_TIMEOUT_SECONDS):
-                log_path = ROOT / "logs" / "acestep.log"
-                say(f"ACE-Step did not start. See {log_path.as_posix()}", failed=True)
+                say(f"ACE-Step did not start. See {(LOG_DIR / 'acestep.log').as_posix()}", failed=True)
                 return
         say("Starting the station...")
         try:
@@ -449,8 +546,7 @@ def main(argv: list[str] | None = None) -> int:
             _log.info("station ready (attached=%s); loading %s", station.attached, url)
             window.load_url(url)
             return
-        log_path = ROOT / "logs" / "desktop.log"
-        say(f"The station did not start. See {log_path.as_posix()}", failed=True)
+        say(f"The station did not start. See {(LOG_DIR / 'desktop.log').as_posix()}", failed=True)
 
     def shutdown() -> None:
         _log.info("shutdown requested")
