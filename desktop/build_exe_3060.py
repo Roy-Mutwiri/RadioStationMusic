@@ -51,6 +51,7 @@ def main() -> int:
         # Include the RTX 3060 config
         "--add-data", f"{config_3060};configs",
         "--paths", str(ROOT / "desktop"),
+        "--hidden-import", "bootstrap",
         "--hidden-import", "bootstrap_3060",
         str(ROOT / "desktop" / "app_3060.py"),
     ]

@@ -368,6 +368,25 @@ def _real_music_on_air(status: dict) -> bool:
     )
 
 
+def _set_default_volume(url: str, volume: float = 0.1) -> bool:
+    """Set the default startup volume to 10% for RTX 3060 edition."""
+    try:
+        data = json.dumps({"volume": volume}).encode("utf-8")
+        request = urllib.request.Request(
+            f"{url}api/radio/volume",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            result = json.load(response)
+            _log.info("default volume set to %d%%", int(volume * 100))
+            return result.get("applied", False)
+    except Exception as error:
+        _log.warning("failed to set default volume: %s", error)
+        return False
+
+
 def _describe_wait(status: dict) -> tuple[float, str]:
     buffer = status.get("buffer") or {}
     generation = status.get("generation") or {}
@@ -534,6 +553,8 @@ def main(argv: list[str] | None = None) -> int:
             say(f"The station did not start. See {(LOG_DIR / 'desktop.log').as_posix()}", failed=True)
             return
         _log.info("station ready (attached=%s); waiting for real music", station.attached)
+        # RTX 3060 Edition: Set default volume to 10%
+        _set_default_volume(url, volume=0.1)
         say("Composing the first tracks from the live market…")
         js("tfxBytes(null, null)")
         deadline = time.monotonic() + FIRST_MUSIC_TIMEOUT_SECONDS
